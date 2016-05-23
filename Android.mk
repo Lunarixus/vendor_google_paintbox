@@ -8,9 +8,11 @@ PB_AOSP_INCLUDES := $(TOP)/hardware/google_paintbox/include
 include $(CLEAR_VARS)
 LOCAL_MODULE := libmockeasel
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
-LOCAL_CFLAGS += -Wall -Werror -UNDEBUG
+LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG -DMOCKEASEL
 LOCAL_SRC_FILES := \
-	EaselCommNet.cpp
+	EaselCommNet.cpp \
+	EaselControlClient.cpp \
+	EaselControlServer.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 include $(call all-makefiles-under, $(call my-dir))
