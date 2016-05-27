@@ -1,9 +1,14 @@
 /* TCP/IP network-based mock implementation of Android/Easel communication. */
 
+
+#define _BSD_SOURCE
+#include <endian.h>
+
 #include "mockeaselcomm.h"
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <list>
 #include <map>
 #include <mutex>
@@ -98,10 +103,10 @@ void EaselCommNet::closeConnection() {
  */
 int EaselCommNet::writeMessage(int command, const void *args, int args_len) {
     ControlMessage message;
-    message.sequence_no = mSequenceNumberOut++;
-    message.service_id = mServiceId;
-    message.command = command;
-    message.command_arg_len = args_len;
+    message.sequence_no = htobe64(mSequenceNumberOut++);
+    message.service_id = htobe32(mServiceId);
+    message.command = htobe32(command);
+    message.command_arg_len = htobe32(args_len);
 
     int ret =
         TEMP_FAILURE_RETRY(send(mConnectionSocket, &message,
@@ -176,17 +181,19 @@ int EaselCommNet::readMessage(ControlMessage *message, void **args) {
     ret = readBytes((char *)message, sizeof(ControlMessage));
     if (ret)
         return ret;
-    assert(message->sequence_no == mSequenceNumberIn);
+    assert(be64toh(message->sequence_no) == mSequenceNumberIn);
     mSequenceNumberIn++;
 
     // We implement a single service per TCP connection.
-    assert(message->service_id == mServiceId);
+    assert(be32toh(message->service_id) == mServiceId);
 
-    if (message->command_arg_len) {
-        *args = (char *)malloc(message->command_arg_len);
+    int arg_len = be32toh(message->command_arg_len);
+
+    if (arg_len) {
+        *args = (char *)malloc(arg_len);
         if (*args == nullptr)
             return -1;
-        ret = readBytes((char *)*args, message->command_arg_len);
+        ret = readBytes((char *)*args, arg_len);
         if (ret)
             return ret;
     }
@@ -238,7 +245,7 @@ void EaselCommNet::wakeupSender(EaselComm::EaselMessageId message_id,
 
 /* CMD_DMA_DONE received for DMA Done, wakeup waiting originator */
 void EaselCommNet::handleDmaDone(DmaDoneArgs *dd) {
-    EaselComm::EaselMessageId message_id = dd->message_id;
+  EaselComm::EaselMessageId message_id = be64toh(dd->message_id);
     wakeupSender(message_id, nullptr);
 }
 
@@ -258,13 +265,14 @@ int EaselCommNet::sendXferAndWait(
 
     // Setup the CMD_SEND_DATA_XFER control message args
     SendDataXferArgs send_args;
-    send_args.message_id = out_xfer->message_id;
+    send_args.message_id = htobe64(out_xfer->message_id);
     send_args.need_reply = reply_xfer ? true : false;
     send_args.is_reply = inreplyto ? true : false;
-    send_args.replied_to_id = inreplyto ? inreplyto->message_id : 0;
-    send_args.replycode = reply_code;
-    send_args.message_buf_size = msg ? msg->message_buf_size : 0;
-    send_args.dma_buf_size = msg ? (msg->dma_buf ? msg->dma_buf_size : 0) : 0;
+    send_args.replied_to_id = htobe64(inreplyto ? inreplyto->message_id : 0);
+    send_args.replycode = htobe32(reply_code);
+    send_args.message_buf_size = htobe32(msg ? msg->message_buf_size : 0);
+    send_args.dma_buf_size =
+        htobe32(msg ? (msg->dma_buf ? msg->dma_buf_size : 0) : 0);
 
     {
         /*
@@ -361,10 +369,10 @@ int EaselCommNet::handleIncomingDataXfer(SendDataXferArgs *send_args) {
     }
 
     message->message_buf = nullptr;
-    message->message_buf_size = send_args->message_buf_size;
+    message->message_buf_size = be32toh(send_args->message_buf_size);
     message->dma_buf = nullptr;
-    message->dma_buf_size = send_args->dma_buf_size;
-    message->message_id = send_args->message_id;
+    message->dma_buf_size = be32toh(send_args->dma_buf_size);
+    message->message_id = be64toh(send_args->message_id);
     message->need_reply = send_args->need_reply;
 
     // Read the message buffer, if any.
@@ -416,7 +424,7 @@ int EaselCommNet::handleIncomingDataXfer(SendDataXferArgs *send_args) {
      * waiting on the reply.
      */
     if (send_args->is_reply) {
-        wakeupSender(send_args->replied_to_id, in_xfer);
+        wakeupSender(be64toh(send_args->replied_to_id), in_xfer);
         /*
          * in_xfer, send_args, and message are freed after initiator grabs the
          * reply info.
@@ -464,7 +472,7 @@ void EaselCommNet::controlMessageHandlerLoop() {
         void *args = nullptr;
         if (readMessage(&message, &args) < 0)
             break;
-        handleCommand(message.command, args);
+        handleCommand(be32toh(message.command), args);
     }
 }
 
@@ -484,7 +492,7 @@ int EaselCommNet::sendMessageReceiveReply(
     assert(reply_xfer);
 
     if (replycode)
-        *replycode = reply_xfer->send_args->replycode;
+      *replycode = be32toh(reply_xfer->send_args->replycode);
 
     if (reply)
         *reply = *reply_xfer->message;
@@ -552,7 +560,7 @@ int EaselCommNet::receiveDMA(const EaselMessage *msg) {
 
     // Send DMA_DONE to initiator.
     DmaDoneArgs dd;
-    dd.message_id = msg->message_id;
+    dd.message_id = htobe64(msg->message_id);
     std::lock_guard<std::mutex> lk(mConnectionOutLock);
     int netret = writeMessage(CMD_DMA_DONE, &dd, sizeof(dd));
     return netret;

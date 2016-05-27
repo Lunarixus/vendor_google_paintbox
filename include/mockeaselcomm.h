@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <list>
 #include <map>
 #include <mutex>
@@ -128,10 +129,10 @@ protected:
 
     // Control message invariant part
     struct ControlMessage {
-        uint64_t sequence_no;  // sequence number of this control message
-        int service_id;        // destination Easel service ID
-        int command;           // control command code
-        int command_arg_len;   // # of bytes of command arguments that follow
+        uint64_t sequence_no;     // sequence number of this control message
+        uint32_t service_id;      // destination Easel service ID
+        uint32_t command;         // control command code
+        uint32_t command_arg_len; // # of bytes of command arguments that follow
     };
 
     // Data transfer request args, sent with CMD_SEND_DATA_XFER
@@ -139,9 +140,9 @@ protected:
         // initiating service's ID for the Easel message
         EaselComm::EaselMessageId message_id;
         // message buffer size in bytes
-        int message_buf_size;
+        uint32_t message_buf_size;
         // DMA buffer size in bytes (or zero if none requested)
-        int dma_buf_size;
+        uint32_t dma_buf_size;
         // initiator is waiting for a reply to this message?
         bool need_reply;
         // this message is a reply to another need_reply=true message
@@ -149,7 +150,7 @@ protected:
         // Easel message ID of the message being replied to (for a reply)
         EaselComm::EaselMessageId replied_to_id;
         // sendReply reply code to return to initiator (for a reply)
-        int replycode;
+        uint32_t replycode;
         // followed by message buffer (buf_size bytes)
         // followed by DMA buffer (dma_buf_size bytes)
     };
@@ -202,7 +203,7 @@ protected:
     };
 
     // The Easel service to which this connection is bound.
-    int mServiceId;
+    uint32_t mServiceId;
     // For servers: the TCP port to bind to.
     int mServicePort;
     // Socket for the connection with the remote side.
