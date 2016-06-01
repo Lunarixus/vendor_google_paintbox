@@ -20,7 +20,7 @@
 #include <utils/Log.h>
 #endif
 
-#define NSEC_PER_SEC    1000000000L
+#define NSEC_PER_SEC    1000000000ULL
 
 namespace {
 #ifdef MOCKEASEL
@@ -102,15 +102,17 @@ void msgHandlerThread() {
 
 int EaselControlClient::activateEasel() {
     /*
-     * Send a message with the new monotonic time base and time of day clock.
+     * Send a message with the new boottime base and time of day clock.
      */
     EaselControlImpl::SetTimeMsg ctrl_msg;
     ctrl_msg.h.command = htobe32(EaselControlImpl::CMD_SET_TIME);
     struct timespec ts ;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ctrl_msg.monotonic = htobe64(ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec);
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    ctrl_msg.boottime = htobe64((uint64_t)ts.tv_sec * NSEC_PER_SEC +
+                                ts.tv_nsec);
     clock_gettime(CLOCK_REALTIME, &ts);
-    ctrl_msg.realtime = htobe64(ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec);
+    ctrl_msg.realtime = htobe64((uint64_t)ts.tv_sec * NSEC_PER_SEC +
+                                ts.tv_nsec);
 
     EaselComm::EaselMessage msg;
     msg.message_buf = &ctrl_msg;

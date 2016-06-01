@@ -18,7 +18,7 @@ public:
   // Control commands for the EaseControlImpl layer
   enum Command {
       CMD_DEACTIVATE,      // Deactivate Easel
-      CMD_SET_TIME,        // Sync AP monotonic and time of day clocks
+      CMD_SET_TIME,        // Sync AP boottime and time of day clocks
       CMD_LOG,             // Android logging string
   };
 
@@ -30,7 +30,7 @@ public:
   // CMD_SET_TIME message, from client to server
   struct SetTimeMsg {
       struct MsgHeader h;   // common header
-      uint64_t monotonic;   // AP monotonic clock
+      uint64_t boottime;    // AP boottime clock
       uint64_t realtime;    // AP realtime time of day clock
   };
 

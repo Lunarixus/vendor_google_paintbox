@@ -13,7 +13,7 @@
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
 
-#define NSEC_PER_SEC    1000000000L
+#define NSEC_PER_SEC    1000000000ULL
 
 namespace {
 // Our EaselComm server object.  Mock uses the the network version.
@@ -24,13 +24,13 @@ EaselCommServer easel_conn;
 #endif
 
 /*
- * The AP monotonic clock value we received at the last SET_TIME command,
+ * The AP boottime clock value we received at the last SET_TIME command,
  * converted to an nsecs_t-style count of nanoseconds, or zero if AP has not
  * sent a new value since boot or last deactivate.
  */
-int64_t timesync_ap_monotonic = 0;
-// The local monotonic clock at the time the above was set
-int64_t timesync_local_monotonic = 0;
+int64_t timesync_ap_boottime = 0;
+// The local boottime clock at the time the above was set
+int64_t timesync_local_boottime = 0;
 
 // Incoming message handler thread
 std::thread *msg_handler_thread;
@@ -64,16 +64,17 @@ void *msgHandlerThread() {
                 EaselControlImpl::SetTimeMsg *tmsg =
                     (EaselControlImpl::SetTimeMsg *)msg.message_buf;
 
-                // Save the AP's monotonic clock at approx. now
-                timesync_ap_monotonic = be64toh(tmsg->monotonic);
+                // Save the AP's boottime clock at approx. now
+                timesync_ap_boottime = be64toh(tmsg->boottime);
 
-                // Save our current monotonic time to compute deltas later
+                // Save our current boottime time to compute deltas later
                 struct timespec ts;
-                if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-                  timesync_local_monotonic =
-                      ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+                if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
+                  timesync_local_boottime =
+                      (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
                 } else {
-                    timesync_local_monotonic = 0;
+                  assert(0);
+                    timesync_local_boottime = 0;
                 }
 #ifndef MOCKEASEL
                 // TODO(toddpoynor): Call clock_settime for REALTIME clock
@@ -84,7 +85,7 @@ void *msgHandlerThread() {
 
         case EaselControlImpl::CMD_DEACTIVATE:
             // Invalidate current timesync value
-            timesync_ap_monotonic = 0;
+            timesync_ap_boottime = 0;
             break;
 
         default:
@@ -115,21 +116,23 @@ void EaselControlServer::close() {
     easel_conn.close();
 }
 
-int EaselControlServer::getApSynchronizedClockMonotonic(int64_t *clockval) {
+int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
     struct timespec ts;
 
-    if (!timesync_ap_monotonic)
+    if (!timesync_ap_boottime)
         return -EAGAIN;
 
     /*
      * Return AP's base at last time sync + local delta since time of last
      * sync.
      */
-    if (clock_gettime(CLOCK_MONOTONIC, &ts))
+    if (clock_gettime(CLOCK_BOOTTIME, &ts))
         return -errno;
-    uint64_t now_local_monotonic = ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
-    *clockval = timesync_ap_monotonic +
-        (now_local_monotonic - timesync_local_monotonic);
+    uint64_t now_local_boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC +
+        ts.tv_nsec;
+
+    *clockval = timesync_ap_boottime +
+        (now_local_boottime - timesync_local_boottime);
     return 0;
 }
 
