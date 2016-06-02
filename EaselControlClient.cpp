@@ -145,7 +145,7 @@ int EaselControlClient::open() {
 // Temporary for the TCP/IP-based mock
 #ifdef MOCKEASEL
 int EaselControlClient::open(const char *easelhost) {
-    int ret = easel_conn.connect(easelhost ? easelhost : "localhost",
+    int ret = easel_conn.connect(easelhost,
                                  EaselControlImpl::kDefaultMockSysctrlPort);
     if (ret)
         return ret;

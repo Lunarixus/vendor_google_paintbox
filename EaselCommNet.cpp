@@ -593,6 +593,8 @@ int EaselCommClientNet::connect(const char *serverhost) {
 
 // Network connector to "Easel" server by hostname and TCP port.
 int EaselCommClientNet::connect(const char *serverhost, int port) {
+    if (serverhost == nullptr)
+        serverhost = "localhost";
     printf("easelcomm: service %d client connecting to %s:%d...\n", mServiceId,
            serverhost, port);
 
