@@ -3,7 +3,8 @@
 ifeq ($(TARGET_USES_PAINTBOX), true)
 
 LOCAL_PATH:= $(call my-dir)
-PB_AOSP_INCLUDES := $(TOP)/hardware/google_paintbox/include
+PB_AOSP_INCLUDES := $(TOP)/hardware/google/paintbox/include \
+	$(TOP)/hardware/google_paintbox/include
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libmockeasel
