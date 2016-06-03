@@ -26,15 +26,40 @@
 
 namespace {
 
-// Thread that reads and handles incoming control messages
-void controlMessageHandlerThread(EaselCommNet *easelcomm) {
+// Client thread that reads and handles incoming control messages
+void clientControlMessageHandlerThread(EaselCommClientNet *easelcomm) {
     easelcomm->controlMessageHandlerLoop();
 }
 
-// Spawn the control message handling thread, both client and server.
-void spawnMessageHandlerThread(EaselCommNet *easelcomm) {
+// Spawn the client control message handling thread
+void spawnClientMessageHandlerThread(EaselCommClientNet *easelcomm) {
     easelcomm->mMessageHandlerThread =
-        new std::thread(controlMessageHandlerThread, easelcomm);
+        new std::thread(clientControlMessageHandlerThread, easelcomm);
+}
+
+// Server thread that reads and handles incoming control messages
+void serverControlMessageHandlerThread(EaselCommServerNet *easelcomm) {
+    while (true) {
+        int ret = easelcomm->controlMessageHandlerLoop();
+        /*
+         * If message handler exited for reason other than client disconnect,
+         * bail.
+         */
+        if (ret != -ESHUTDOWN) {
+            break;
+        }
+        // Client disconnected, wait for another client connection.
+        ret = easelcomm->waitForClientConnect();
+        if (ret < 0) {
+            break;
+        }
+    }
+}
+
+// Spawn the server control message handling thread
+void spawnServerMessageHandlerThread(EaselCommServerNet *easelcomm) {
+    easelcomm->mMessageHandlerThread =
+        new std::thread(serverControlMessageHandlerThread, easelcomm);
 }
 
 } // anonymous namespace
@@ -44,52 +69,95 @@ void spawnMessageHandlerThread(EaselCommNet *easelcomm) {
  * EaselCommNet mock EaselComm implementation for TCP/IP.
  */
 
-EaselCommNet::EaselCommNet() {
-    mServicePort = PORT_DEFAULT;
+/*
+ * Initial state for newly constructed object, or server resetting after
+ * client disconnects, waiting for next client connect.
+ */
+void EaselCommNet::reinit() {
     mSequenceNumberIn = 0;
     mSequenceNumberOut = 0;
     mNextMessageId = 0;
     mShuttingDown = false;
 }
 
+EaselCommNet::EaselCommNet() {
+    mServicePort = PORT_DEFAULT;
+    reinit();
+}
+
 /*
- * Close communication socket, evict any receiveMessage() waiter.  Run some
- * sanity checks, print warnings if connection doesn't look quiescent.
+ * Close communication socket.  Run some sanity checks, print warnings if
+ * connection doesn't look quiescent, discard state specific to the old
+ * connection.  The server can then accept another client connection after
+ * this.
  */
 void EaselCommNet::closeConnection() {
     ::close(mConnectionSocket);
 
     {
-        /* Set shutdown flag, wakeup mMessageQueue waiters */
         std::lock_guard<std::mutex> lk(mMessageQueueLock);
-        mShuttingDown = true;
 
         if (!mMessageQueue.empty())
             fprintf(stderr,
-                    "easelcomm: service %d shutting down with non-empty message"
-                    " queue\n", mServiceId);
-        mMessageQueueArrivalCond.notify_all();
-    }
+                    "easelcomm: service %d closing connection with non-empty"
+                    " message queue, discarding...\n", mServiceId);
 
+        for (std::list<IncomingDataXfer *>::iterator it =
+                 mMessageQueue.begin(); it != mMessageQueue.end(); ++it) {
+            uint64_t msgid = be64toh((*it)->message->message_id);
+            fprintf(stderr, "message ID %" PRIu64 ": size %u DMA size %u\n",
+                  msgid, be32toh((*it)->message->message_buf_size),
+                  be32toh((*it)->message->dma_buf_size));
+        }
+
+        mMessageQueue.clear();
+    }
     {
         std::lock_guard<std::mutex> lk(mDmaDataMapLock);
         for (std::map<EaselComm::EaselMessageId, char *>::iterator it =
                  mDmaDataMap.begin(); it != mDmaDataMap.end(); ++it)
             fprintf(stderr,
-                    "easelcomm: service %d shutting down with unread DMA"
-                    " transfer for request ID %" PRIu64 "\n", mServiceId,
+                    "easelcomm: service %d closing connection with unread DMA"
+                    " transfer for message ID %" PRIu64 "\n", mServiceId,
                     it->first);
+        mDmaDataMap.clear();
     }
 
     {
         std::lock_guard<std::mutex> lk(mSendWaitingMapLock);
         for (std::map<EaselComm::EaselMessageId,
                  OutgoingDataXfer *>::iterator it = mSendWaitingMap.begin();
-             it != mSendWaitingMap.end(); ++it)
+             it != mSendWaitingMap.end(); ++it) {
             fprintf(stderr,
-                    "easelcomm: service %d shutting down with data transfer"
-                    " originator waiting for request ID %" PRIu64 " to"
-                    " complete\n", mServiceId, it->first);
+                    "easelcomm: service %d closing connection with data"
+                    " transfer originator waiting for message ID %" PRIu64
+                    " to complete\n", mServiceId, it->first);
+
+            OutgoingDataXfer *out_xfer = it->second;
+            std::lock_guard<std::mutex> xferlock(out_xfer->xfer_done_lock);
+            /*
+             * Wakeup waiter with transfer done indication.
+             */
+            out_xfer->xfer_done = true;
+            out_xfer->xfer_done_cond.notify_one();
+        }
+    }
+}
+
+/*
+ * Close communications, flag that service is shutting down and wakeup any
+ * receiveMessage() waiters to let the callers exit gracefully.  Called for
+ * the close() method of clients and servers.  A server is expected to call
+ * open() prior to resuming service after this.
+ */
+void EaselCommNet::closeService() {
+    closeConnection();
+
+    {
+        /* Set shutdown flag, wakeup mMessageQueue waiters */
+        std::lock_guard<std::mutex> lk(mMessageQueueLock);
+        mShuttingDown = true;
+        mMessageQueueArrivalCond.notify_all();
     }
 }
 
@@ -111,14 +179,18 @@ int EaselCommNet::writeMessage(int command, const void *args, int args_len) {
     int ret =
         TEMP_FAILURE_RETRY(send(mConnectionSocket, &message,
                                 sizeof(message), 0));
-    if (ret < 0)
+    if (ret < 0) {
+        perror("send");
         return ret;
+    }
     assert(ret == sizeof(message));
 
     if (args_len) {
         ret = TEMP_FAILURE_RETRY(send(mConnectionSocket, args, args_len, 0));
-        if (ret < 0)
+        if (ret < 0) {
+            perror("send");
             return ret;
+        }
         assert(ret == args_len);
     }
 
@@ -137,8 +209,10 @@ int EaselCommNet::writeExtra(const void *extra_data, int extra_len) {
 
     int ret = TEMP_FAILURE_RETRY(
         send(mConnectionSocket, extra_data, extra_len, 0));
-    if (ret < 0)
+    if (ret < 0) {
+        perror("send");
         return ret;
+    }
     assert(ret == extra_len);
     return 0;
 }
@@ -151,8 +225,10 @@ int EaselCommNet::writeExtra(const void *extra_data, int extra_len) {
 int EaselCommNet::readBytes(char *dest, ssize_t len) {
     while (len) {
         ssize_t ret = TEMP_FAILURE_RETRY(recv(mConnectionSocket, dest, len, 0));
-        if (ret < 0)
+        if (ret < 0) {
+            perror("recv");
             return ret;
+        }
         if (!ret) {
             fprintf(stderr,
                     "easelcomm: service %d remote has shut down\n",
@@ -340,8 +416,12 @@ int EaselCommNet::sendXfer(
         mSendWaitingMap.erase(out_xfer.message_id);
     }
 
-    if (reply_xfer && out_xfer.reply_xfer)
-        *reply_xfer = out_xfer.reply_xfer;
+    if (reply_xfer) {
+        if (out_xfer.reply_xfer)
+            *reply_xfer = out_xfer.reply_xfer;
+        else
+            sendret = -1;
+    }
 
     return sendret;
 }
@@ -466,14 +546,21 @@ void EaselCommNet::handleCommand(int command, void *args) {
 }
 
 // Read and handle incoming control message
-void EaselCommNet::controlMessageHandlerLoop() {
+int EaselCommNet::controlMessageHandlerLoop() {
+    int ret;
+
     while (true) {
         ControlMessage message;
         void *args = nullptr;
-        if (readMessage(&message, &args) < 0)
+        ret = readMessage(&message, &args);
+        if (ret < 0) {
+            ret = -errno;
             break;
+        }
         handleCommand(be32toh(message.command), args);
     }
+
+    return ret;
 }
 
 // Send a message without waiting for a reply.
@@ -583,7 +670,7 @@ int EaselCommClientNet::open(int service_id) {
 
 // Close connection.
 void EaselCommClientNet::close() {
-    closeConnection();
+    closeService();
 }
 
 // Network connector to "Easel" server by hostname.
@@ -623,7 +710,7 @@ int EaselCommClientNet::connect(const char *serverhost, int port) {
     }
 
     printf("easelcomm: service %d client connected\n", mServiceId);
-    spawnMessageHandlerThread(this);
+    spawnClientMessageHandlerThread(this);
     return 0;
 }
 
@@ -638,6 +725,24 @@ void EaselCommServerNet::setListenPort(int port) {
 }
 
 /*
+ * Reset server state and wait for new client connection.  Returns when a
+ * new connection is established.
+ */
+int EaselCommServerNet::waitForClientConnect() {
+    reinit();
+
+    printf("easelcomm: service %d server accepting connections on port %d\n",
+           mServiceId, mServicePort);
+    mConnectionSocket = accept(mListenSocket, nullptr, nullptr);
+    if (mConnectionSocket < 0) {
+        perror("accept");
+        return -1;
+    }
+    printf("easelcomm: service %d connection established\n", mServiceId);
+    return 0;
+}
+
+/*
  * Initialize communication, register Easel service ID, wait for client
  * connection.
  */
@@ -645,42 +750,40 @@ int EaselCommServerNet::open(int service_id) {
     mServiceId = service_id;
     mShuttingDown = false;
 
-    int listensock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listensock < 0)
+    mListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (mListenSocket < 0) {
+        perror("socket");
         return -1;
+    }
 
     struct sockaddr_in sa;
     memset(&sa, 0, sizeof(sa));
     sa.sin_family = AF_INET;
     sa.sin_port = htons(mServicePort);
     sa.sin_addr.s_addr = INADDR_ANY;
-    int ret = bind(listensock, (struct sockaddr *)&sa, sizeof(sa));
+    int ret = bind(mListenSocket, (struct sockaddr *)&sa, sizeof(sa));
     if (ret < 0) {
-        ::close(listensock);
+        perror("bind");
+        ::close(mListenSocket);
         return -1;
     }
 
-    ret = listen(listensock, 1);
+    ret = listen(mListenSocket, 1);
     if (ret < 0) {
-        ::close(listensock);
+        perror("listen");
+        ::close(mListenSocket);
         return -1;
     }
 
-    printf("easelcomm: service %d server listening on port %d\n",
-           mServiceId, mServicePort);
+    ret = waitForClientConnect();
+    if (ret)
+        return ret;
 
-    mConnectionSocket = accept(listensock, nullptr, nullptr);
-    if (mConnectionSocket < 0) {
-        ::close(listensock);
-        return -1;
-    }
-
-    printf("easelcomm: service %d server connection received\n", mServiceId);
-    ::close(listensock);
-    spawnMessageHandlerThread(this);
+    spawnServerMessageHandlerThread(this);
     return 0;
 }
 
 void EaselCommServerNet::close() {
-    closeConnection();
+    closeService();
+    ::close(mListenSocket);
 }

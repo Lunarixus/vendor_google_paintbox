@@ -112,7 +112,7 @@ public:
     std::thread *mMessageHandlerThread;
 
     /* Handle incoming control messages */
-    void controlMessageHandlerLoop();
+    int controlMessageHandlerLoop();
 
 protected:
     EaselCommNet();
@@ -249,6 +249,8 @@ protected:
     bool mShuttingDown;
 
     void closeConnection();
+    void closeService();
+    void reinit();
     int writeMessage(int command, const void *args, int args_len);
     int writeExtra(const void *extra_data, int extra_len);
     int readBytes(char *dest, ssize_t len);
@@ -325,6 +327,9 @@ public:
      */
     void setListenPort(int port);
 
+    /* Reset server state and wait for a new client connection. */
+    int waitForClientConnect();
+
     /*
      * The network-based mock of EaselCommServer::init() has an additional
      * semantic in that it blocks waiting for a connection from a client
@@ -332,5 +337,8 @@ public:
      * then it may be necessary to init the different objects in different
      * threads.
      */
+
+private:
+    int mListenSocket;
 };
 #endif // GOOGLE_PAINTBOX_MOCKEASELCOMM_H
