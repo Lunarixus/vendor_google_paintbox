@@ -22,6 +22,12 @@
 namespace {
 static const int kMaxTtyDataBufferSize = 2048;
 
+#ifdef ANDROID
+#define SHELL_PATH      "/system/bin/sh"
+#else
+#define SHELL_PATH      "/bin/sh"
+#endif
+
 enum Command {
     CMD_TTY_DATA,  // Data for writing to local TTY
     CMD_CLOSE,     // Close the connection
@@ -146,7 +152,9 @@ void shell_client_session() {
         msg.message_buf_size = ret + sizeof(MsgHeader);
         msg.dma_buf = 0;
         msg.dma_buf_size = 0;
-        easel_comm_client.sendMessage(&msg);
+        ret = easel_comm_client.sendMessage(&msg);
+        if (ret)
+            break;
     }
 
     exit_shell(true, 0);
@@ -161,8 +169,7 @@ void shell_server_session() {
         perror("forkpty");
         exit(1);
     } else if (shell_pid == 0) {
-        ret = execle("/system/bin/sh", "/system/bin/sh", "-", nullptr,
-                         environ);
+        ret = execle(SHELL_PATH, SHELL_PATH, "-", nullptr, environ);
         if (ret < 0) {
             perror("execle");
             exit(2);
@@ -187,7 +194,9 @@ void shell_server_session() {
             msg.message_buf_size = ret + sizeof(MsgHeader);
             msg.dma_buf = 0;
             msg.dma_buf_size = 0;
-            easel_comm_server.sendMessage(&msg);
+            ret = easel_comm_server.sendMessage(&msg);
+            if (ret)
+                break;
         }
 
         // Tell client to close its connection
