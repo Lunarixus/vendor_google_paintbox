@@ -1,0 +1,54 @@
+#ifndef PAINTBOX_HDR_PLUS_SERVICE_H
+#define PAINTBOX_HDR_PLUS_SERVICE_H
+
+#include <mutex>
+
+#include "MessengerToHdrPlusClient.h"
+#include "MessengerListenerFromHdrPlusClient.h"
+
+namespace pbcamera {
+
+/**
+ * HdrPlusService
+ *
+ * HdrPlusService class is a service that listens to messages from HdrPlusClient and performs
+ * HDR+ processing.
+ */
+class HdrPlusService : public MessengerListenerFromHdrPlusClient {
+public:
+    HdrPlusService();
+    virtual ~HdrPlusService();
+
+    // Start service.
+    int start();
+
+    /*
+     * Wait for the service to finish.
+     * HDR+ service should be alive at all time, so this function will not return during normal
+     * operations.
+     */
+    int wait();
+
+private:
+    // Callbacks from HDR+ client start here.
+    // Override pbcamera::MessengerListenerFromHdrPlusClient
+    int connect() override;
+    int configureStreams(const StreamConfiguration *inputConfig,
+            const StreamConfiguration *outputConfigs, uint32_t numOutputConfigs) override;
+    // Callbacks from HDR+ client end here.
+
+    // Stop the service with mApiLock held.
+    void stopLocked();
+
+    // Protect API methods from being called simultaneously.
+    std::mutex mApiLock;
+
+    std::condition_variable mExitCondition;
+
+    // MessengerToHdrPlusClient to send messages to HDR+ client.
+    MessengerToHdrPlusClient *mMessengerToClient;
+};
+
+} // namespace pbcamera
+
+#endif // PAINTBOX_HDR_PLUS_SERVICE_H
