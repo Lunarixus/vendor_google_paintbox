@@ -1,8 +1,9 @@
 #define _BSD_SOURCE
-#include <endian.h>
+#include <random>
 #include <thread>
 
 #include <assert.h>
+#include <endian.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -133,6 +134,27 @@ int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
 
     *clockval = timesync_ap_boottime +
         (now_local_boottime - timesync_local_boottime);
+    return 0;
+}
+
+int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
+    /*
+     * Mock version returns the current value of the sync'ed clock plus a
+     * little microsecond-level fuzz just for realism.  We may need to do
+     * something more realistic, such as to start with a random offset and
+     * then generate 17msec deltas from that value, depending on how these
+     * values will be used.
+     */
+
+    static std::default_random_engine random_generator;
+    static std::uniform_int_distribution<uint64_t>
+        vsync_timestamp_fuzz(-100000,100000);
+
+    int64_t clockval;
+    int ret = getApSynchronizedClockBoottime(&clockval);
+    if (ret)
+        return ret;
+    *timestamp = clockval + vsync_timestamp_fuzz(random_generator);
     return 0;
 }
 
