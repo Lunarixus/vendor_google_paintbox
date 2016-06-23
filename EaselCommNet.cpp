@@ -77,11 +77,11 @@ void EaselCommNet::reinit() {
     mSequenceNumberIn = 0;
     mSequenceNumberOut = 0;
     mNextMessageId = 0;
+    mServiceId = -1;
     mShuttingDown = false;
 }
 
-EaselCommNet::EaselCommNet() {
-    mServicePort = PORT_DEFAULT;
+EaselCommNet::EaselCommNet() : mServicePort(PORT_DEFAULT) {
     reinit();
 }
 
@@ -92,6 +92,7 @@ EaselCommNet::EaselCommNet() {
  * this.
  */
 void EaselCommNet::closeConnection() {
+    ::shutdown(mConnectionSocket, SHUT_RDWR);
     ::close(mConnectionSocket);
 
     {
