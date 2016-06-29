@@ -5,13 +5,13 @@
  */
 
 int main(int argc __unused, char *argv[] __unused) {
-    pbcamera::HdrPlusService *hdrPlusService = new pbcamera::HdrPlusService();
+    std::unique_ptr<pbcamera::HdrPlusService> hdrPlusService =
+            std::make_unique<pbcamera::HdrPlusService>();
 
     int res = hdrPlusService->start();
     if (res == 0) {
-        res = hdrPlusService->wait();
+        hdrPlusService->wait();
     }
 
-    delete hdrPlusService;
     return res;
 }

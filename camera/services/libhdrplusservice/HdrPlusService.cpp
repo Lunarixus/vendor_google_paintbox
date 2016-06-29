@@ -1,12 +1,13 @@
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusService"
 #include <utils/Log.h>
 
+#include "HdrPlusPipeline.h"
 #include "HdrPlusService.h"
 
 namespace pbcamera {
 
-HdrPlusService::HdrPlusService() : mMessengerToClient(nullptr) {
+HdrPlusService::HdrPlusService() {
 }
 
 HdrPlusService::~HdrPlusService() {
@@ -14,17 +15,28 @@ HdrPlusService::~HdrPlusService() {
     stopLocked();
 }
 
-int HdrPlusService::start() {
+status_t HdrPlusService::start() {
     std::unique_lock<std::mutex> lock(mApiLock);
     if (mMessengerToClient != nullptr) return -EEXIST;
 
     // Connect to client messenger.
-    mMessengerToClient = new MessengerToHdrPlusClient();
-    int res = mMessengerToClient->connect(*this);
-    if (res != 0) {
-        stopLocked();
+    mMessengerToClient = std::make_shared<MessengerToHdrPlusClient>();
+    if (mMessengerToClient == nullptr) {
+        ALOGE("%s: Creating a MessengerToHdrPlusClient instance failed.", __FUNCTION__);
+        return -ENODEV;
     }
-    return res;
+
+    status_t res = mMessengerToClient->connect(*this);
+    if (res != 0) {
+        ALOGE("%s: Connecting to messenger failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        stopLocked();
+        mMessengerToClient = nullptr;
+        return -ENODEV;
+    }
+
+    // Create a pipeline
+    mPipeline = HdrPlusPipeline::newPipeline(mMessengerToClient);
+    return 0;
 }
 
 void HdrPlusService::stopLocked() {
@@ -35,35 +47,37 @@ void HdrPlusService::stopLocked() {
     mExitCondition.notify_one();
 }
 
-int HdrPlusService::wait() {
+void HdrPlusService::wait() {
     std::unique_lock<std::mutex> lock(mApiLock);
-    if (mMessengerToClient == nullptr) return 0;
+    if (mMessengerToClient == nullptr) return;
 
     mExitCondition.wait(lock);
-    return 0;
+    return;
 }
 
-int HdrPlusService::connect() {
+status_t HdrPlusService::connect() {
     std::unique_lock<std::mutex> lock(mApiLock);
 
     // For now, just return 0 to acknowlege connection.
     return 0;
 }
 
-int HdrPlusService::configureStreams(const StreamConfiguration *inputConfig,
-            const StreamConfiguration *outputConfigs, uint32_t numOutputConfigs) {
+status_t HdrPlusService::configureStreams(const StreamConfiguration &inputConfig,
+            const std::vector<StreamConfiguration> &outputConfigs) {
     std::unique_lock<std::mutex> lock(mApiLock);
 
-    ALOGV("%s: input: %dx%d %d", __FUNCTION__, inputConfig->width,
-            inputConfig->height, inputConfig->format);
-    for (uint32_t i = 0; i < numOutputConfigs; i++) {
-        ALOGV("%s: output: %dx%d %d", __FUNCTION__, outputConfigs[i].width,
-            outputConfigs[i].height, outputConfigs[i].format);
-    }
+    if (mPipeline == nullptr) return -ENODEV;
 
-    // TODO: Implement stream configurations.
+    // Configure the pipeline.
+    return mPipeline->configure(inputConfig, outputConfigs);
+}
 
-    return 0;
+status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request) {
+    ALOGV("%s", __FUNCTION__);
+
+    if (mPipeline == nullptr) return -ENODEV;
+
+    return mPipeline->submitCaptureRequest(request);
 }
 
 } // namespace pbcamera

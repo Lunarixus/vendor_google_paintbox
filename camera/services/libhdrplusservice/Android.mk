@@ -6,7 +6,14 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES :=  \
-    HdrPlusService.cpp
+    blocks/DummyProcessingBlock.cpp \
+    blocks/SourceCaptureBlock.cpp \
+    blocks/CaptureResultBlock.cpp \
+    blocks/PipelineBlock.cpp \
+    PipelineBuffer.cpp \
+    HdrPlusPipeline.cpp \
+    HdrPlusService.cpp \
+    PipelineStream.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libhdrplusmessenger \
@@ -15,7 +22,6 @@ LOCAL_SHARED_LIBRARIES:= \
 LOCAL_C_INCLUDES += \
     hardware/google/paintbox/include \
     hardware/google/paintbox/camera/include \
-    hardware/google/paintbox/camera/libhdrplusmessenger/include \
     vendor/google_paintbox/include \
     vendor/google_paintbox/camera/services/include
 

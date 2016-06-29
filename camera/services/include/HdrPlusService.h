@@ -8,6 +8,8 @@
 
 namespace pbcamera {
 
+class HdrPlusPipeline;
+
 /**
  * HdrPlusService
  *
@@ -19,22 +21,29 @@ public:
     HdrPlusService();
     virtual ~HdrPlusService();
 
-    // Start service.
-    int start();
+    /*
+     * Start service.
+     * Returns:
+     *  0:          if the service starts successfully.
+     *  -EEXIST:    if the service is already started.
+     *  -ENODEV:    if the service cannot be started due to a serious error.
+     */
+    status_t start();
 
     /*
      * Wait for the service to finish.
      * HDR+ service should be alive at all time, so this function will not return during normal
      * operations.
      */
-    int wait();
+    void wait();
 
 private:
     // Callbacks from HDR+ client start here.
     // Override pbcamera::MessengerListenerFromHdrPlusClient
-    int connect() override;
-    int configureStreams(const StreamConfiguration *inputConfig,
-            const StreamConfiguration *outputConfigs, uint32_t numOutputConfigs) override;
+    status_t connect() override;
+    status_t configureStreams(const StreamConfiguration &inputConfig,
+            const std::vector<StreamConfiguration> &outputConfigs) override;
+    status_t submitCaptureRequest(const CaptureRequest &request) override;
     // Callbacks from HDR+ client end here.
 
     // Stop the service with mApiLock held.
@@ -46,7 +55,10 @@ private:
     std::condition_variable mExitCondition;
 
     // MessengerToHdrPlusClient to send messages to HDR+ client.
-    MessengerToHdrPlusClient *mMessengerToClient;
+    std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
+
+    // Pipeline of current use case.
+    std::shared_ptr<HdrPlusPipeline> mPipeline;
 };
 
 } // namespace pbcamera
