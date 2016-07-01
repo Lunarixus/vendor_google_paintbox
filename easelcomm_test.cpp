@@ -177,7 +177,6 @@ static void run_client_tests() {
     }
 
     printf("easelcomm_test client sent %d messages without error\n", NXFERS);
-    sleep(3); // Let server settle before closing connection
     easelcomm_client.close();
     printf("easelcomm_test client exiting\n");
 }
@@ -188,7 +187,6 @@ TEST(EaselCommClientTest, TheWholeEnchilada) {
     int ret = easelcomm_client.connect(NULL);
     ASSERT_TRUE(ret == 0);
     easelcomm_client.close();
-    sleep(1); // Let server handle close, then connect again
     ret = easelcomm_client.connect(NULL);
     ASSERT_TRUE(ret == 0);
 #endif
@@ -213,7 +211,6 @@ static void test_server() {
     EXPECT_EQ(server_xferindex, NXFERS);
     printf("easelcomm_test server received %d messages without error\n",
            NXFERS);
-    sleep(1); // Let things settle before shutting down
     easelcomm_server.close();
     printf("easelcomm_test server exiting\n");
 }

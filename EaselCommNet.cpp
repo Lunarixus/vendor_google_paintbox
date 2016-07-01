@@ -7,6 +7,7 @@
 #include "mockeaselcomm.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <list>
@@ -151,6 +152,13 @@ void EaselCommNet::closeConnection() {
  * open() prior to resuming service after this.
  */
 void EaselCommNet::closeService() {
+    /*
+     * HACK: Delay prior to connection shutdown to let pending transfers
+     * complete on remote side, prior to triggering remote's shutdown
+     * shutdown handling.  TCP/IP conection shutdown has effects on the
+     * remote side that won't be present in the "real Easel" comm lib.
+     */
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     closeConnection();
 
     {
@@ -671,6 +679,17 @@ int EaselCommClientNet::open(int service_id) {
 // Close connection.
 void EaselCommClientNet::close() {
     closeService();
+    /*
+     * HACK: After client closes a connection, delay to allow server to
+     * process the connection shutdown and start listening for a new
+     * connection.  This is intended primarily to support back-to-back
+     * disconnect and reconnect sequences from automated tests.  Since the
+     * TCP/IP mock doesn't continuously listen for new connections and
+     * process simultaneous clients connected to the same port, as would a
+     * more normal network service, we serialize these operations using this
+     * hack.
+     */
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
 // Network connector to "Easel" server by hostname.
