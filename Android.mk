@@ -25,10 +25,10 @@ LOCAL_STATIC_LIBRARIES := libmockeasel
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := easelcomm_test
+LOCAL_MODULE := mockeaselcomm_test
 LOCAL_MODULE_TAGS := tests
 LOCAL_CFLAGS += -UNDEBUG -DMOCKEASEL
-LOCAL_SRC_FILES := easelcomm_test.cpp
+LOCAL_SRC_FILES := mockeaselcomm_test.cpp
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
 LOCAL_STATIC_LIBRARIES := libmockeasel liblog
