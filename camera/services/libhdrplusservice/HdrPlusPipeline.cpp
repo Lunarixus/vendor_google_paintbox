@@ -107,7 +107,7 @@ status_t HdrPlusPipeline::stopPipelineLocked() {
 status_t HdrPlusPipeline::startRunningPipelineLocked() {
     switch (mState) {
         case STATE_UNCONFIGURED:
-            ALOGE("%s: Pipline is not configured.", __FUNCTION__);
+            ALOGE("%s: Pipeline is not configured.", __FUNCTION__);
             return -ENODEV;
         case STATE_RUNNING:
             return 0;
@@ -157,7 +157,7 @@ status_t HdrPlusPipeline::startRunningPipelineLocked() {
             }
             break;
         default:
-            ALOGE("%s: Pipline is in an unknown state: %d.", __FUNCTION__,
+            ALOGE("%s: Pipeline is in an unknown state: %d.", __FUNCTION__,
                     mState);
             return -EINVAL;
     }

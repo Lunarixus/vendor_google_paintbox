@@ -20,7 +20,7 @@ public:
     /*
      * Create a CaptureResultBlock.
      *
-     * pipeline is the pipline this block belongs to.
+     * pipeline is the pipeline this block belongs to.
      * messenger is an EaselMessenger for sending CaptureResult to the client.
      *
      * Returns a std::shared_ptr<CaptureResultBlock> pointing to a CaptureResultBlock on success.

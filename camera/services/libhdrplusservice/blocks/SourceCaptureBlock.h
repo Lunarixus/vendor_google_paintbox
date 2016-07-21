@@ -19,7 +19,7 @@ public:
     /*
      * Create a SourceCaptureBlock.
      *
-     * pipeline is the pipline this block belongs to.
+     * pipeline is the pipeline this block belongs to.
      *
      * Returns a std::shared_ptr<SourceCaptureBlock> pointing to a SourceCaptureBlock on
      *         success.

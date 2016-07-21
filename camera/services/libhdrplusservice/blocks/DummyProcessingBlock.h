@@ -22,7 +22,7 @@ public:
     /*
      * Create a DummyProcessingBlock.
      *
-     * pipeline is the pipline this block belongs to.
+     * pipeline is the pipeline this block belongs to.
      *
      * Returns a std::shared_ptr<DummyProcessingBlock> pointing to a DummyProcessingBlock on
      *         success.
