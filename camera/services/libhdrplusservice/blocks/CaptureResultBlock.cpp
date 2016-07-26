@@ -53,12 +53,10 @@ bool CaptureResultBlock::doWorkLocked() {
 
     ALOGV("%s: Processing input", __FUNCTION__);
 
-    OutputResult blockResult = {};
-    blockResult.buffers = input.buffers;
-
+    // Copy over input data to result data.
+    OutputResult blockResult = input;
     CaptureResult captureResult = {};
-    // TODO: Get request ID from metadata.
-    captureResult.requestId = 0;
+    captureResult.requestId = input.metadata.requestId;
 
     for (auto buffer : blockResult.buffers) {
         StreamBuffer resultBuffer = {};

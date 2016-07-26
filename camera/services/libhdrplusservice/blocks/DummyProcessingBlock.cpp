@@ -67,7 +67,11 @@ bool DummyProcessingBlock::doWorkLocked() {
         outputResult.buffers.push_back(outputBuffer);
     }
 
-    ALOGV("%s: Send output result.", __FUNCTION__);
+    // Update frame metadata with input's frame metadata.
+    outputResult.metadata.frameMetadata = input.metadata.frameMetadata;
+
+    // Update request ID with output's request ID.
+    outputResult.metadata.requestId = outputRequest.metadata.requestId;
 
     auto pipeline = mPipeline.lock();
     if (pipeline == nullptr) {

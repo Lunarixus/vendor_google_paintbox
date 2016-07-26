@@ -45,12 +45,8 @@ void PipelineBlock::destroy() {
             std::unique_lock<std::mutex> lock(mWorkLock);
             mState = STATE_SHUTTING_DOWN;
         }
-        {
-            std::unique_lock<std::mutex> lock(mEventLock);
-            mEventCounts++;
-            mEventCondition.notify_one();
-        }
 
+        notifyWorkerThreadEvent();
         mThread->join();
         mThread = nullptr;
     }
@@ -67,14 +63,13 @@ status_t PipelineBlock::run() {
             return 0;
         case STATE_STOPPED:
         {
-            // Notify the worker thread.
-            std::unique_lock<std::mutex> lock(mWorkLock);
-            mState = STATE_RUNNING;
-        }
-        {
-            std::unique_lock<std::mutex> lock(mEventLock);
-            mEventCounts++;
-            mEventCondition.notify_one();
+            {
+                // Notify the worker thread.
+                std::unique_lock<std::mutex> lock(mWorkLock);
+                mState = STATE_RUNNING;
+            }
+
+            notifyWorkerThreadEvent();
             return 0;
         }
         case STATE_INVALID:
@@ -87,6 +82,7 @@ status_t PipelineBlock::run() {
 }
 
 status_t PipelineBlock::stopAndFlush(uint32_t timeoutMs) {
+    ALOGV("Block(%s) %s.", mName.data(), __FUNCTION__);
     std::unique_lock<std::mutex> lock(mApiLock);
     if (mState != STATE_RUNNING) return 0;
 
@@ -95,11 +91,9 @@ status_t PipelineBlock::stopAndFlush(uint32_t timeoutMs) {
         std::unique_lock<std::mutex> workLock(mWorkLock);
         mState = STATE_STOPPING;
     }
-    {
-        std::unique_lock<std::mutex> eventlock(mEventLock);
-        mEventCounts++;
-        mEventCondition.notify_one();
-    }
+
+    notifyWorkerThreadEvent();
+
     {
         // Wait until the state becomes STOPPED.
         std::unique_lock<std::mutex> workLock(mWorkLock);
@@ -112,9 +106,7 @@ status_t PipelineBlock::stopAndFlush(uint32_t timeoutMs) {
     // Return all pending inputs and output requests.
     {
         auto pipeline = mPipeline.lock();
-        if (pipeline == nullptr) {
-            ALOGE("%s: Pipeline is destroyed.", __FUNCTION__);
-        } else {
+        if (pipeline != nullptr) {
             std::unique_lock<std::mutex> queueLock(mQueueLock);
             for (auto input : mInputQueue) {
                 pipeline->inputAbort(input);
@@ -179,9 +171,7 @@ status_t PipelineBlock::queueInput(Input *input) {
         mInputQueue.push_back(*input);
     }
 
-    std::unique_lock<std::mutex> eventLock(mEventLock);
-    mEventCounts++;
-    mEventCondition.notify_one();
+    notifyWorkerThreadEvent();
 
     return 0;
 }
@@ -201,11 +191,15 @@ status_t PipelineBlock::queueOutputRequest(OutputRequest *outputRequest) {
         mOutputRequestQueue.push_back(*outputRequest);
     }
 
+    notifyWorkerThreadEvent();
+
+    return 0;
+}
+
+void PipelineBlock::notifyWorkerThreadEvent() {
     std::unique_lock<std::mutex> eventLock(mEventLock);
     mEventCounts++;
     mEventCondition.notify_one();
-
-    return 0;
 }
 
 const char* PipelineBlock::getName() const {

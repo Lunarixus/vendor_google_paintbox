@@ -40,10 +40,25 @@ public:
     // A vector of buffers.
     typedef std::vector<PipelineBuffer*> PipelineBufferSet;
 
+    // Defines the metadata that pipeline and blocks need to perform processing and tasks.
+    // Fields may be assigned in different blocks in the pipeline.
+    struct BlockMetadata {
+        // Frame metadata submitted by HDR+ client. This will be assigned in SourceCaptureBlock.
+        std::shared_ptr<FrameMetadata> frameMetadata;
+
+        // ID of a capture request submitted by HDR+ client. This will be assigned in
+        // DummyProcessingBlock.
+        int32_t requestId;
+
+        static const int32_t INVALID_REQUEST_ID = -1;
+
+        BlockMetadata() : requestId(INVALID_REQUEST_ID) {};
+    };
+
     // Block I/O data used when sending inputs and outputs between a pipeline and a block.
     struct BlockIoData {
         PipelineBufferSet buffers;
-        // TODO: add metadata.
+        BlockMetadata metadata;
     };
 
     // Block input.
@@ -187,6 +202,11 @@ private:
     // Destroy the resources of the block.
     void destroy();
 
+    /*
+     * Notify the worker thread of a new event. This will wake up the worker thread when it's
+     * waiting on mEventCondition.
+     */
+    void notifyWorkerThreadEvent();
 
     // State of the block.
     BlockState mState;

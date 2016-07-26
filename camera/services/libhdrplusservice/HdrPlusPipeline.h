@@ -47,6 +47,17 @@ public:
             std::shared_ptr<MessengerToHdrPlusClient> messengerToClient);
 
     /*
+     * Set the static metadata of current camera device.
+     *
+     * metadata is the static metadata.
+     *
+     * Returns:
+     *  0:         on success.
+     *  -EINVAL:   if metadata contains invalid values.
+     */
+    status_t setStaticMetadata(const StaticMetadata& metadata);
+
+    /*
      * Configure the pipeline with the specified streams, allocate buffers
      * for each stream, and create routes for all streams.
      *
@@ -63,14 +74,33 @@ public:
             const std::vector<StreamConfiguration> &outputConfigs);
 
     /*
-     * Issue a capture request. HdrPlusPipeline will send the output buffers via
+     * Submit a capture request. HdrPlusPipeline will send the output buffers via
      * MessengerToHdrPlusClient
+     *
+     * request is the capture request submitted.
      *
      * Returns:
      *  0:              on success.
      *  -EINVAL:        if the request is invalid such as containing invalid stream IDs.
      */
     status_t submitCaptureRequest(const CaptureRequest &request);
+
+    /*
+     * Notify the pipeline of a DMA input buffer. The DMA image buffer will be transferred after
+     * this method returns successfully.
+     *
+     * dmaInputBuffer is the DMA input buffer to be transferred.
+     * mockingEaselTimestampNs is the mocking Easel timestamp of the input buffer.
+     */
+    void notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
+            int64_t mockingEaselTimestampNs);
+
+    /*
+     * Notify the pipeline of a frame metadata.
+     *
+     * metadata is the metadata of a frame that AP captured.
+     */
+    void notifyFrameMetadata(const FrameMetadata &metadata);
 
     /*
      * Called by a PipelineBlock to send BlockInput back to HdrPlusPipeline after it's done
@@ -164,6 +194,9 @@ private:
 
     // Mutex protecting public API methods.
     mutable std::mutex mApiLock;
+
+    // Static metadata of current camera device.
+    StaticMetadata mStaticMetadata;
 
     /*
      * Input stream that contains input buffers of the pipeline. Input stream buffers

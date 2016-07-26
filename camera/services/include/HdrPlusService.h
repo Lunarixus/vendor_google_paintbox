@@ -41,9 +41,14 @@ private:
     // Callbacks from HDR+ client start here.
     // Override pbcamera::MessengerListenerFromHdrPlusClient
     status_t connect() override;
+    void disconnect() override;
+    status_t setStaticMetadata(const StaticMetadata& metadata);
     status_t configureStreams(const StreamConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) override;
     status_t submitCaptureRequest(const CaptureRequest &request) override;
+    void notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
+            int64_t mockingEaselTimestampNs) override;
+    void notifyFrameMetadata(const FrameMetadata &metadata) override;
     // Callbacks from HDR+ client end here.
 
     // Stop the service with mApiLock held.

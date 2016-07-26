@@ -34,8 +34,6 @@ status_t HdrPlusService::start() {
         return -ENODEV;
     }
 
-    // Create a pipeline
-    mPipeline = HdrPlusPipeline::newPipeline(mMessengerToClient);
     return 0;
 }
 
@@ -52,14 +50,40 @@ void HdrPlusService::wait() {
     if (mMessengerToClient == nullptr) return;
 
     mExitCondition.wait(lock);
-    return;
 }
 
 status_t HdrPlusService::connect() {
+    ALOGV("%s", __FUNCTION__);
     std::unique_lock<std::mutex> lock(mApiLock);
 
-    // For now, just return 0 to acknowlege connection.
+    // Create a pipeline
+    if (mPipeline != nullptr) {
+        ALOGE("%s: Already connected.", __FUNCTION__);
+        return -EEXIST;
+    }
+
+    mPipeline = HdrPlusPipeline::newPipeline(mMessengerToClient);
+    ALOGD("%s: Connected.", __FUNCTION__);
+
     return 0;
+}
+
+void HdrPlusService::disconnect() {
+    ALOGV("%s", __FUNCTION__);
+    std::unique_lock<std::mutex> lock(mApiLock);
+    if (mPipeline == nullptr) return;
+
+    mPipeline = nullptr;
+    ALOGD("%s: Disconnected.", __FUNCTION__);
+}
+
+status_t HdrPlusService::setStaticMetadata(const StaticMetadata& metadata) {
+    std::unique_lock<std::mutex> lock(mApiLock);
+
+    if (mPipeline == nullptr) return -ENODEV;
+
+    // Configure the pipeline.
+    return mPipeline->setStaticMetadata(metadata);
 }
 
 status_t HdrPlusService::configureStreams(const StreamConfiguration &inputConfig,
@@ -74,10 +98,39 @@ status_t HdrPlusService::configureStreams(const StreamConfiguration &inputConfig
 
 status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request) {
     ALOGV("%s", __FUNCTION__);
+    std::unique_lock<std::mutex> lock(mApiLock);
 
-    if (mPipeline == nullptr) return -ENODEV;
+    if (mPipeline == nullptr) {
+        ALOGE("%s: Not connected.", __FUNCTION__);
+        return -ENODEV;
+    }
 
     return mPipeline->submitCaptureRequest(request);
+}
+
+void HdrPlusService::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
+        int64_t mockingEaselTimestampNs) {
+    ALOGV("%s", __FUNCTION__);
+    std::unique_lock<std::mutex> lock(mApiLock);
+
+    if (mPipeline == nullptr) {
+        ALOGE("%s: Not connected. Dropping an input buffer.", __FUNCTION__);
+        return;
+    }
+
+    mPipeline->notifyDmaInputBuffer(dmaInputBuffer, mockingEaselTimestampNs);
+}
+
+void HdrPlusService::notifyFrameMetadata(const FrameMetadata &metadata) {
+    ALOGV("%s", __FUNCTION__);
+    std::unique_lock<std::mutex> lock(mApiLock);
+
+    if (mPipeline == nullptr) {
+        ALOGE("%s: Not connected.", __FUNCTION__);
+        return;
+    }
+
+    mPipeline->notifyFrameMetadata(metadata);
 }
 
 } // namespace pbcamera

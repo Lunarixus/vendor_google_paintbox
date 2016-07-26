@@ -2,6 +2,8 @@
 #define LOG_TAG "HdrPlusPipeline"
 #include <utils/Log.h>
 
+#include <inttypes.h>
+
 #include "blocks/DummyProcessingBlock.h"
 #include "blocks/SourceCaptureBlock.h"
 #include "blocks/CaptureResultBlock.h"
@@ -22,6 +24,13 @@ HdrPlusPipeline::HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messe
 HdrPlusPipeline::~HdrPlusPipeline() {
     std::unique_lock<std::mutex> lock(mApiLock);
     destroyLocked();
+}
+
+status_t HdrPlusPipeline::setStaticMetadata(const StaticMetadata& metadata) {
+    std::unique_lock<std::mutex> lock(mApiLock);
+    mStaticMetadata = metadata;
+
+    return 0;
 }
 
 status_t HdrPlusPipeline::configure(const StreamConfiguration &inputConfig,
@@ -164,6 +173,7 @@ status_t HdrPlusPipeline::startRunningPipelineLocked() {
 }
 
 void HdrPlusPipeline::destroyLocked() {
+    ALOGV("%s", __FUNCTION__);
     // Stop the pipeline.
     stopPipelineLocked();
 
@@ -211,7 +221,8 @@ status_t HdrPlusPipeline::createStreamsLocked(const StreamConfiguration &inputCo
 
 status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked() {
     // Create an source capture block for capturing input streams.
-    mSourceCaptureBlock = SourceCaptureBlock::newSourceCaptureBlock(shared_from_this());
+    mSourceCaptureBlock = SourceCaptureBlock::newSourceCaptureBlock(shared_from_this(),
+            mMessengerToClient);
     if (mSourceCaptureBlock == nullptr) {
         ALOGE("%s: Creating SourceCaptureBlock failed.", __FUNCTION__);
         return -ENODEV;
@@ -234,7 +245,6 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked() {
         return -ENODEV;
     }
     mBlocks.push_back(mDummyProcessingBlock);
-
 
     // Set up the routes for each stream.
     mStreamRoutes.clear();
@@ -269,6 +279,7 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request) {
 
     // Prepare outputRequest
     PipelineBlock::OutputRequest outputRequest = {};
+    outputRequest.metadata.requestId = request.id;
 
     // Find all output buffers.
     for (auto bufferInRequest : request.outputBuffers) {
@@ -327,6 +338,37 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request) {
     }
 
     return 0;
+}
+
+void HdrPlusPipeline::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
+        int64_t mockingEaselTimestampNs) {
+    ALOGV("%s", __FUNCTION__);
+
+    std::unique_lock<std::mutex> lock(mApiLock);
+    if (mState != STATE_RUNNING) {
+        ALOGE("%s: Pipeline is not running (state=%d). Dropping this input buffer.",
+                __FUNCTION__, mState);
+        return;
+    }
+
+    // Notify source capture block of the DMA input buffer.
+    std::static_pointer_cast<SourceCaptureBlock>(mSourceCaptureBlock)->notifyDmaInputBuffer(
+            dmaInputBuffer, mockingEaselTimestampNs);
+}
+
+void HdrPlusPipeline::notifyFrameMetadata(const FrameMetadata &metadata) {
+    ALOGV("%s", __FUNCTION__);
+
+    std::unique_lock<std::mutex> lock(mApiLock);
+    if (mState != STATE_RUNNING) {
+        ALOGE("%s: Pipeline is not running (state=%d). Dropping this input buffer.",
+                __FUNCTION__, mState);
+        return;
+    }
+
+    // Notify source capture block of the frame metadata.
+    std::static_pointer_cast<SourceCaptureBlock>(mSourceCaptureBlock)->notifyFrameMetadata(
+            metadata);
 }
 
 std::shared_ptr<PipelineBlock> HdrPlusPipeline::getNextBlockLocked(const PipelineBuffer &buffer) {
@@ -422,9 +464,7 @@ void HdrPlusPipeline::outputDone(PipelineBlock::OutputResult outputResult) {
     } else {
         // Send the buffer to next block. This assumes that output of a block becomes the input of
         // the next block. This is true for all current use case.
-        PipelineBlock::Input input = {};
-        input.buffers = outputResult.buffers;
-        status_t res = nextBlock->queueInput(&input);
+        status_t res = nextBlock->queueInput(&outputResult);
         if (res != 0) {
             ALOGE("%s: Queueing an input to %s failed: %s (%d). Returning buffers to streams",
                     __FUNCTION__, nextBlock->getName(), strerror(-res), res);
