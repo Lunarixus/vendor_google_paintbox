@@ -320,3 +320,8 @@ void EaselComm::close() {
     ::close(mEaselCommFd);
     mEaselCommFd = -1;
 }
+
+// Flush connection.
+void EaselComm::flush() {
+    ioctl(mEaselCommFd, EASELCOMM_IOC_FLUSH);
+}

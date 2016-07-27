@@ -193,6 +193,7 @@ TEST(EaselCommClientTest, TheWholeEnchilada) {
 
     ret = easelcomm_client.open(EaselComm::EASEL_SERVICE_TEST);
     ASSERT_TRUE(ret == 0);
+    easelcomm_client.flush();
 
     run_client_tests();
 }
@@ -203,6 +204,7 @@ TEST(EaselCommClientTest, TheWholeEnchilada) {
 static void test_server() {
     int ret = easelcomm_server.open(EaselComm::EASEL_SERVICE_TEST);
     ASSERT_TRUE(ret == 0);
+    easelcomm_server.flush();
 
     while (ret == 0 && server_xferindex < NXFERS) {
         ret = doReceiveMessage();

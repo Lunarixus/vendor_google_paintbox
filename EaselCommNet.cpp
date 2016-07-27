@@ -808,6 +808,14 @@ void EaselCommServerNet::close() {
 }
 
 /*
+ * Mock implementation of flush is a NOP.  The method is used to discard
+ * stale state at startup time, which is already handled by TCP connection
+ * close and re-open semantics.
+ */
+void EaselComm::flush() {
+}
+
+/*
  * The following method is not used in the EaselCommNet mock implementation of
  * EaselComm, but is necessary to compile the base EaselComm class.  The mock
  * implementation always uses the EaselCommNetClient and EaselCommNetServer

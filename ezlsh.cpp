@@ -177,6 +177,7 @@ void shell_server_session() {
     } else {
         ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
         assert(ret == 0);
+        easel_comm_server.flush();
 
         msg_handler_thread =
             new std::thread(msgHandlerThread, &easel_comm_server, false);
@@ -246,6 +247,7 @@ int main(int argc, char **argv) {
         easel_comm_client.connect(
             optind < argc ? argv[optind] : localhost);
 #endif
+        easel_comm_client.flush();
         shell_client_session();
     } else {
         shell_server_session();
