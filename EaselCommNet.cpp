@@ -821,15 +821,5 @@ void EaselComm::flush() {
  * implementation always uses the EaselCommNetClient and EaselCommNetServer
  * overrides of the following method.
  */
-int EaselComm::open(int service_id __unused) {
-    return -EINVAL;
-}
-
-/*
- * The following method is not used in the EaselCommNet mock implementation of
- * EaselComm, but is necessary to compile the base EaselComm class.  The mock
- * implementation always uses the EaselCommNetClient and EaselCommNetServer
- * overrides of the following method.
- */
 void EaselComm::close() {
 }

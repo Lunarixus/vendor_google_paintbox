@@ -22,7 +22,8 @@
 
 namespace {
 // Device file path
-static const char *kEaselCommDevPath = "/dev/easelcomm";
+static const char *kEaselCommDevPathClient = "/dev/easelcomm-client";
+static const char *kEaselCommDevPathServer = "/dev/easelcomm-server";
 
 /*
  * Helper for sending a message, called for all APIs that send a message
@@ -301,8 +302,21 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
 /*
  * Open communications, register the Easel service ID.
  */
-int EaselComm::open(int service_id) {
-    mEaselCommFd = ::open(kEaselCommDevPath, O_RDWR);
+int EaselCommClient::open(int service_id) {
+    mEaselCommFd = ::open(kEaselCommDevPathClient, O_RDWR);
+    if (mEaselCommFd == -1)
+        return -errno;
+    if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
+        int ret = -errno;
+        ::close(mEaselCommFd);
+        mEaselCommFd = -1;
+        return ret;
+    }
+    return 0;
+}
+
+int EaselCommServer::open(int service_id) {
+    mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
     if (mEaselCommFd == -1)
         return -errno;
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
