@@ -1,9 +1,6 @@
 #define _BSD_SOURCE /* for endian.h macros */
 
 #include "easelcomm.h"
-#ifdef MOCKEASEL
-#include "mockeaselcomm.h"
-#endif
 
 #include <thread>
 
@@ -55,13 +52,8 @@ int tty_fd;
 // Message handler thread
 std::thread *msg_handler_thread;
 
-#ifdef MOCKEASEL
-EaselCommClientNet easel_comm_client;
-EaselCommServerNet easel_comm_server;
-#else
 EaselCommClient easel_comm_client;
 EaselCommServer easel_comm_server;
-#endif
 
 termios saved_terminal_state;
 
@@ -234,19 +226,14 @@ int main(int argc, char **argv) {
             break;
           default:
             fprintf(stderr, "Usage: server: ezlsh -d\n");
-            fprintf(stderr, "       client: ezlsh [host]\n");
+            fprintf(stderr, "       client: ezlsh\n");
             exit(1);
         }
     }
 
     if (client) {
-        const char *localhost = "localhost";
         ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
         assert(ret == 0);
-#ifdef MOCKEASEL
-        easel_comm_client.connect(
-            optind < argc ? argv[optind] : localhost);
-#endif
         easel_comm_client.flush();
         shell_client_session();
     } else {
