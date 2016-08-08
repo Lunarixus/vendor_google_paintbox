@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <pty.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,8 +27,9 @@ static const int kMaxTtyDataBufferSize = 2048;
 #endif
 
 enum Command {
+    CMD_OPEN,      // Open new shell session
     CMD_TTY_DATA,  // Data for writing to local TTY
-    CMD_CLOSE,     // Close the connection
+    CMD_CLOSE,     // Close the shell session
 };
 
 // Common message header for all messages containing the command and data len
@@ -36,52 +38,54 @@ struct MsgHeader {
     uint32_t datalen;
 };
 
+// Open session message from server to client, no further data
+struct OpenMsg {
+    struct MsgHeader h;
+};
+
 // TTY data message contains bytes to write to remote TTY/PTY
 struct TtyDataMsg {
     struct MsgHeader h;
     char data[kMaxTtyDataBufferSize];
 };
 
-// Close connection message from server to client, no further data
+// Close session message from server to client, no further data
 struct CloseMsg {
     struct MsgHeader h;
 };
 
 // Local tty/pty file descriptor
 int tty_fd;
-// Message handler thread
-std::thread *msg_handler_thread;
 
 EaselCommClient easel_comm_client;
 EaselCommServer easel_comm_server;
 
+// client saved terminal state
 termios saved_terminal_state;
 
-void exit_shell(bool client, int exitcode) {
-    if (client) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
-        fprintf(stderr, "\rezlsh exiting\n");
-        easel_comm_client.close();
-    } else {
-        easel_comm_server.close();
-    }
+// server current shell PID
+pid_t shell_pid = 0;
+// server shell session thread
+std::thread *shell_session_thread = nullptr;
 
+void client_exit_shell(int exitcode) {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
+    fprintf(stderr, "\rezlsh exiting\n");
+    easel_comm_client.close();
     exit(exitcode);
 }
 
-// --------------------------------------------------------------------------
-// Incoming message handler (both client and server)
-
-void msgHandlerThread(EaselComm *easel_comm, bool client) {
+// Client incoming message handler
+void client_message_handler() {
     bool close_conn = false;
     int exitcode = 0;
 
     // Read messages from remote and write the data to local tty.
     while (!close_conn) {
         EaselComm::EaselMessage msg;
-        int ret = easel_comm->receiveMessage(&msg);
+        int ret = easel_comm_client.receiveMessage(&msg);
         if (ret) {
-            if (client && errno != ESHUTDOWN)
+            if (errno != ESHUTDOWN)
                 perror("");
             exitcode = errno;
             break;
@@ -94,7 +98,9 @@ void msgHandlerThread(EaselComm *easel_comm, bool client) {
             case CMD_TTY_DATA:
             {
                 TtyDataMsg *d = (TtyDataMsg *)msg.message_buf;
-                write(tty_fd, d->data, be32toh(d->h.datalen));
+                ret = write(tty_fd, d->data, be32toh(d->h.datalen));
+                if (ret < 0)
+                    perror("write");
                 break;
             }
             case CMD_CLOSE:
@@ -108,10 +114,13 @@ void msgHandlerThread(EaselComm *easel_comm, bool client) {
             free(msg.message_buf);
         }
     }
-    exit_shell(client, exitcode);
+    client_exit_shell(exitcode);
 }
 
 void shell_client_session() {
+    std::thread *msg_handler_thread;
+    int ret;
+
     tty_fd = STDOUT_FILENO;
 
     if (tcgetattr(STDIN_FILENO, &saved_terminal_state)) {
@@ -127,11 +136,25 @@ void shell_client_session() {
     tio.c_cc[VMIN] = 1;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
 
-    msg_handler_thread = new std::thread(msgHandlerThread, &easel_comm_client,
-                                         true);
+    ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
+    assert(ret == 0);
+    easel_comm_client.flush();
+
+    msg_handler_thread = new std::thread(client_message_handler);
+
+    // Tell server to start a new session
+    OpenMsg open_msg;
+    open_msg.h.command = htobe32(CMD_OPEN);
+    open_msg.h.datalen = 0;
+
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &open_msg;
+    msg.message_buf_size = sizeof(MsgHeader);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    easel_comm_client.sendMessage(&msg);
 
     TtyDataMsg data_msg;
-    int ret;
 
     data_msg.h.command = htobe32(CMD_TTY_DATA);
 
@@ -149,13 +172,26 @@ void shell_client_session() {
             break;
     }
 
-    exit_shell(true, 0);
+    client_exit_shell(0);
+}
+
+void server_kill_shell() {
+    if (shell_pid) {
+        if (kill(shell_pid, SIGHUP) < 0)
+            perror("kill");
+        shell_pid = 0;
+    }
+
+    if (shell_session_thread) {
+        shell_session_thread->join();
+        delete shell_session_thread;
+        shell_session_thread = nullptr;
+    }
 }
 
 void shell_server_session() {
     int ret;
 
-    pid_t shell_pid;
     shell_pid = forkpty(&tty_fd, NULL, NULL, NULL);
     if (shell_pid < 0) {
         perror("forkpty");
@@ -167,12 +203,6 @@ void shell_server_session() {
             exit(2);
         }
     } else {
-        ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
-        assert(ret == 0);
-        easel_comm_server.flush();
-
-        msg_handler_thread =
-            new std::thread(msgHandlerThread, &easel_comm_server, false);
         TtyDataMsg data_msg;
         int ret;
 
@@ -192,7 +222,7 @@ void shell_server_session() {
                 break;
         }
 
-        // Tell client to close its connection
+        // EOF from server shell PTY;  tell client to close its connection
         CloseMsg close_msg;
         close_msg.h.command = htobe32(CMD_CLOSE);
         close_msg.h.datalen = 0;
@@ -203,21 +233,67 @@ void shell_server_session() {
         msg.dma_buf = 0;
         msg.dma_buf_size = 0;
         easel_comm_server.sendMessage(&msg);
-        /*
-         * Wait for client to close connection first; we will exit when client
-         * close is seen (as EOF from socket read).
-         */
-        sleep(2);
-        // Not expected to reach here.
-        exit(3);
    }
 }
+
+void server_run() {
+    int ret;
+
+    ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
+    assert(ret == 0);
+    easel_comm_server.flush();
+
+    while (true) {
+        EaselComm::EaselMessage msg;
+        int ret = easel_comm_server.receiveMessage(&msg);
+        if (ret) {
+            if (errno == ESHUTDOWN) {
+                server_kill_shell();
+            } else {
+                fprintf(stderr, "ERROR: receiveMessage returns %d\n", ret);
+            }
+            continue;
+        }
+
+        if (msg.message_buf_size) {
+            MsgHeader *h = (MsgHeader *)msg.message_buf;
+
+            switch(be32toh(h->command)) {
+            case CMD_OPEN:
+                server_kill_shell();
+                shell_session_thread =
+                  new std::thread(shell_server_session);
+                break;
+
+            case CMD_TTY_DATA:
+            {
+                TtyDataMsg *d = (TtyDataMsg *)msg.message_buf;
+                ret = write(tty_fd, d->data, be32toh(d->h.datalen));
+                if (ret < 0)
+                    perror("write");
+                break;
+            }
+
+            case CMD_CLOSE:
+                server_kill_shell();
+                break;
+
+            default:
+                fprintf(stderr, "ERROR: unrecognized command %d\n",
+                        be32toh(h->command));
+            }
+
+            free(msg.message_buf);
+        }
+    }
+    /*NOTREACHED*/
+}
+
 } // anonymous namespace
 
 int main(int argc, char **argv) {
     int ch;
     int client = 1;
-    int ret;
 
     while ((ch = getopt(argc, argv, "d")) != -1) {
         switch (ch) {
@@ -232,12 +308,9 @@ int main(int argc, char **argv) {
     }
 
     if (client) {
-        ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-        assert(ret == 0);
-        easel_comm_client.flush();
         shell_client_session();
     } else {
-        shell_server_session();
+        server_run();
     }
 
     // Not expected to reach here.
