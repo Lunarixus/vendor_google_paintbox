@@ -107,7 +107,9 @@ void spawnIncomingMsgThread() {
 } // anonymous namespace
 
 int EaselControlServer::open() {
+#ifdef MOCKEASEL
     easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
+#endif
     easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     spawnIncomingMsgThread();
     return 0;

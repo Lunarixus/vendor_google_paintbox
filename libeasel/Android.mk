@@ -6,10 +6,12 @@ PB_AOSP_INCLUDES := $(TOP)/hardware/google/paintbox/include \
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libeasel
-LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := \
-	EaselComm.cpp
+	EaselComm.cpp \
+	EaselControlClient.cpp \
+	EaselControlServer.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
