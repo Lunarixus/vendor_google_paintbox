@@ -1,4 +1,5 @@
 #define _BSD_SOURCE
+#include <mutex>
 #include <random>
 #include <thread>
 
@@ -23,6 +24,14 @@ EaselCommServerNet easel_conn;
 #else
 EaselCommServer easel_conn;
 #endif
+
+/*
+ * Mutex protects access to gServerInitialized and easel_conn opened/closed
+ * status.
+ */
+std::mutex gServerLock;
+// true if easel_conn is opened
+bool gServerInitialized;
 
 /*
  * The AP boottime clock value we received at the last SET_TIME command,
@@ -104,19 +113,36 @@ void spawnIncomingMsgThread() {
     msg_handler_thread = new std::thread(msgHandlerThread);
 }
 
-} // anonymous namespace
+/* Open our EaselCommServer object if not already. */
+void initializeServer() {
+    std::lock_guard<std::mutex> lk(gServerLock);
 
-int EaselControlServer::open() {
+    if (gServerInitialized)
+        return;
+
 #ifdef MOCKEASEL
     easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
 #endif
     easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     spawnIncomingMsgThread();
+    gServerInitialized = true;
+    return;
+}
+
+} // anonymous namespace
+
+int EaselControlServer::open() {
+    initializeServer();
     return 0;
 }
 
 void EaselControlServer::close() {
-    easel_conn.close();
+    std::lock_guard<std::mutex> lk(gServerLock);
+
+    if (gServerInitialized) {
+        easel_conn.close();
+        gServerInitialized = false;
+    }
 }
 
 int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
@@ -175,6 +201,7 @@ void EaselControlServer::log(int prio, const char *tag, const char *text) {
         return;
     }
 
+    initializeServer();
     EaselControlImpl::LogMsg *log_msg = (EaselControlImpl::LogMsg *)buf;
     log_msg->h.command = htobe32(EaselControlImpl::CMD_LOG);
     log_msg->prio = htobe32(prio);
@@ -190,4 +217,9 @@ void EaselControlServer::log(int prio, const char *tag, const char *text) {
     easel_conn.sendMessage(&msg);
 
     free(buf);
+}
+
+/* Convenience wrapper for EaselControlServer::log() */
+void easelLog(int prio, const char *tag, const char *text) {
+    EaselControlServer::log(prio, tag, text);
 }
