@@ -1,0 +1,217 @@
+#!/bin/bash
+#
+# Copyright 2016 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Update the gcam libraries from google3
+#
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  # Unfortunate since this pollutes your environment, but we do like the
+  # access to mm
+  # In the future it might be nice if there was a script to export -f mm
+  echo "Run script with 'source $0' instead of '$0'" >&2
+  return 1
+fi
+
+if [ $# -ne 1 ]; then
+  echo "`basename $0`: Build and update the gcam libraries from google3"
+  echo ""
+  echo "Usage: source `basename $0` <google3 base path> <device name>"
+  echo "For example, \"`basename $0` ~/google3 angler\""
+  echo ""
+  return 1
+fi
+
+######################################################################
+# Setup paths
+
+GOOGLE3_PATH="$1"
+
+GOOGLE3_GCAM_PATH="googlex/gcam/gcam/src"
+GOOGLE3_GCAM_OUT="blaze-bin/${GOOGLE3_GCAM_PATH}"
+GOOGLE3_GCAM_TARGET="libgcam-package"
+GOOGLE3_GCAM_OUT_TGZ="libgcam.tgz"
+GOOGLE3_HALIDE_RUMTIME_H="third_party/halide/halide/src/runtime/HalideRuntime.h"
+
+ANDROID_GCAM_PREBUILT_PATH="vendor/google_paintbox/camera/prebuilts/gcam/"
+ANDROID_GCAM_LIB32_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib"
+ANDROID_GCAM_LIB_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib64"
+ANDROID_GCAM_INC_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/include"
+ANDROID_GCAM_BUILD_PATH="vendor/google_paintbox/camera"
+
+GOOGLE3_GCAM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_PATH}"
+GOOGLE3_GCAM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_OUT}"
+GOOGLE3_GCAM_OUT_TGZ_FULL="${GOOGLE3_GCAM_OUT_FULL_PATH%%/}/${GOOGLE3_GCAM_OUT_TGZ}"
+GOOGLE3_HALIDE_RUNTIME_H="${GOOGLE3_PATH%%/}/${GOOGLE3_HALIDE_RUMTIME_H}"
+
+ANDROID_GCAM_PREBUILT_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_PREBUILT_PATH}"
+ANDROID_GCAM_LIB32_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_LIB32_PATH}"
+ANDROID_GCAM_LIB_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_LIB_PATH}"
+ANDROID_GCAM_INC_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_INC_PATH}"
+ANDROID_GCAM_BUILD_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_BUILD_PATH}"
+ANDROID_HALIDE_RUNTIME_H="${ANDROID_GCAM_PREBUILT_FULL_PATH%%/}/include/${GOOGLE3_HALIDE_RUMTIME_H}"
+
+######################################################################
+# Verify paths
+
+# Verify environment
+if prodcertstatus -q; then true
+else
+  echo "No valid prodaccess cert!"
+  return 1
+fi
+if [ -z "${ANDROID_BUILD_TOP}" ]; then
+  echo "No Android path found. Run envsetup"
+  return 1
+fi
+
+# Verify gcam paths
+if [ ! -d "${GOOGLE3_GCAM_FULL_PATH}" ]; then
+  echo "${GOOGLE3_GCAM_FULL_PATH} does not exist!"
+  return 1
+fi
+if [ ! -r "${GOOGLE3_GCAM_FULL_PATH}/BUILD" ]; then
+  echo "${GOOGLE3_GCAM_FULL_PATH} does not contain a readable BUILD file. Wrong path?"
+  return 1
+fi
+if grep -q gcam "${GOOGLE3_GCAM_FULL_PATH}/BUILD"; then true
+else
+  echo "${GOOGLE3_GCAM_FULL_PATH}/BUILD does not mention gcam. Wrong path?"
+  return 1
+fi
+
+######################################################################
+# Build libgcam target on google3
+
+echo -e "\e[1;34m** Building libgcam library\e[00m"
+
+pushd ${GOOGLE3_GCAM_FULL_PATH}
+
+blaze build --config=android_arm --define prod=1 -c opt libgcam.so
+if [ $? -ne 0 ]; then
+  echo "** Blaze opt build failure, cancelling update **"
+  popd
+  return 1
+fi
+
+cp "${GOOGLE3_GCAM_OUT_FULL_PATH}/libgcam.so" "${ANDROID_GCAM_LIB32_FULL_PATH}/"
+
+
+blaze build --config=android_arm64 --define prod=1 -c opt ${GOOGLE3_GCAM_TARGET}
+if [ $? -ne 0 ]; then
+  echo "** Blaze opt build failure, cancelling update **"
+  popd
+  return 1
+fi
+if [ ! -r "${GOOGLE3_GCAM_OUT_TGZ_FULL}" ]; then
+  echo "Can't find ${GOOGLE3_GCAM_OUT_TGZ_FULL} after build!"
+  popd
+  return 1
+fi
+
+pwd
+pwd
+pwd
+ls -l ${GOOGLE3_GCAM_OUT_TGZ_FULL}
+
+
+# Stash the library and headers into tmp before we clean the build
+gcam_tmp_lib="$(mktemp -d)"
+
+cp "${GOOGLE3_GCAM_OUT_TGZ_FULL}" "${gcam_tmp_lib}/"
+
+pushd ${gcam_tmp_lib}
+tar xvzf ${GOOGLE3_GCAM_OUT_TGZ}
+popd
+
+popd
+
+# Unzip and Copy build results and place in Android tree
+echo -e "\e[1;34m** Copying build results to Android tree\e[00m"
+
+mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}/"
+mv -vf "${gcam_tmp_lib}/googlex" "${ANDROID_GCAM_INC_FULL_PATH}/"
+
+[[ -f "$gcam_tmp_lib" ]] && rm -f "$gcam_tmp_lib"
+
+# Copy HalideRuntime.h
+cp ${GOOGLE3_HALIDE_RUNTIME_H} ${ANDROID_HALIDE_RUNTIME_H}
+
+# Rebuild prebuilts, so there's no surprises when trying to relink
+
+echo -e "\e[1;34m** Rebuilding prebuilts directory\e[00m"
+
+pushd "${ANDROID_GCAM_BUILD_FULL_PATH}"
+mm
+popd
+
+echo -e "\e[1;34m** Done\e[00m"
+echo " "
+echo "Last steps:"
+echo " - Squash multiple commits with 'git rebase -i HEAD~N'"
+echo " - Run 'git commit --amend' and describe what the change actually does"
+
+
+######################################################################
+# Check it in, with a pretty commit message consisting of a list of
+# the new google3 gcam CL's.
+
+echo -e "\e[1;34m** Checking in the gcam update\e[00m"
+
+pushd "${ANDROID_GCAM_BUILD_FULL_PATH}"
+
+git add -A  # add any untracked files
+LAST_SYNC_CL=$(git log --oneline \
+    | grep "\(libgcam\).*: Sync to" \
+    | head -n1 \
+    | sed 's/.*cl\/\([0-9]\+\).*/\1/')
+
+pushd ${GOOGLE3_PATH}
+
+log_script="${GOOGLE3_GCAM_PATH}/tools/pretty_log.sh"
+if [[ -x "$log_script" ]]
+then
+  echo "File '$log_script' is executable"
+else
+  chmod +x $log_script
+fi
+
+if [[ -z "$LAST_SYNC_CL" ]]
+then
+  echo "LAST_SYNC_CL is empty. Setting it to 0"
+  LAST_SYNC_CL=0
+fi
+
+./$log_script \
+    --lib_name=libgcam \
+    --google3_paths=${GOOGLE3_GCAM_PATH} \
+    --previous_cl $LAST_SYNC_CL \
+    | tail -n +3 \
+    | tee /tmp/gcam_log_commit.txt
+popd
+git commit -a -F /tmp/gcam_log_commit.txt
+if [ $? -ne 0 ]; then
+  # This only fails due to an empty commit message, which usually means that
+  # we needed to run this script multiple times and that gcam has already
+  # been updated. Commit with a special message -- we can squash everything
+  # down to a single commit later.
+  git commit -a -m "libgcam: Sync to cl/$LAST_SYNC_CL [again]"
+fi
+GIT_PAGER=cat git log -1
+
+popd
+######################################################################
+# All done.
