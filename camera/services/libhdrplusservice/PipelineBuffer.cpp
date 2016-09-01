@@ -53,6 +53,32 @@ int32_t PipelineBuffer::getFormat() const {
     return mFormat;
 }
 
+int32_t PipelineBuffer::getStride() const {
+    return mStride;
+}
+
+status_t PipelineBuffer::clear() {
+    uint8_t *data = getData();
+    switch (mFormat) {
+        case HAL_PIXEL_FORMAT_RAW10:
+        case HAL_PIXEL_FORMAT_RAW16:
+            memset(data, kClearRawValue, getDataSize());
+            return 0;
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+        {
+            uint32_t lumaSize = mStride * mHeight;
+            // Clear luma
+            memset(data, kClearLumaValue, lumaSize);
+            // Clear chroma
+            memset(data + lumaSize, kClearChromaValue, getDataSize() - lumaSize);
+            return 0;
+        }
+        default:
+            ALOGE("%s: Format %d not supported.", __FUNCTION__, mFormat);
+            return -EINVAL;
+    }
+}
+
 PipelineHeapBuffer::PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
         const StreamConfiguration &config) :
     PipelineBuffer(stream, config) {
@@ -66,17 +92,21 @@ status_t PipelineHeapBuffer::allocate() {
     if (mData.size() != 0) return -EEXIST;
 
     size_t numBytes = 0;
+    size_t stride = 0;
 
-    // TODO: this should consider alignment requirements of QC and PB HW.
+    // TODO: this should consider alignment requirements of QC and PB HW. b/31623156.
     switch (mRequestedConfig.format) {
         case HAL_PIXEL_FORMAT_RAW10:
             numBytes = mRequestedConfig.width * mRequestedConfig.height * 10 / 8;
+            stride = mRequestedConfig.width * 10 / 8;
             break;
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
             numBytes = mRequestedConfig.width * mRequestedConfig.height * 3 / 2;
+            stride = mRequestedConfig.width;
             break;
         case HAL_PIXEL_FORMAT_RAW16:
             numBytes = mRequestedConfig.width * mRequestedConfig.height * 2;
+            stride = mRequestedConfig.width * 2;
             break;
         default:
             ALOGE("%s: Format %d not supported.", __FUNCTION__, mRequestedConfig.format);
@@ -87,6 +117,7 @@ status_t PipelineHeapBuffer::allocate() {
     mWidth = mRequestedConfig.width;
     mHeight = mRequestedConfig.height;
     mFormat = mRequestedConfig.format;
+    mStride = stride;
 
     return 0;
 }

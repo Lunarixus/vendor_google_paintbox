@@ -144,7 +144,7 @@ void SourceCaptureBlock::notifyFrameMetadata(const FrameMetadata &metadata) {
         if (result->metadata.frameMetadata->easelTimestamp == metadata.easelTimestamp) {
             *result->metadata.frameMetadata = metadata;
 
-            // Send out the completed output reqsult.
+            // Send out the completed output result.
             sendOutputResult(*result);
             mPendingOutputResultQueue.erase(result);
             return;

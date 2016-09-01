@@ -196,7 +196,7 @@ private:
     mutable std::mutex mApiLock;
 
     // Static metadata of current camera device.
-    StaticMetadata mStaticMetadata;
+    std::shared_ptr<StaticMetadata> mStaticMetadata;
 
     /*
      * Input stream that contains input buffers of the pipeline. Input stream buffers
@@ -212,8 +212,8 @@ private:
 
     // Block to capture frames for input stream buffers.
     std::shared_ptr<PipelineBlock> mSourceCaptureBlock;
-    // Block to fake process the input buffers to produce output buffers.
-    std::shared_ptr<PipelineBlock> mDummyProcessingBlock;
+    // Block to do HDR+ processing on the input buffers to produce output buffers.
+    std::shared_ptr<PipelineBlock> mHdrPlusProcessingBlock;
     // Block to send capture results to client.
     std::shared_ptr<PipelineBlock> mCaptureResultBlock;
 

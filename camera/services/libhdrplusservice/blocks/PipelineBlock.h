@@ -168,6 +168,12 @@ protected:
     virtual bool doWorkLocked() = 0;
 
     /*
+     * Notify the worker thread of a new event. This will wake up the worker thread when it's
+     * waiting on mEventCondition.
+     */
+    void notifyWorkerThreadEvent();
+
+    /*
      * Protect mInputQueue and mOutputRequestQueue. A block must acquire this lock before accessing
      * mInputQueue or mOutputRequestQueue.
      */
@@ -201,12 +207,6 @@ private:
 
     // Destroy the resources of the block.
     void destroy();
-
-    /*
-     * Notify the worker thread of a new event. This will wake up the worker thread when it's
-     * waiting on mEventCondition.
-     */
-    void notifyWorkerThreadEvent();
 
     // State of the block.
     BlockState mState;

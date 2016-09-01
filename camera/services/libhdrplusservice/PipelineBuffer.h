@@ -43,11 +43,17 @@ public:
     // Return format of the image.
     int32_t getFormat() const;
 
+    // Return stride in bytes of the image.
+    int32_t getStride() const;
+
     // Return the pointer to the raw data of the image.
     virtual uint8_t* getData() = 0;
 
     // Return the size of the data.
     virtual uint32_t getDataSize() const = 0;
+
+    // Set each pixel to black.
+    status_t clear();
 
     // Return the stream that this image belongs to.
     std::weak_ptr<PipelineStream> getStream() const;
@@ -68,6 +74,8 @@ protected:
     int32_t mHeight;
     // Format of the image as defined in graphics.h
     int32_t mFormat;
+    // Stride of the image.
+    int32_t mStride;
     // Requested stream configuration to allocate the buffer.
     StreamConfiguration mRequestedConfig;
     // The stream that this buffer belongs to.
@@ -76,6 +84,9 @@ protected:
     std::weak_ptr<PipelineBlock> mBlock;
 
 private:
+    static const uint8_t kClearRawValue = 0x0;
+    static const uint8_t kClearLumaValue = 0x0;
+    static const uint8_t kClearChromaValue = 0x80;
     int calculateBufferSize(int32_t width, int32_t height, int32_t format);
 };
 

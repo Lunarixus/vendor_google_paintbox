@@ -4,7 +4,7 @@
 
 #include <inttypes.h>
 
-#include "blocks/DummyProcessingBlock.h"
+#include "blocks/HdrPlusProcessingBlock.h"
 #include "blocks/SourceCaptureBlock.h"
 #include "blocks/CaptureResultBlock.h"
 #include "HdrPlusPipeline.h"
@@ -28,7 +28,13 @@ HdrPlusPipeline::~HdrPlusPipeline() {
 
 status_t HdrPlusPipeline::setStaticMetadata(const StaticMetadata& metadata) {
     std::unique_lock<std::mutex> lock(mApiLock);
-    mStaticMetadata = metadata;
+    if (mStaticMetadata != nullptr) {
+        ALOGE("%s: Static metadata is already set.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    mStaticMetadata = std::make_shared<StaticMetadata>();
+    *mStaticMetadata = metadata;
 
     return 0;
 }
@@ -185,7 +191,7 @@ void HdrPlusPipeline::destroyLocked() {
     // Delete all blocks.
     mBlocks.clear();
     mSourceCaptureBlock = nullptr;
-    mDummyProcessingBlock = nullptr;
+    mHdrPlusProcessingBlock = nullptr;
     mCaptureResultBlock = nullptr;
 
     mState = STATE_UNCONFIGURED;
@@ -238,27 +244,28 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked() {
     }
     mBlocks.push_back(mCaptureResultBlock);
 
-    // Create a dummy processing block for temporary testing.
-    mDummyProcessingBlock = DummyProcessingBlock::newDummyProcessingBlock(shared_from_this());
-    if (mDummyProcessingBlock == nullptr) {
-        ALOGE("%s: Creating DummyProcessingBlock failed.", __FUNCTION__);
+    // Create an HDR+ processing block for HDR+ processing.
+    mHdrPlusProcessingBlock = HdrPlusProcessingBlock::newHdrPlusProcessingBlock(shared_from_this(),
+            mStaticMetadata);
+    if (mHdrPlusProcessingBlock == nullptr) {
+        ALOGE("%s: Creating HdrPlusProcessingBlock failed.", __FUNCTION__);
         return -ENODEV;
     }
-    mBlocks.push_back(mDummyProcessingBlock);
+    mBlocks.push_back(mHdrPlusProcessingBlock);
 
     // Set up the routes for each stream.
     mStreamRoutes.clear();
     StreamRoute route;
 
-    // Route for input stream: SourceCaptureBlock -> DummyProcessingBlock
+    // Route for input stream: SourceCaptureBlock -> HdrPlusProcessingBlock
     route.push_back(mSourceCaptureBlock);
-    route.push_back(mDummyProcessingBlock);
+    route.push_back(mHdrPlusProcessingBlock);
     mStreamRoutes.emplace(mInputStream, route);
 
-    // Route for output streams: DummyProcessingBlock -> CaptureResultBlock
+    // Route for output streams: HdrPlusProcessingBlock -> CaptureResultBlock
     for (auto stream : mOutputStreams) {
         route.clear();
-        route.push_back(mDummyProcessingBlock);
+        route.push_back(mHdrPlusProcessingBlock);
         route.push_back(mCaptureResultBlock);
         mStreamRoutes.emplace(stream, route);
     }
