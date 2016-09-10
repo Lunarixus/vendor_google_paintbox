@@ -3,6 +3,7 @@
 
 #include <mutex>
 
+#include "easelcontrol.h"
 #include "MessengerToHdrPlusClient.h"
 #include "MessengerListenerFromHdrPlusClient.h"
 
@@ -58,6 +59,9 @@ private:
     std::mutex mApiLock;
 
     std::condition_variable mExitCondition;
+
+    // Easel control.
+    EaselControlServer mEaselControl;
 
     // MessengerToHdrPlusClient to send messages to HDR+ client.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;

@@ -20,6 +20,9 @@ LOCAL_SHARED_LIBRARIES:= \
     libhdrplusmessenger \
     liblog
 
+LOCAL_STATIC_LIBRARIES:= \
+    libmockeasel
+
 LOCAL_C_INCLUDES += \
     hardware/google/paintbox/include \
     hardware/google/paintbox/camera/include \

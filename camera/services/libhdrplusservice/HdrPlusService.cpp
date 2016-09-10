@@ -1,6 +1,6 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusService"
-#include <utils/Log.h>
+#include "Log.h"
 
 #include "HdrPlusPipeline.h"
 #include "HdrPlusService.h"
@@ -19,14 +19,23 @@ status_t HdrPlusService::start() {
     std::unique_lock<std::mutex> lock(mApiLock);
     if (mMessengerToClient != nullptr) return -EEXIST;
 
+    // Opening Easel Control
+    status_t res = mEaselControl.open();
+    if (res != 0) {
+        ALOGE("%s: Opening Easel Control failed: %s (%d).", __FUNCTION__, strerror(-errno), errno);
+        stopLocked();
+        return -ENODEV;
+    }
+
     // Connect to client messenger.
     mMessengerToClient = std::make_shared<MessengerToHdrPlusClient>();
     if (mMessengerToClient == nullptr) {
         ALOGE("%s: Creating a MessengerToHdrPlusClient instance failed.", __FUNCTION__);
+        stopLocked();
         return -ENODEV;
     }
 
-    status_t res = mMessengerToClient->connect(*this);
+    res = mMessengerToClient->connect(*this);
     if (res != 0) {
         ALOGE("%s: Connecting to messenger failed: %s (%d).", __FUNCTION__, strerror(-res), res);
         stopLocked();
@@ -42,6 +51,7 @@ void HdrPlusService::stopLocked() {
 
     mMessengerToClient->disconnect();
     mMessengerToClient = nullptr;
+    mEaselControl.close();
     mExitCondition.notify_one();
 }
 
