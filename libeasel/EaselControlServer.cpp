@@ -220,6 +220,14 @@ void EaselControlServer::log(int prio, const char *tag, const char *text) {
 }
 
 /* Convenience wrapper for EaselControlServer::log() */
-void easelLog(int prio, const char *tag, const char *text) {
+void easelLog(int prio, const char *tag, const char *format, ...) {
+    char text[1024]; // This matches ALOG limit.
+
+    // Write the formatted log to text.
+    va_list args;
+    va_start(args, format);
+    vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+
     EaselControlServer::log(prio, tag, text);
 }
