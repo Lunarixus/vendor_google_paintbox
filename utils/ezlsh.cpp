@@ -5,7 +5,6 @@
 #include <thread>
 
 #include <assert.h>
-#include <endian.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <pty.h>
@@ -20,11 +19,7 @@
 namespace {
 static const int kMaxTtyDataBufferSize = 2048;
 
-#ifdef ANDROID
-#define SHELL_PATH      "/system/bin/sh"
-#else
 #define SHELL_PATH      "/bin/sh"
-#endif
 
 enum Command {
     CMD_OPEN,      // Open new shell session
@@ -94,11 +89,11 @@ void client_message_handler() {
         if (msg.message_buf_size) {
             MsgHeader *h = (MsgHeader *)msg.message_buf;
 
-            switch(be32toh(h->command)) {
+            switch(h->command) {
             case CMD_TTY_DATA:
             {
                 TtyDataMsg *d = (TtyDataMsg *)msg.message_buf;
-                ret = write(tty_fd, d->data, be32toh(d->h.datalen));
+                ret = write(tty_fd, d->data, d->h.datalen);
                 if (ret < 0)
                     perror("write");
                 break;
@@ -108,7 +103,7 @@ void client_message_handler() {
                 break;
             default:
                 fprintf(stderr, "ERROR: unrecognized command %d\n",
-                        be32toh(h->command));
+                        h->command);
             }
 
             free(msg.message_buf);
@@ -144,7 +139,7 @@ void shell_client_session() {
 
     // Tell server to start a new session
     OpenMsg open_msg;
-    open_msg.h.command = htobe32(CMD_OPEN);
+    open_msg.h.command = CMD_OPEN;
     open_msg.h.datalen = 0;
 
     EaselComm::EaselMessage msg;
@@ -156,11 +151,11 @@ void shell_client_session() {
 
     TtyDataMsg data_msg;
 
-    data_msg.h.command = htobe32(CMD_TTY_DATA);
+    data_msg.h.command = CMD_TTY_DATA;
 
     while ((ret = read(STDIN_FILENO, &data_msg.data,
                        kMaxTtyDataBufferSize)) > 0) {
-        data_msg.h.datalen = htobe32(ret);
+        data_msg.h.datalen = ret;
 
         EaselComm::EaselMessage msg;
         msg.message_buf = &data_msg;
@@ -199,18 +194,18 @@ void shell_server_session() {
     } else if (shell_pid == 0) {
         ret = execle(SHELL_PATH, SHELL_PATH, "-", nullptr, environ);
         if (ret < 0) {
-            perror("execle");
+            perror(SHELL_PATH);
             exit(2);
         }
     } else {
         TtyDataMsg data_msg;
         int ret;
 
-        data_msg.h.command = htobe32(CMD_TTY_DATA);
+        data_msg.h.command = CMD_TTY_DATA;
 
         while ((ret = read(tty_fd, &data_msg.data,
                            kMaxTtyDataBufferSize)) > 0) {
-            data_msg.h.datalen = htobe32(ret);
+            data_msg.h.datalen = ret;
 
             EaselComm::EaselMessage msg;
             msg.message_buf = &data_msg;
@@ -224,7 +219,7 @@ void shell_server_session() {
 
         // EOF from server shell PTY;  tell client to close its connection
         CloseMsg close_msg;
-        close_msg.h.command = htobe32(CMD_CLOSE);
+        close_msg.h.command = CMD_CLOSE;
         close_msg.h.datalen = 0;
 
         EaselComm::EaselMessage msg;
@@ -258,7 +253,7 @@ void server_run() {
         if (msg.message_buf_size) {
             MsgHeader *h = (MsgHeader *)msg.message_buf;
 
-            switch(be32toh(h->command)) {
+            switch(h->command) {
             case CMD_OPEN:
                 server_kill_shell();
                 shell_session_thread =
@@ -268,7 +263,7 @@ void server_run() {
             case CMD_TTY_DATA:
             {
                 TtyDataMsg *d = (TtyDataMsg *)msg.message_buf;
-                ret = write(tty_fd, d->data, be32toh(d->h.datalen));
+                ret = write(tty_fd, d->data, d->h.datalen);
                 if (ret < 0)
                     perror("write");
                 break;
@@ -280,7 +275,7 @@ void server_run() {
 
             default:
                 fprintf(stderr, "ERROR: unrecognized command %d\n",
-                        be32toh(h->command));
+                        h->command);
             }
 
             free(msg.message_buf);
