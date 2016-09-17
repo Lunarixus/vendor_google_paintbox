@@ -653,6 +653,8 @@ int EaselCommNet::receiveDMA(const EaselMessage *msg) {
         memcpy(msg->dma_buf, src, msg->dma_buf_size);
     }
 
+    free(src);
+
     // Send DMA_DONE to initiator.
     DmaDoneArgs dd;
     dd.message_id = htobe64(msg->message_id);
