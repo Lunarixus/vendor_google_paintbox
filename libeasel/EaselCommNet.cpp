@@ -674,7 +674,7 @@ int EaselCommNet::receiveDMA(const EaselMessage *msg) {
  */
 int EaselCommClientNet::open(int service_id) {
     mServiceId = service_id;
-    mShuttingDown = false;
+    reinit();
     return 0;
 }
 
