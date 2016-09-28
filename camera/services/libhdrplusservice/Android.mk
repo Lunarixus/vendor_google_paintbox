@@ -16,7 +16,7 @@ LOCAL_SRC_FILES :=  \
     PipelineStream.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
-    libgcam \
+    libgcam_pb \
     libhdrplusmessenger \
     liblog
 
