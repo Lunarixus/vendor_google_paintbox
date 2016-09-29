@@ -1,8 +1,5 @@
 #define LOG_TAG "EaselControlClient"
 
-#define _BSD_SOURCE
-#include <endian.h>
-
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
@@ -38,11 +35,11 @@ std::thread *msg_handler_thread;
  */
 void handleLog(const EaselControlImpl::LogMsg *msg) {
     char *tag = (char *)msg + sizeof(EaselControlImpl::LogMsg);
-    char *text = tag + be32toh(msg->tag_len);
+    char *text = tag + msg->tag_len;
 #ifdef ANDROID
-    __android_log_write(be32toh(msg->prio), tag, text);
+    __android_log_write(msg->prio, tag, text);
 #else
-    printf("<%d> %s %s\n", be32toh(msg->prio), tag, text);
+    printf("<%d> %s %s\n", msg->prio, tag, text);
 #endif
 }
 
@@ -70,7 +67,7 @@ void msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
-        switch (be32toh(h->command)) {
+        switch (h->command) {
         case EaselControlImpl::CMD_LOG:
             handleLog((EaselControlImpl::LogMsg *)msg.message_buf);
             break;
@@ -105,14 +102,12 @@ int EaselControlClient::activateEasel() {
      * Send a message with the new boottime base and time of day clock.
      */
     EaselControlImpl::SetTimeMsg ctrl_msg;
-    ctrl_msg.h.command = htobe32(EaselControlImpl::CMD_SET_TIME);
+    ctrl_msg.h.command = EaselControlImpl::CMD_SET_TIME;
     struct timespec ts ;
     clock_gettime(CLOCK_BOOTTIME, &ts);
-    ctrl_msg.boottime = htobe64((uint64_t)ts.tv_sec * NSEC_PER_SEC +
-                                ts.tv_nsec);
+    ctrl_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
     clock_gettime(CLOCK_REALTIME, &ts);
-    ctrl_msg.realtime = htobe64((uint64_t)ts.tv_sec * NSEC_PER_SEC +
-                                ts.tv_nsec);
+    ctrl_msg.realtime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
 
     EaselComm::EaselMessage msg;
     msg.message_buf = &ctrl_msg;
@@ -124,7 +119,7 @@ int EaselControlClient::activateEasel() {
 
 int EaselControlClient::deactivateEasel() {
     EaselControlImpl::DeactivateMsg ctrl_msg;
-    ctrl_msg.h.command = htobe32(EaselControlImpl::CMD_DEACTIVATE);
+    ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
 
     EaselComm::EaselMessage msg;
     msg.message_buf = &ctrl_msg;

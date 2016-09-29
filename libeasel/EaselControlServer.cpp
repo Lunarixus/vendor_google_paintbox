@@ -1,10 +1,8 @@
-#define _BSD_SOURCE
 #include <mutex>
 #include <random>
 #include <thread>
 
 #include <assert.h>
-#include <endian.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,14 +66,14 @@ void *msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
-        switch(be32toh(h->command)) {
+        switch(h->command) {
         case EaselControlImpl::CMD_SET_TIME:
             {
                 EaselControlImpl::SetTimeMsg *tmsg =
                     (EaselControlImpl::SetTimeMsg *)msg.message_buf;
 
                 // Save the AP's boottime clock at approx. now
-                timesync_ap_boottime = be64toh(tmsg->boottime);
+                timesync_ap_boottime = tmsg->boottime;
 
                 // Save our current boottime time to compute deltas later
                 struct timespec ts;
@@ -203,9 +201,9 @@ void EaselControlServer::log(int prio, const char *tag, const char *text) {
 
     initializeServer();
     EaselControlImpl::LogMsg *log_msg = (EaselControlImpl::LogMsg *)buf;
-    log_msg->h.command = htobe32(EaselControlImpl::CMD_LOG);
-    log_msg->prio = htobe32(prio);
-    log_msg->tag_len = htobe32(tag_len);
+    log_msg->h.command = EaselControlImpl::CMD_LOG;
+    log_msg->prio = prio;
+    log_msg->tag_len = tag_len;
     memcpy(buf + log_msg_len, tag, tag_len);
     memcpy(buf + log_msg_len + tag_len, text, text_len);
 
