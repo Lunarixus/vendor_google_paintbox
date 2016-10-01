@@ -1,5 +1,3 @@
-#define _BSD_SOURCE /* for endian.h macros */
-
 #include "easelcomm.h"
 
 #include <thread>
