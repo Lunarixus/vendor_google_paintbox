@@ -7,6 +7,7 @@ PB_AOSP_INCLUDES := $(TOP)/hardware/google/paintbox/include \
 include $(CLEAR_VARS)
 LOCAL_MODULE := libeasel
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_AOSP_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := \
 	EaselComm.cpp \
@@ -37,6 +38,7 @@ include $(BUILD_NATIVE_TEST)
 include $(CLEAR_VARS)
 LOCAL_MODULE := libmockeasel
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_AOSP_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG -DMOCKEASEL
 LOCAL_SRC_FILES := \
         EaselCommNet.cpp \
