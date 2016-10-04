@@ -27,6 +27,10 @@ LOCAL_C_INCLUDES += \
     vendor/google_paintbox/include \
     vendor/google_paintbox/camera/services/include
 
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    hardware/google/paintbox/include \
+    hardware/google/paintbox/kernel-headers
+
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_MODULE:= libhdrplusservice

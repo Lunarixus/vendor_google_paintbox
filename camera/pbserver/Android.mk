@@ -9,7 +9,6 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 LOCAL_SRC_FILES:= pbserver.cpp
 
 LOCAL_C_INCLUDES += \
-    hardware/google/paintbox/include \
     hardware/google/paintbox/camera/include \
     hardware/google/paintbox/camera/libhdrplusmessenger/include \
     vendor/google_paintbox/include \
