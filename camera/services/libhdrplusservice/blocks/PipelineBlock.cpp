@@ -160,10 +160,8 @@ status_t PipelineBlock::queueInput(Input *input) {
     ALOGV("%s: %s", mName.data(), __FUNCTION__);
     if (input == nullptr) return -EINVAL;
 
-    // Set the buffer's block to this one.
-    for (auto buffer : input->buffers) {
-        buffer->setPipelineBlock(shared_from_this());
-    }
+    // Increment current block index.
+    input->route.currentBlockIndex++;
 
     // Queue input and notify worker thread.
     {
@@ -180,10 +178,8 @@ status_t PipelineBlock::queueOutputRequest(OutputRequest *outputRequest) {
     ALOGV("%s: %s", mName.data(), __FUNCTION__);
     if (outputRequest == nullptr) return -EINVAL;
 
-    // Set the buffer's block to this one.
-    for (auto buffer : outputRequest->buffers) {
-        buffer->setPipelineBlock(shared_from_this());
-    }
+    // Increment current block index.
+    outputRequest->route.currentBlockIndex++;;
 
     // Queue output request and notify worker thread.
     {

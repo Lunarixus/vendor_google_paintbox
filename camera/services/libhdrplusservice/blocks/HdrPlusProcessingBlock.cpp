@@ -264,7 +264,6 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         return;
     }
 
-    OutputResult outputResult = {};
     std::shared_ptr<ShotCapture> finishingShot;
     {
         std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
@@ -285,9 +284,11 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         mPendingShotCapture = nullptr;
     }
 
+    OutputResult outputResult = finishingShot->outputRequest;
+
     // Copy HDR+ processed final image to block output buffers. This won't be needed for PB
     // version.
-    for (auto outputBuffer : finishingShot->outputRequest.buffers) {
+    for (auto outputBuffer : outputResult.buffers) {
         // Clear the buffer first because GCAM's final image resolution may be smaller.
         // This won't be needed for PB version.
         outputBuffer->clear();
@@ -320,16 +321,11 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
             std::memcpy(chromaDst + y * outputBuffer->getStride(), &chromaImageSrc.at(0, y, 0),
                     lineBytesToCopy);
         }
-
-        outputResult.buffers.push_back(outputBuffer);
     }
 
     // Set frame metadata.
     outputResult.metadata.frameMetadata =
             finishingShot->frames[0]->input.metadata.frameMetadata;
-
-    // Set request ID.
-    outputResult.metadata.requestId = finishingShot->outputRequest.metadata.requestId;
 
     auto pipeline = mPipeline.lock();
     if (pipeline == nullptr) {

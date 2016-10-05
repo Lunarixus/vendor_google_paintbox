@@ -138,9 +138,6 @@ private:
     // Use newPipeline to create a HdrPlusPipeline.
     HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messengerToClient);
 
-    // A stream route is a vector of pipeline blocks.
-    typedef std::vector<std::shared_ptr<PipelineBlock>> StreamRoute;
-
     // Default number of buffers in input stream.
     const int kDefaultNumInputBuffers = 10;
 
@@ -177,8 +174,8 @@ private:
     // Destroy streams, buffer, and routes with mApiLock held.
     void destroyLocked();
 
-    // Return the next block in the route of a buffer with mApiLock held.
-    std::shared_ptr<PipelineBlock> getNextBlockLocked(const PipelineBuffer &buffer);
+    // Return the next block in the route of block data with mApiLock held.
+    std::shared_ptr<PipelineBlock> getNextBlockLocked(const PipelineBlock::BlockIoData &blockData);
 
     // Abort a BlockOutputRequest in progress and return the output buffers to their streams.
     void abortRequest(PipelineBlock::OutputRequest *outputRequest);
@@ -217,11 +214,14 @@ private:
     // Block to send capture results to client.
     std::shared_ptr<PipelineBlock> mCaptureResultBlock;
 
+    // Route for input stream.
+    PipelineBlock::BlockIoDataRoute mInputStreamRoute;
+    // Route for output streams.
+    PipelineBlock::BlockIoDataRoute mOutputStreamRoute;
+
     // All created blocks.
     std::vector<std::shared_ptr<PipelineBlock>> mBlocks;
 
-     // Map from PipelineStream to StreamRoute. Storing the stream routes.
-    std::map<std::shared_ptr<PipelineStream>, StreamRoute> mStreamRoutes;
     // MessengerToHdrPlusClient to send messages to the client.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
 

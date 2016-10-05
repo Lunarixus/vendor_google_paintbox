@@ -136,9 +136,10 @@ status_t HdrPlusPipeline::startRunningPipelineLocked() {
                 while (mInputStream->getBuffer(&buffer, /*timeoutMs*/ 0) == 0) {
                     PipelineBlock::OutputRequest outputRequest = {};
                     outputRequest.buffers.push_back(buffer);
-                    auto block = getNextBlockLocked(*buffer);
+                    outputRequest.route = mInputStreamRoute;
+                    auto block = getNextBlockLocked(outputRequest);
                     if (block == nullptr) {
-                        ALOGE("%s: Could not find the starting block for the output buffers.",
+                        ALOGE("%s: Could not find the starting block for input stream.",
                                 __FUNCTION__);
                         mInputStream->returnBuffer(buffer);
                         return -ENOENT;
@@ -186,7 +187,8 @@ void HdrPlusPipeline::destroyLocked() {
     // Delete all streams.
     mInputStream = nullptr;
     mOutputStreams.clear();
-    mStreamRoutes.clear();
+    mInputStreamRoute.clear();
+    mOutputStreamRoute.clear();
 
     // Delete all blocks.
     mBlocks.clear();
@@ -254,21 +256,17 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked() {
     mBlocks.push_back(mHdrPlusProcessingBlock);
 
     // Set up the routes for each stream.
-    mStreamRoutes.clear();
-    StreamRoute route;
-
-    // Route for input stream: SourceCaptureBlock -> HdrPlusProcessingBlock
-    route.push_back(mSourceCaptureBlock);
-    route.push_back(mHdrPlusProcessingBlock);
-    mStreamRoutes.emplace(mInputStream, route);
+    // Route for input stream: SourceCaptureBlock -> HdrPlusProcessingBlock.
+    mInputStreamRoute.clear();
+    mInputStreamRoute.blocks.push_back(mSourceCaptureBlock);
+    mInputStreamRoute.blocks.push_back(mHdrPlusProcessingBlock);
+    // Input stream route is circular so the input buffers go back to be captured for next frame.
+    mInputStreamRoute.isCircular = true;
 
     // Route for output streams: HdrPlusProcessingBlock -> CaptureResultBlock
-    for (auto stream : mOutputStreams) {
-        route.clear();
-        route.push_back(mHdrPlusProcessingBlock);
-        route.push_back(mCaptureResultBlock);
-        mStreamRoutes.emplace(stream, route);
-    }
+    mOutputStreamRoute.clear();
+    mOutputStreamRoute.blocks.push_back(mHdrPlusProcessingBlock);
+    mOutputStreamRoute.blocks.push_back(mCaptureResultBlock);
 
     return 0;
 }
@@ -313,23 +311,8 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request) {
         return -EINVAL;
     }
 
-    std::shared_ptr<PipelineBlock> startingBlock;
-
-    // Check all output buffers start at the same block.
-    for (auto buffer : outputRequest.buffers) {
-        auto block = getNextBlockLocked(*buffer);
-        if (startingBlock == nullptr) {
-            startingBlock = block;
-        } else if (startingBlock != block) {
-            // Pipeline doesn't support capture requests that have output buffers starting
-            // at different blocks yet. We may want to support that when a new use case needs
-            // it.
-            ALOGE("%s: Not all output buffers start at the same block.", __FUNCTION__);
-            abortRequest(&outputRequest);
-            return -EINVAL;
-        }
-    }
-
+    outputRequest.route = mOutputStreamRoute;
+    std::shared_ptr<PipelineBlock> startingBlock = getNextBlockLocked(outputRequest);
     if (startingBlock == nullptr) {
         ALOGE("%s: Could not find the starting block for the output buffers.", __FUNCTION__);
         abortRequest(&outputRequest);
@@ -378,52 +361,55 @@ void HdrPlusPipeline::notifyFrameMetadata(const FrameMetadata &metadata) {
             metadata);
 }
 
-std::shared_ptr<PipelineBlock> HdrPlusPipeline::getNextBlockLocked(const PipelineBuffer &buffer) {
-    std::shared_ptr<PipelineBlock> currentBlock = buffer.getPipelineBlock().lock();
+std::shared_ptr<PipelineBlock> HdrPlusPipeline::getNextBlockLocked(
+        const PipelineBlock::BlockIoData &blockData) {
+    std::shared_ptr<PipelineBlock> nextBlock;
 
-    // Find the route of the buffer's stream.
-    std::shared_ptr<PipelineStream> stream = buffer.getStream().lock();
-    if (stream == nullptr) {
-        ALOGE("%s: Stream has been destroyed.", __FUNCTION__);
+    int32_t currentBlockIndex = blockData.route.currentBlockIndex;
+
+    // Sanity check the route and current block.
+    if (blockData.route.blocks.size() <= 0) {
+        // Return nullptr if route is empty.
+        ALOGE("%s: route doesn't contain any blocks.", __FUNCTION__);
+        return nullptr;
+    } else if (currentBlockIndex >= static_cast<int32_t>(blockData.route.blocks.size()) ||
+               currentBlockIndex < -1) {
+        ALOGE("%s: Current block index (%d) is out of range (route size %zu).", __FUNCTION__,
+                currentBlockIndex, blockData.route.blocks.size());
         return nullptr;
     }
 
-    auto iter = mStreamRoutes.find(stream);
-    if (iter == mStreamRoutes.end()) {
-        ALOGE("%s: Couldn't find the stream in stream routes.", __FUNCTION__);
-        return nullptr;
-    }
-
-    // Return the first block in the route if the buffer is not currently in any block.
-    StreamRoute &route = iter->second;
-    if (currentBlock == nullptr && route.size() > 0) {
-        return route[0];
+    // Currently in the last block?
+    if (currentBlockIndex == static_cast<int32_t>(blockData.route.blocks.size()) - 1) {
+        // If it's a circular route, return the first block. Otherwise, return nullptr.
+        return blockData.route.isCircular ? blockData.route.blocks[0] : nullptr;
     }
 
     // Return the next block in the route.
-    for (uint32_t i = 0; i < route.size(); i++) {
-        if (route[i] == currentBlock && i < route.size() - 1) {
-            return route[i + 1];
-        }
-    }
-
-    return nullptr;
+    return blockData.route.blocks[currentBlockIndex + 1];
 }
 
 void HdrPlusPipeline::inputDone(PipelineBlock::Input input) {
-    // Figure out where the input buffer goes.
-    for (auto buffer : input.buffers) {
-        auto nextBlock = getNextBlockLocked(*buffer);
-        if (nextBlock != nullptr && mState == STATE_RUNNING) {
-            ALOGE("%s: Reusing input buffer is not supported. Return the buffer to stream.",
-                    __FUNCTION__);
-        }
+    if (mState != STATE_RUNNING) {
+        // If pipeline is not running, return buffers back to streams.
+        returnBufferToStream(input.buffers);
+        return;
+    }
 
-        std::shared_ptr<PipelineStream> stream = buffer->getStream().lock();
-        if (stream == nullptr) {
-            ALOGE("%s: Stream has been destroyed.", __FUNCTION__);
-        } else {
-            stream->returnBuffer(buffer);
+    // Figure out where the input buffer goes.
+    std::shared_ptr<PipelineBlock> nextBlock = getNextBlockLocked(input);
+    if (nextBlock == nullptr) {
+        // Return all buffers to streams.
+        returnBufferToStream(input.buffers);
+    } else {
+        // Send the buffer to next block. This should send the input stream buffers back to the
+        // first block to be filled.
+        PipelineBlock::OutputRequest output = input;
+        status_t res = nextBlock->queueOutputRequest(&output);
+        if (res != 0) {
+            ALOGE("%s: Queueing an output to %s failed: %s (%d). Returning buffers to streams",
+                    __FUNCTION__, nextBlock->getName(), strerror(-res), res);
+            returnBufferToStream(input.buffers);
         }
     }
 
@@ -447,31 +433,21 @@ void HdrPlusPipeline::returnBufferToStream(const PipelineBlock::PipelineBufferSe
 }
 
 void HdrPlusPipeline::outputDone(PipelineBlock::OutputResult outputResult) {
-    std::shared_ptr<PipelineBlock> nextBlock = nullptr;
-
-    // If the pipeline is running, search the stream route to find the next block.
-    if (mState == STATE_RUNNING) {
-        for (auto buffer : outputResult.buffers) {
-            auto block = getNextBlockLocked(*buffer);
-            if (nextBlock != nullptr && nextBlock != block) {
-                // Forking outputs are not needed in current use case so it's not implemented.
-                ALOGE("%s: Forking outputs are not supported. Returning all buffers to streams.",
-                        __FUNCTION__);
-                nextBlock = nullptr;
-                break;
-            } else if (nextBlock == nullptr) {
-                nextBlock = block;
-            }
-        }
+    if (mState != STATE_RUNNING) {
+        // If pipeline is not running, return buffers back to streams.
+        returnBufferToStream(outputResult.buffers);
+        return;
     }
 
+    std::shared_ptr<PipelineBlock> nextBlock = getNextBlockLocked(outputResult);
     if (nextBlock == nullptr) {
         // Return all buffers to streams.
         returnBufferToStream(outputResult.buffers);
     } else {
         // Send the buffer to next block. This assumes that output of a block becomes the input of
         // the next block. This is true for all current use case.
-        status_t res = nextBlock->queueInput(&outputResult);
+        PipelineBlock::Input input = outputResult;
+        status_t res = nextBlock->queueInput(&input);
         if (res != 0) {
             ALOGE("%s: Queueing an input to %s failed: %s (%d). Returning buffers to streams",
                     __FUNCTION__, nextBlock->getName(), strerror(-res), res);

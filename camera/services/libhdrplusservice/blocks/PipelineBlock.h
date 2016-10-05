@@ -55,10 +55,30 @@ public:
         BlockMetadata() : requestId(INVALID_REQUEST_ID) {};
     };
 
+    // Defines the route of block IO data.
+    struct BlockIoDataRoute {
+        // A vector of blocks defining the route of block IO data.
+        std::vector<std::shared_ptr<PipelineBlock>> blocks;
+        // Index of the block where the data is currently in.
+        int32_t currentBlockIndex;
+        // Whether the route is circular. If it's circular, the data will be sent to the first
+        // block after the last block. If it's not circular, the buffers in the data will be
+        // returned to their streams after the last block.
+        bool isCircular;
+
+        BlockIoDataRoute() { clear(); };
+        void clear() { blocks.clear(); isCircular = false; currentBlockIndex = -1; };
+    };
+
     // Block I/O data used when sending inputs and outputs between a pipeline and a block.
     struct BlockIoData {
+        // A set of input or output buffers.
         PipelineBufferSet buffers;
+        // Block metadata such as frame metadata of the buffers and request ID.
         BlockMetadata metadata;
+        // Route of this block IO data. Pipeline will use this information to determine which block
+        // to send the data to next.
+        BlockIoDataRoute route;
     };
 
     // Block input.

@@ -99,6 +99,7 @@ void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuff
 
     OutputResult result = {};
     result.buffers = outputRequest.buffers;
+    result.route = outputRequest.route;
     result.metadata.frameMetadata = std::make_shared<FrameMetadata>();
     result.metadata.frameMetadata->easelTimestamp = mockingEaselTimestampNs;
 
