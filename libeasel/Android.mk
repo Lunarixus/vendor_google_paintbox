@@ -12,7 +12,8 @@ LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := \
 	EaselComm.cpp \
 	EaselControlClient.cpp \
-	EaselControlServer.cpp
+	EaselControlServer.cpp \
+	EaselMipiService.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)

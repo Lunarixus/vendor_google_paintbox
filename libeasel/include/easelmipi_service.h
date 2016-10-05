@@ -10,21 +10,22 @@ enum MipiRxPort {
     RX_0,
     RX_1,
     RX_2,
-}
+};
 
 // Definition of ports of Easel MIPI TX
 enum MipiTxPort {
     TX_0,
     TX_1,
-}
+};
 
 // Definition of MIPI MUX state
 typedef struct {
-    bool active // Whether the mux of a route is active or not.
+    bool active; // Whether the mux of a route is active or not.
 } MipiMuxStatus;
 
 class EaselMipiService {
 public:
+    ~EaselMipiService() { release(); };
     /*
      * Initializes Easel MIPI service.
      *
