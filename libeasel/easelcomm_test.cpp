@@ -147,12 +147,12 @@ static void msg_test_sender_iteration(EaselComm *sender) {
                    reply.dma_buf_size);
 #endif
 
-            ASSERT_EQ(replycode,
+            EXPECT_EQ(replycode,
                       testxfers[sender_xferindex].replymsg.replycode);
-            ASSERT_EQ(reply.message_buf_size,
+            EXPECT_EQ(reply.message_buf_size,
                       testxfers[sender_xferindex].replymsg.msglen);
             if (reply.message_buf) {
-                ASSERT_STREQ((char *)reply.message_buf,
+                EXPECT_STREQ((char *)reply.message_buf,
                              testxfers[sender_xferindex].replymsg.msgbuf);
             }
 
@@ -167,10 +167,10 @@ static void msg_test_sender_iteration(EaselComm *sender) {
                 }
 
                 ret = sender->receiveDMA(&reply);
-                ASSERT_TRUE(ret == 0);
+                EXPECT_TRUE(ret == 0);
 
                 if (reply.dma_buf)
-                    ASSERT_STREQ((char *)reply.dma_buf,
+                    EXPECT_STREQ((char *)reply.dma_buf,
                                  testxfers[sender_xferindex].replymsg.dmabuf);
 
                 free(reply.message_buf);
@@ -178,7 +178,7 @@ static void msg_test_sender_iteration(EaselComm *sender) {
             }
         } else {
             ret = sender->sendMessage(&msg);
-            ASSERT_TRUE(ret == 0);
+            EXPECT_TRUE(ret == 0);
         }
     }
 }
@@ -218,12 +218,12 @@ void receiver_handle_message(EaselComm *receiver) {
 #endif
 
     // Verify message fields match the template.
-    ASSERT_EQ(req.message_buf_size, testxfers[receiver_xferindex].msglen);
+    EXPECT_EQ(req.message_buf_size, testxfers[receiver_xferindex].msglen);
     if (req.message_buf_size) {
-        ASSERT_STREQ((char *)req.message_buf,
+        EXPECT_STREQ((char *)req.message_buf,
                      testxfers[receiver_xferindex].msgbuf);
     }
-    ASSERT_EQ(req.dma_buf_size, testxfers[receiver_xferindex].dmalen);
+    EXPECT_EQ(req.dma_buf_size, testxfers[receiver_xferindex].dmalen);
     if (req.dma_buf_size) {
         if (strstr((char *)req.message_buf, "DISCARD DMA") != nullptr) {
             req.dma_buf = nullptr;
@@ -233,10 +233,10 @@ void receiver_handle_message(EaselComm *receiver) {
             ASSERT_NE(req.dma_buf, nullptr);
         }
         ret = receiver->receiveDMA(&req);
-        ASSERT_TRUE(ret == 0);
+        EXPECT_TRUE(ret == 0);
 
-        if (req.dma_buf)
-            ASSERT_STREQ((char *)req.dma_buf,
+        if (!ret && req.dma_buf)
+            EXPECT_STREQ((char *)req.dma_buf,
                          testxfers[receiver_xferindex].dmabuf);
     }
 
@@ -254,10 +254,9 @@ void receiver_handle_message(EaselComm *receiver) {
         reply.need_reply = false;
         ret = receiver->sendReply(
             &req, testxfers[receiver_xferindex].replymsg.replycode, &reply);
-        ASSERT_TRUE(ret == 0);
+        EXPECT_TRUE(ret == 0);
     }
 
-    receiver_xferindex++;
     return;
 }
 
@@ -266,9 +265,8 @@ static void msg_test_receiver(EaselComm *receiver) {
     receiver_done = false;
 
     for (int i = 0; i < kMsgTestRepeatTimes; i++) {
-        receiver_xferindex = 0;
-
-        while (receiver_xferindex < NXFERS) {
+        for (receiver_xferindex = 0; receiver_xferindex < NXFERS;
+             receiver_xferindex++) {
             receiver_handle_message(receiver);
         }
     }
