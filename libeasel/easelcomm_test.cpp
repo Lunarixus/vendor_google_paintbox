@@ -159,11 +159,11 @@ static void msg_test_sender_iteration(EaselComm *sender) {
             if (reply.dma_buf_size) {
                 if (strstr(
                         (char *)reply.message_buf, "DISCARD DMA") != nullptr) {
-                    reply.dma_buf = malloc(reply.dma_buf_size);
-                    ASSERT_NE(reply.dma_buf, nullptr);
-                } else {
                     reply.dma_buf = nullptr;
                     reply.dma_buf_size = 0;
+                } else {
+                    reply.dma_buf = malloc(reply.dma_buf_size);
+                    ASSERT_NE(reply.dma_buf, nullptr);
                 }
 
                 ret = sender->receiveDMA(&reply);
