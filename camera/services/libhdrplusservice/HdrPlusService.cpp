@@ -96,7 +96,7 @@ status_t HdrPlusService::setStaticMetadata(const StaticMetadata& metadata) {
     return mPipeline->setStaticMetadata(metadata);
 }
 
-status_t HdrPlusService::configureStreams(const StreamConfiguration &inputConfig,
+status_t HdrPlusService::configureStreams(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) {
     std::unique_lock<std::mutex> lock(mApiLock);
 

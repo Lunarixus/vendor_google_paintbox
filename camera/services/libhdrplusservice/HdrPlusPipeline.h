@@ -61,7 +61,7 @@ public:
      * Configure the pipeline with the specified streams, allocate buffers
      * for each stream, and create routes for all streams.
      *
-     * inputConfig is input stream configuration.
+     * inputConfig is input configuration about sensor mode or input stream from AP.
      * outputConfigs is a vector of output stream configurations.
      *
      * Returns:
@@ -70,7 +70,7 @@ public:
      *                  or configurations that are not supported.
      *  -ENODEV:        if the pipeline cannot be configured due to a serious error.
      */
-    status_t configure(const StreamConfiguration &inputConfig,
+    status_t configure(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs);
 
     /*

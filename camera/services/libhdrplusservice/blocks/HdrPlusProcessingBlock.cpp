@@ -227,9 +227,9 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
 
     // Create a gcam RAW image.
     gcam::RawWriteView raw(input.buffers[0]->getWidth(), input.buffers[0]->getHeight(),
-            input.buffers[0]->getStride() - widthBytes, layout, input.buffers[0]->getData());
+            input.buffers[0]->getStride(0) - widthBytes, layout, input.buffers[0]->getPlaneData(0));
     if (!shot->AddPayloadFrame(frame->gcamFrameMetadata,
-            /*raw_id*/(uintptr_t)input.buffers[0]->getData(), raw,
+            /*raw_id*/(uintptr_t)input.buffers[0]->getPlaneData(0), raw,
             *frame->gcamSpatialGainMap.get(), *frame->gcamSpatialGainMap.get())) {
         ALOGE("%s: Adding a payload frame failed.", __FUNCTION__);
         return -ENODEV;
@@ -292,7 +292,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         // Clear the buffer first because GCAM's final image resolution may be smaller.
         // This won't be needed for PB version.
         outputBuffer->clear();
-        uint8_t *data = outputBuffer->getData();
+        uint8_t *lumaDst = outputBuffer->getPlaneData(0);
 
         // The following assumes format is NV21.
         if (outputBuffer->getFormat() != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
@@ -305,20 +305,20 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         int32_t lineBytesToCopy = std::min(outputBuffer->getWidth(), lumaImageSrc.width());
         uint32_t linesToCopy = std::min(outputBuffer->getHeight(), lumaImageSrc.height());
         for (uint32_t y = 0; y < linesToCopy; y++) {
-            std::memcpy(data + y * outputBuffer->getStride(), &lumaImageSrc.at(0, y, 0),
+            std::memcpy(lumaDst + y * outputBuffer->getStride(0), &lumaImageSrc.at(0, y, 0),
                     lineBytesToCopy);
         }
 
         // Copy chroma line by line from the final image.
         const gcam::InterleavedImageU8 &chromaImageSrc = yuvResult->chroma_image();
-        uint8_t* chromaDst = data + outputBuffer->getHeight() * outputBuffer->getStride();
+        uint8_t* chromaDst = outputBuffer->getPlaneData(1);
         lineBytesToCopy = std::min(outputBuffer->getWidth() , chromaImageSrc.width() * 2);
         linesToCopy = std::min(outputBuffer->getHeight() / 2, chromaImageSrc.height());
         for (uint32_t y = 0; y < linesToCopy; y++) {
             // TODO: This assumes chroma has the same stride as luma. This is currently fine.
             // The assumption may not be true for QC HAL, Easel or PB HW, and should be fixed.
             // b/31623156
-            std::memcpy(chromaDst + y * outputBuffer->getStride(), &chromaImageSrc.at(0, y, 0),
+            std::memcpy(chromaDst + y * outputBuffer->getStride(1), &chromaImageSrc.at(0, y, 0),
                     lineBytesToCopy);
         }
     }

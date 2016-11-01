@@ -86,7 +86,7 @@ void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuff
 
     // Transfer the DMA buffer.
     status_t res = mMessengerToClient->transferDmaBuffer(dmaInputBuffer.dmaHandle,
-            outputRequest.buffers[0]->getData(), outputRequest.buffers[0]->getDataSize());
+            outputRequest.buffers[0]->getPlaneData(0), outputRequest.buffers[0]->getDataSize());
     if (res != 0) {
         ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);

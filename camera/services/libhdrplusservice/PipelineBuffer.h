@@ -43,13 +43,13 @@ public:
     // Return format of the image.
     int32_t getFormat() const;
 
-    // Return stride in bytes of the image.
-    int32_t getStride() const;
+    // Return stride in bytes of an image plane.
+    int32_t getStride(uint32_t planeNum) const;
 
-    // Return the pointer to the raw data of the image.
-    virtual uint8_t* getData() = 0;
+    // Return the pointer to the raw data of an image plane.
+    virtual uint8_t* getPlaneData(uint32_t planeNum) = 0;
 
-    // Return the size of the data.
+    // Return the size of the allocated data including padding.
     virtual uint32_t getDataSize() const = 0;
 
     // Set each pixel to black.
@@ -68,14 +68,15 @@ public:
     std::weak_ptr<PipelineBlock> getPipelineBlock() const;
 
 protected:
-    // Width of the image.
-    int32_t mWidth;
-    // Height of the image.
-    int32_t mHeight;
-    // Format of the image as defined in graphics.h
-    int32_t mFormat;
-    // Stride of the image.
-    int32_t mStride;
+    // Sanity check the plane configuration.
+    status_t validatePlaneConfig(const ImageConfiguration &image, uint32_t planeNum);
+
+    // Sanity check the stream configuration.
+    status_t validateConfig(const StreamConfiguration &config);
+
+    // Allocated stream configuration for this buffer.
+    StreamConfiguration mAllocatedConfig;
+
     // Requested stream configuration to allocate the buffer.
     StreamConfiguration mRequestedConfig;
     // The stream that this buffer belongs to.
@@ -112,8 +113,8 @@ public:
      */
     virtual status_t allocate() override;
 
-    // Return the pointer to the raw data of the image.
-    virtual uint8_t* getData() override;
+    // Return the pointer to the raw data of an image plane.
+    virtual uint8_t* getPlaneData(uint32_t planeNum) override;
 
     // Return the size of the data.
     virtual uint32_t getDataSize() const override;

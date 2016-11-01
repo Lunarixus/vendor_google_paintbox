@@ -3,6 +3,7 @@
 #include "Log.h"
 
 #include <inttypes.h>
+#include <system/graphics.h>
 
 #include "blocks/HdrPlusProcessingBlock.h"
 #include "blocks/SourceCaptureBlock.h"
@@ -33,24 +34,40 @@ status_t HdrPlusPipeline::setStaticMetadata(const StaticMetadata& metadata) {
         return -EINVAL;
     }
 
+    IF_ALOGV() {
+        std::string s;
+        metadata.appendToString(&s);
+        ALOGV("%s: static metadata: %s.", __FUNCTION__, s.data());
+    }
+
     mStaticMetadata = std::make_shared<StaticMetadata>();
     *mStaticMetadata = metadata;
 
     return 0;
 }
 
-status_t HdrPlusPipeline::configure(const StreamConfiguration &inputConfig,
+status_t HdrPlusPipeline::configure(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) {
     if (outputConfigs.size() == 0) {
         ALOGE("%s: There must be at least 1 output stream.", __FUNCTION__);
         return -EINVAL;
     }
 
-    ALOGV("%s: Input: %dx%d %d", __FUNCTION__, inputConfig.width,
-            inputConfig.height, inputConfig.format);
+    if (inputConfig.isSensorInput) {
+        ALOGV("%s: Sensor input: pixelArray %dx%d, activeArray %dx%d, sensor output pixel clock %d",
+                __FUNCTION__, inputConfig.sensorMode.pixelArrayWidth,
+                inputConfig.sensorMode.pixelArrayHeight,
+                inputConfig.sensorMode.activeArrayWidth,
+                inputConfig.sensorMode.activeArrayHeight,
+                inputConfig.sensorMode.outputPixelClkHz);
+    } else {
+        ALOGV("%s: AP Input: %dx%d %d", __FUNCTION__, inputConfig.streamConfig.image.width,
+                inputConfig.streamConfig.image.height, inputConfig.streamConfig.image.format);
+    }
+
     for (auto outputConfig : outputConfigs) {
-        ALOGV("%s: Output: %dx%d %d", __FUNCTION__, outputConfig.width,
-            outputConfig.height, outputConfig.format);
+        ALOGV("%s: Output: %dx%d %d", __FUNCTION__, outputConfig.image.width,
+            outputConfig.image.height, outputConfig.image.format);
     }
 
     std::unique_lock<std::mutex> lock(mApiLock);
@@ -63,8 +80,33 @@ status_t HdrPlusPipeline::configure(const StreamConfiguration &inputConfig,
     // TODO: Check if we can avoid allocating unchanged streams again.
     destroyLocked();
 
+    // Prepare a input stream configuration depending on whether the input comes from MIPI or AP.
+    StreamConfiguration inputStreamConfig;
+    if (inputConfig.isSensorInput) {
+        inputStreamConfig.image.width = inputConfig.sensorMode.pixelArrayWidth;
+        inputStreamConfig.image.height = inputConfig.sensorMode.pixelArrayHeight;
+        inputStreamConfig.image.format = inputConfig.sensorMode.format;
+
+        pbcamera::PlaneConfiguration plane;
+
+        switch(inputConfig.sensorMode.format) {
+            case HAL_PIXEL_FORMAT_RAW10:
+                // Assuming no padding is needed for IPU buffers.
+                plane.stride = inputConfig.sensorMode.pixelArrayWidth * 10 / 8;
+                plane.scanline = inputConfig.sensorMode.pixelArrayHeight;
+                break;
+            default:
+                // TODO: Support other RAW formats.
+                return -EINVAL;
+        }
+
+        inputStreamConfig.image.planes.push_back(plane);
+    } else {
+        inputStreamConfig = inputConfig.streamConfig;
+    }
+
     // Allocate pipeline streams.
-    res = createStreamsLocked(inputConfig, outputConfigs);
+    res = createStreamsLocked(inputStreamConfig, outputConfigs);
     if (res != 0) {
         ALOGE("%s: Configuring stream failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         destroyLocked();

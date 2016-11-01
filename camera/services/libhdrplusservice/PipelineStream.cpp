@@ -53,8 +53,8 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
         status_t res = buffer->allocate();
         if (res != 0) {
             ALOGE("%s: Allocating stream (%ux%u format %d with %d buffers) failed: %s (%d)",
-                    __FUNCTION__, config.width, config.height, config.format, numBuffers,
-                    strerror(-res), res);
+                    __FUNCTION__, config.image.width, config.image.height, config.image.format,
+                    numBuffers, strerror(-res), res);
             destroyLocked();
             return res;
         }
@@ -65,7 +65,7 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
 
     mConfig = config;
     ALOGV("%s: Allocated stream id %d res %ux%u format %d with %d buffers.", __FUNCTION__,
-            config.id, config.width, config.height, config.format, numBuffers);
+            config.id, config.image.width, config.image.height, config.image.format, numBuffers);
 
     return 0;
 }
@@ -73,7 +73,7 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
 bool PipelineStream::hasConfig(const StreamConfiguration &config) const {
     std::unique_lock<std::mutex> lock(mApiLock);
 
-    return mAvailableBuffers.size() > 0 && mConfig.equals(config);
+    return mAvailableBuffers.size() > 0 && mConfig == config;
 }
 
 void PipelineStream::destroyLocked() {

@@ -15,9 +15,7 @@ namespace pbcamera {
 
 PipelineBuffer::PipelineBuffer(const std::weak_ptr<PipelineStream> &stream,
         const StreamConfiguration &config)
-        : mWidth(0),
-          mHeight(0),
-          mFormat(0),
+        : mAllocatedConfig({}),
           mRequestedConfig(config),
           mStream(stream) {
 }
@@ -42,41 +40,132 @@ std::weak_ptr<PipelineBlock> PipelineBuffer::getPipelineBlock() const {
 }
 
 int32_t PipelineBuffer::getWidth() const {
-    return mWidth;
+    return mAllocatedConfig.image.width;
 }
 
 int32_t PipelineBuffer::getHeight() const {
-    return mHeight;
+    return mAllocatedConfig.image.height;
 }
 
 int32_t PipelineBuffer::getFormat() const {
-    return mFormat;
+    return mAllocatedConfig.image.format;
 }
 
-int32_t PipelineBuffer::getStride() const {
-    return mStride;
+int32_t PipelineBuffer::getStride(uint32_t planeNum) const {
+    return mAllocatedConfig.image.planes.size() > planeNum ?
+           mAllocatedConfig.image.planes[planeNum].stride : 0;
 }
 
 status_t PipelineBuffer::clear() {
-    uint8_t *data = getData();
-    switch (mFormat) {
+    uint8_t *data = getPlaneData(0);
+    switch (mAllocatedConfig.image.format) {
         case HAL_PIXEL_FORMAT_RAW10:
         case HAL_PIXEL_FORMAT_RAW16:
             memset(data, kClearRawValue, getDataSize());
             return 0;
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
         {
-            uint32_t lumaSize = mStride * mHeight;
+            uint32_t lumaSize = mAllocatedConfig.image.planes[0].stride *
+                                mAllocatedConfig.image.height;
             // Clear luma
             memset(data, kClearLumaValue, lumaSize);
+
+            data = getPlaneData(1);
+            uint32_t chromaSize = mAllocatedConfig.image.planes[1].stride *
+                                  mAllocatedConfig.image.height / 2;
             // Clear chroma
-            memset(data + lumaSize, kClearChromaValue, getDataSize() - lumaSize);
+            memset(data, kClearChromaValue, chromaSize);
             return 0;
         }
         default:
-            ALOGE("%s: Format %d not supported.", __FUNCTION__, mFormat);
+            ALOGE("%s: Format %zd not supported.", __FUNCTION__, mAllocatedConfig.image.format);
             return -EINVAL;
     }
+}
+
+status_t PipelineBuffer:: validatePlaneConfig(const ImageConfiguration &image, uint32_t planeNum) {
+    if (planeNum >= image.planes.size()) {
+        ALOGE("%s: Validating plane %d failed because it only has %zu planes.", __FUNCTION__,
+                planeNum, image.planes.size());
+        return -EINVAL;
+    }
+
+    // Assumes the number of planes for the format has been validated previously.
+    const PlaneConfiguration& plane = image.planes[planeNum];
+
+    uint32_t minStride;
+    switch (image.format) {
+        case HAL_PIXEL_FORMAT_RAW10:
+            minStride = image.width * 10 / 8;
+            break;
+        case HAL_PIXEL_FORMAT_RAW16:
+            minStride = image.width * 2;
+            break;
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            minStride = image.width;
+            break;
+        default:
+            ALOGE("%s: Format %zd not supported.", __FUNCTION__, image.format);
+            return -EINVAL;
+    }
+
+    if (plane.stride < minStride) {
+        ALOGE("%s: Plane stride %d is smaller than minimal stride %d.", __FUNCTION__, plane.stride,
+                minStride);
+        return -EINVAL;
+    }
+
+    uint32_t minScanline;
+    minScanline = image.height; // RAW10, RAW16, Y planes.
+    if (image.format == HAL_PIXEL_FORMAT_YCrCb_420_SP && planeNum == 1) {
+        minScanline /= 2; // UV plane.
+    }
+
+    if (plane.scanline < minScanline) {
+        ALOGE("%s: Plane scanline %d is smaller than minimal scanline %d.", __FUNCTION__,
+                plane.scanline, minScanline);
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
+    size_t expectedNumPlanes;
+
+    // Get the expect number of planes given the format.
+    switch (config.image.format) {
+        case HAL_PIXEL_FORMAT_RAW10:
+        case HAL_PIXEL_FORMAT_RAW16:
+            expectedNumPlanes = 1;
+            break;
+
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            expectedNumPlanes = 2;
+            break;
+        default:
+            ALOGE("%s: Format %zd not supported.", __FUNCTION__, mRequestedConfig.image.format);
+            return -EINVAL;
+    }
+
+    // Verify number of planes is correct.
+    if (config.image.planes.size() != expectedNumPlanes) {
+        ALOGE("%s: Expecting %zu planes for format %zd but got %zu planes.", __FUNCTION__,
+                expectedNumPlanes, config.image.format, config.image.planes.size());
+        return -EINVAL;
+    }
+
+    // Validate each plane
+    status_t res;
+    for (size_t i = 0; i < config.image.planes.size(); i++) {
+        res = validatePlaneConfig(config.image, i);
+        if (res != 0) {
+            ALOGE("%s: Validating plane %zu failed.", __FUNCTION__, i);
+            return -EINVAL;
+        }
+    }
+
+    return 0;
 }
 
 PipelineHeapBuffer::PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
@@ -91,43 +180,36 @@ status_t PipelineHeapBuffer::allocate() {
     // Check if buffer is already allocated.
     if (mData.size() != 0) return -EEXIST;
 
-    size_t numBytes = 0;
-    size_t stride = 0;
+    status_t res = validateConfig(mRequestedConfig);
+    if (res != 0) {
+        ALOGE("%s: Requested configuration is invalid: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return res;
+    }
 
-    // TODO: this should consider alignment requirements of QC and PB HW. b/31623156.
-    switch (mRequestedConfig.format) {
-        case HAL_PIXEL_FORMAT_RAW10:
-            numBytes = mRequestedConfig.width * mRequestedConfig.height * 10 / 8;
-            stride = mRequestedConfig.width * 10 / 8;
-            break;
-        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-            numBytes = mRequestedConfig.width * mRequestedConfig.height * 3 / 2;
-            stride = mRequestedConfig.width;
-            break;
-        case HAL_PIXEL_FORMAT_RAW16:
-            numBytes = mRequestedConfig.width * mRequestedConfig.height * 2;
-            stride = mRequestedConfig.width * 2;
-            break;
-        default:
-            ALOGE("%s: Format %d not supported.", __FUNCTION__, mRequestedConfig.format);
-            return -EINVAL;
+    size_t numBytes = mRequestedConfig.image.padding;
+
+    for (auto plane : mRequestedConfig.image.planes) {
+        numBytes += plane.stride * plane.scanline;
     }
 
     mData.resize(numBytes, 0);
-    mWidth = mRequestedConfig.width;
-    mHeight = mRequestedConfig.height;
-    mFormat = mRequestedConfig.format;
-    mStride = stride;
-
+    mAllocatedConfig = mRequestedConfig;
     return 0;
 }
 
-uint8_t* PipelineHeapBuffer::getData() {
-    if (mData.size() == 0) {
+uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
+    if (mData.size() == 0 || planeNum >= mAllocatedConfig.image.planes.size()) {
         return nullptr;
     }
 
-    return mData.data();
+    uint32_t planeOffset = 0;
+    for (uint32_t i = 0; i < planeNum; i++) {
+        planeOffset += (mAllocatedConfig.image.planes[i].stride *
+                        mAllocatedConfig.image.planes[i].scanline);
+    }
+
+    return mData.data() + planeOffset;
 }
 
 uint32_t PipelineHeapBuffer::getDataSize() const {
