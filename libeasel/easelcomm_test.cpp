@@ -86,23 +86,23 @@ struct testxfer {
 #define NXFERS 6
 // Test message transfers
 testxfer testxfers[NXFERS] = {
-    { "test transfer #1 message", 25, "and a DMA buffer", 17,
+    { (char*)"test transfer #1 message", 25, (char*)"and a DMA buffer", 17,
     { nullptr, 0, nullptr, 0, 0} }, // no reply
 
-    { "#2 has a message but no DMA buffer", 35, nullptr, 0,
+    { (char*)"#2 has a message but no DMA buffer", 35, nullptr, 0,
     { nullptr, 0, nullptr, 0, 0} }, // no reply
 
-    { "message for #3", 15, "DMA for #3", 11,
-    { "reply to message #3", 20, "reply-to-#3 DMA", 16, 1040 } },
+    { (char*)"message for #3", 15, (char*)"DMA for #3", 11,
+    { (char*)"reply to message #3", 20, (char*)"reply-to-#3 DMA", 16, 1040 } },
 
-    { "#4 needs a reply and has no DMA", 31, nullptr, 0,
-    { "yes it is reply to message #4", 30, nullptr, 0, 1099} },
+    { (char*)"#4 needs a reply and has no DMA", 31, nullptr, 0,
+    { (char*)"yes it is reply to message #4", 30, nullptr, 0, 1099} },
 
-    { "#5: DISCARD DMA", 16, "this DMA to be discarded", 25,
+    { (char*)"#5: DISCARD DMA", 16, (char*)"this DMA to be discarded", 25,
     { nullptr, 0, nullptr, 0, 0} }, // no reply
 
-    { "#6 needs reply, no DMA", 23, nullptr, 0,
-    { "the reply must DISCARD DMA", 27, "discard me", 11, 540} },
+    { (char*)"#6 needs reply, no DMA", 23, nullptr, 0,
+    { (char*)"the reply must DISCARD DMA", 27, (char*)"discard me", 11, 540} },
 
 };
 
