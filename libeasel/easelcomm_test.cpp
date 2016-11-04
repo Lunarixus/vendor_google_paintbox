@@ -4,32 +4,14 @@
  * If compiled with AP_CLIENT defined then client-side testing code is
  * compiled;  if compiled with EASEL_SERVER defined then server-side testing
  * code is compiled.
- *
- * If compiled with FAKE_EASEL_TEST defined, then both client- and server-side
- * test code is compiled.  A thread is spawned to act as the server; the
- * client connects to the service run on that thread.  The kernel driver must
- * be compiled in "fake Easel" mode, with both AP/client and Easel/server
- * interfaces using local memory copies between the two.  This is temporary
- * for development time.
- *
- * If compiled with MOCKEASEL defined then TCP/IP-based mock EaselCommNet
- * interfaces are used.  A thread is spawned to act as the server as above.
- *
- * All tests are expected to run identically on "real Easel", so long as
- * compatible client and server test processes are run on the AP and Easel.
  */
 
 //#define DEBUG
 
 #include "easelcomm.h"
 
-#ifdef MOCKEASEL
-#include "mockeaselcomm.h"
-#endif
-
 #include "gtest/gtest.h"
 
-#include <condition_variable>
 #include <thread>
 
 #include <inttypes.h>
@@ -40,29 +22,14 @@
 
 #include <sys/types.h>
 
-#if defined(FAKE_EASEL_TEST) || defined(MOCKEASEL)
-#define AP_CLIENT
-#define EASEL_SERVER
-#endif
-
 namespace {
 // Number of times to repeat the message passing/DMA test sequence
 const int kMsgTestRepeatTimes = 1000;
 
 #ifdef AP_CLIENT
-#ifdef MOCKEASEL
-EaselCommClientNet easelcomm_client;
-#else
 EaselCommClient easelcomm_client;
-#endif
-#endif
-
-#ifdef EASEL_SERVER
-#ifdef MOCKEASEL
-EaselCommServerNet easelcomm_server;
 #else
 EaselCommServer easelcomm_server;
-#endif
 #endif
 
 // Reply messages created using this template data structure
@@ -108,19 +75,11 @@ testxfer testxfers[NXFERS] = {
 
 // Which testxfers[] entry the sender is currently working on
 int sender_xferindex = 0;
-// Sender completed all iterations, signalled via condvar, protected by lock
-bool sender_done;
-std::condition_variable sender_done_cond;
-std::mutex sender_done_lock;
 
 // Which testxfers[] entry the receiver is currently working on
 int receiver_xferindex = 0;
 // How many messages the receiver processed across all iterations
 int receiver_msgcount = 0;
-// Receiver completed all iterations, as above for sender
-bool receiver_done;
-std::condition_variable receiver_done_cond;
-std::mutex receiver_done_lock;
 
 static void msg_test_sender_iteration(EaselComm *sender) {
     int ret;
@@ -129,7 +88,15 @@ static void msg_test_sender_iteration(EaselComm *sender) {
         EaselComm::EaselMessage msg;
         msg.message_buf = testxfers[sender_xferindex].msgbuf;
         msg.message_buf_size = testxfers[sender_xferindex].msglen;
-        msg.dma_buf = testxfers[sender_xferindex].dmabuf;
+
+        if (testxfers[sender_xferindex].dmabuf) {
+            msg.dma_buf = malloc(testxfers[sender_xferindex].dmalen);
+            ASSERT_NE(msg.dma_buf, nullptr);
+            memcpy(msg.dma_buf, testxfers[sender_xferindex].dmabuf,
+                   testxfers[sender_xferindex].dmalen);
+        } else {
+            msg.dma_buf = nullptr;
+        }
         msg.dma_buf_size = testxfers[sender_xferindex].dmalen;
         msg.need_reply = testxfers[sender_xferindex].replymsg.msgbuf;
 
@@ -180,24 +147,14 @@ static void msg_test_sender_iteration(EaselComm *sender) {
             ret = sender->sendMessage(&msg);
             EXPECT_TRUE(ret == 0);
         }
+
+        free(msg.dma_buf);
     }
 }
 
 static void msg_test_sender(EaselComm *sender) {
-    sender_done = false;
-
     for (int i = 0; i < kMsgTestRepeatTimes; i++) {
         msg_test_sender_iteration(sender);
-    }
-
-    {
-        std::lock_guard<std::mutex> senderlock(sender_done_lock);
-        sender_done = true;
-        sender_done_cond.notify_one();
-    }
-    {
-        std::unique_lock<std::mutex> receiverlock(receiver_done_lock);
-        receiver_done_cond.wait(receiverlock, [&]{return receiver_done;});
     }
 }
 
@@ -249,12 +206,22 @@ void receiver_handle_message(EaselComm *receiver) {
         EaselComm::EaselMessage reply;
         reply.message_buf = testxfers[receiver_xferindex].replymsg.msgbuf;
         reply.message_buf_size = testxfers[receiver_xferindex].replymsg.msglen;
-        reply.dma_buf = testxfers[receiver_xferindex].replymsg.dmabuf;
+
+        if (testxfers[receiver_xferindex].replymsg.dmabuf) {
+            reply.dma_buf =
+                malloc(testxfers[receiver_xferindex].replymsg.dmalen);
+            ASSERT_NE(reply.dma_buf, nullptr);
+            memcpy(reply.dma_buf, testxfers[receiver_xferindex].replymsg.dmabuf,
+                   testxfers[receiver_xferindex].replymsg.dmalen);
+        } else {
+            reply.dma_buf = nullptr;
+        }
         reply.dma_buf_size = testxfers[receiver_xferindex].replymsg.dmalen;
         reply.need_reply = false;
         ret = receiver->sendReply(
             &req, testxfers[receiver_xferindex].replymsg.replycode, &reply);
         EXPECT_TRUE(ret == 0);
+        free(reply.dma_buf);
     }
 
     return;
@@ -262,7 +229,6 @@ void receiver_handle_message(EaselComm *receiver) {
 
 static void msg_test_receiver(EaselComm *receiver) {
     receiver_msgcount = 0;
-    receiver_done = false;
 
     for (int i = 0; i < kMsgTestRepeatTimes; i++) {
         for (receiver_xferindex = 0; receiver_xferindex < NXFERS;
@@ -274,16 +240,6 @@ static void msg_test_receiver(EaselComm *receiver) {
     printf("easelcomm_test: pass complete receiver received %d messages\n",
            receiver_msgcount);
     EXPECT_EQ(receiver_msgcount, NXFERS * kMsgTestRepeatTimes);
-
-    {
-        std::lock_guard<std::mutex> receiverlock(receiver_done_lock);
-        receiver_done = true;
-        receiver_done_cond.notify_one();
-    }
-    {
-        std::unique_lock<std::mutex> senderlock(sender_done_lock);
-        sender_done_cond.wait(senderlock, [&]{return sender_done;});
-    }
 }
 
 #ifdef EASEL_SERVER
@@ -308,15 +264,6 @@ TEST(EaselCommClientTest, MessagePassingDMA) {
     // Let server flush before test start.
     sleep(1);
 
-#ifdef MOCKEASEL
-    // Test comm works after connect, disconnect, reconnect.
-    ret = easelcomm_client.connect(NULL);
-    ASSERT_TRUE(ret == 0);
-    easelcomm_client.close();
-    ret = easelcomm_client.connect(NULL);
-    ASSERT_TRUE(ret == 0);
-#endif
-
     ret = easelcomm_client.open(EaselComm::EASEL_SERVICE_TEST);
     ASSERT_TRUE(ret == 0);
 
@@ -338,13 +285,8 @@ int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
 #ifdef EASEL_SERVER
-#if defined(FAKE_EASEL_TEST) || defined(MOCKEASEL)
-    // Spawn thread to act as EaselComm server.
-    std::thread server_thread(test_server);
-#else
     test_server();
     return 0;
-#endif
 #endif
 
 #ifdef AP_CLIENT

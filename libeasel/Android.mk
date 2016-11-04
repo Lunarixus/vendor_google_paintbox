@@ -46,13 +46,3 @@ LOCAL_SRC_FILES := \
         EaselControlClient.cpp \
         EaselControlServer.cpp
 include $(BUILD_STATIC_LIBRARY)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := mockeaselcomm_test
-LOCAL_MODULE_TAGS := tests
-LOCAL_CFLAGS += -UNDEBUG -DMOCKEASEL
-LOCAL_SRC_FILES := easelcomm_test.cpp
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
-LOCAL_STATIC_LIBRARIES := libmockeasel liblog
-include $(BUILD_NATIVE_TEST)
