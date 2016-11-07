@@ -70,6 +70,8 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
 
         // If we have more inputs than we need, remove the oldest ones.
         while (mInputQueue.size() > kGcamMaxPayloadFrames) {
+            ALOGV("%s: Input queue is full (%zu). Send the oldest buffer back.", __FUNCTION__,
+                    mInputQueue.size());
             pipeline->inputDone(mInputQueue[0]);
             mInputQueue.pop_front();
         }

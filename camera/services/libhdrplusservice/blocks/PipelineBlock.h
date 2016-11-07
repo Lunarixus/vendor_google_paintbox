@@ -67,7 +67,8 @@ public:
         bool isCircular;
 
         BlockIoDataRoute() { clear(); };
-        void clear() { blocks.clear(); isCircular = false; currentBlockIndex = -1; };
+        void clear() { blocks.clear(); isCircular = false; resetCurrentBlock(); };
+        void resetCurrentBlock() { currentBlockIndex = -1; };
     };
 
     // Block I/O data used when sending inputs and outputs between a pipeline and a block.

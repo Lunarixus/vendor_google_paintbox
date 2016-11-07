@@ -447,6 +447,7 @@ void HdrPlusPipeline::inputDone(PipelineBlock::Input input) {
         // Send the buffer to next block. This should send the input stream buffers back to the
         // first block to be filled.
         PipelineBlock::OutputRequest output = input;
+        output.route.resetCurrentBlock();
         status_t res = nextBlock->queueOutputRequest(&output);
         if (res != 0) {
             ALOGE("%s: Queueing an output to %s failed: %s (%d). Returning buffers to streams",
