@@ -24,7 +24,7 @@
 
 namespace {
 // Number of times to repeat the message passing/DMA test sequence
-const int kMsgTestRepeatTimes = 1000;
+const int kMsgTestRepeatTimes = 10;
 
 #ifdef AP_CLIENT
 EaselCommClient easelcomm_client;
@@ -50,8 +50,13 @@ struct testxfer {
     testreply replymsg;
 };
 
-#define NXFERS 6
-// Test message transfers
+// Table of test message/DMA transfer templates.
+// Magic strings in message text have the following meanings:
+//
+//    "DISCARD DMA": receiver discards the DMA transfer
+//    "DYNAMIC DMA": sender generates DMA dynamically, not static from table
+
+#define NXFERS 7
 testxfer testxfers[NXFERS] = {
     { (char*)"test transfer #1 message", 25, (char*)"and a DMA buffer", 17,
     { nullptr, 0, nullptr, 0, 0} }, // no reply
@@ -71,6 +76,8 @@ testxfer testxfers[NXFERS] = {
     { (char*)"#6 needs reply, no DMA", 23, nullptr, 0,
     { (char*)"the reply must DISCARD DMA", 27, (char*)"discard me", 11, 540} },
 
+    { (char*)"#7 DYNAMIC DMA", 15, nullptr /* dynamic */, 100 *1024 /* 100KB */,
+    { nullptr, 0, nullptr, 0, 0} },
 };
 
 // Which testxfers[] entry the sender is currently working on
@@ -89,11 +96,24 @@ static void msg_test_sender_iteration(EaselComm *sender) {
         msg.message_buf = testxfers[sender_xferindex].msgbuf;
         msg.message_buf_size = testxfers[sender_xferindex].msglen;
 
-        if (testxfers[sender_xferindex].dmabuf) {
+        if (testxfers[sender_xferindex].dmalen) {
             msg.dma_buf = malloc(testxfers[sender_xferindex].dmalen);
             ASSERT_NE(msg.dma_buf, nullptr);
-            memcpy(msg.dma_buf, testxfers[sender_xferindex].dmabuf,
-                   testxfers[sender_xferindex].dmalen);
+
+            if (strstr((char *)testxfers[sender_xferindex].msgbuf,
+                       "DYNAMIC DMA") != nullptr) {
+                /* Generate large DMA buffer */
+                uint32_t *p = (uint32_t *)msg.dma_buf;
+                uint32_t i;
+
+                for (i = 0; i < testxfers[sender_xferindex].dmalen /
+                         sizeof(uint32_t); i++) {
+                    *p++ = i;
+                }
+            } else {
+                memcpy(msg.dma_buf, testxfers[sender_xferindex].dmabuf,
+                       testxfers[sender_xferindex].dmalen);
+            }
         } else {
             msg.dma_buf = nullptr;
         }
@@ -190,11 +210,23 @@ void receiver_handle_message(EaselComm *receiver) {
             ASSERT_NE(req.dma_buf, nullptr);
         }
         ret = receiver->receiveDMA(&req);
-        EXPECT_TRUE(ret == 0);
+        ASSERT_TRUE(ret == 0);
 
-        if (!ret && req.dma_buf)
-            EXPECT_STREQ((char *)req.dma_buf,
-                         testxfers[receiver_xferindex].dmabuf);
+        if (!ret && req.dma_buf) {
+            if (strstr((char *)testxfers[receiver_xferindex].msgbuf,
+                       "DYNAMIC DMA") != nullptr) {
+                uint32_t *p = (uint32_t *)req.dma_buf;
+                uint32_t i;
+
+                for (i = 0; i < testxfers[receiver_xferindex].dmalen /
+                         sizeof(uint32_t); i++) {
+                    ASSERT_EQ(*p++, i);
+                }
+            } else {
+                EXPECT_STREQ((char *)req.dma_buf,
+                             testxfers[receiver_xferindex].dmabuf);
+            }
+        }
     }
 
     free(req.message_buf);
