@@ -24,7 +24,7 @@
 
 namespace {
 // Number of times to repeat the message passing/DMA test sequence
-const int kMsgTestRepeatTimes = 10;
+const int kMsgTestRepeatTimes = 4;
 
 #ifdef AP_CLIENT
 EaselCommClient easelcomm_client;
@@ -76,7 +76,7 @@ testxfer testxfers[NXFERS] = {
     { (char*)"#6 needs reply, no DMA", 23, nullptr, 0,
     { (char*)"the reply must DISCARD DMA", 27, (char*)"discard me", 11, 540} },
 
-    { (char*)"#7 DYNAMIC DMA", 15, nullptr /* dynamic */, 100 *1024 /* 100KB */,
+    { (char*)"#7 DYNAMIC DMA", 15, nullptr /*dynamic*/, 24*1024*1024 /*24MB*/,
     { nullptr, 0, nullptr, 0, 0} },
 };
 
