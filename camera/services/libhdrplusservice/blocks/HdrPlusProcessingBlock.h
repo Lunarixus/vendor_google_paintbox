@@ -4,6 +4,7 @@
 #include "PipelineBuffer.h"
 #include "PipelineBlock.h"
 
+#include <stdlib.h>
 #include "googlex/gcam/gcam/src/lib_gcam/gcam.h"
 #include "system/camera_metadata_tags.h"
 

@@ -36,6 +36,9 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
+# These are needed to ignore warnings from third_party/halide/halide/src/runtime/HalideBuffer.h
+LOCAL_CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter
+
 LOCAL_MODULE:= libhdrplusservice
 
 include $(BUILD_SHARED_LIBRARY)

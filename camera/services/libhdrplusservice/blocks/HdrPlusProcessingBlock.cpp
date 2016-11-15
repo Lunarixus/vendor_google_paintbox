@@ -3,6 +3,7 @@
 #include "Log.h"
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include <system/graphics.h>
 
 #include "googlex/gcam/gcam/src/lib_gcam/shot_interface.h"
@@ -230,7 +231,7 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
             input.buffers[0]->getStride(0) - widthBytes, layout, input.buffers[0]->getPlaneData(0));
     if (!shot->AddPayloadFrame(frame->gcamFrameMetadata,
             /*raw_id*/(uintptr_t)input.buffers[0]->getPlaneData(0), raw,
-            *frame->gcamSpatialGainMap.get(), *frame->gcamSpatialGainMap.get())) {
+            *frame->gcamSpatialGainMap.get())) {
         ALOGE("%s: Adding a payload frame failed.", __FUNCTION__);
         return -ENODEV;
     }
@@ -506,8 +507,7 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     uint8_t cfa = mStaticMetadata->colorFilterArrangement;
     for (uint32_t i = 0; i < 4; i++) {
         gcamMetadata->wb_capture.gains[i] =
-                metadata->colorCorrectionGains[getCameraChannelIndex(i, cfa)] *
-                gcam::kWbGainUnityValue;
+                metadata->colorCorrectionGains[getCameraChannelIndex(i, cfa)];
     }
 
     for (uint32_t i = 0; i < 9; i ++) {
