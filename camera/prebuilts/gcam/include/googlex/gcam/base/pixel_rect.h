@@ -11,17 +11,16 @@
 
 namespace gcam {
 
-// TODO(geiss): Use PixelRect and NormalizedRect throughout Gcam.
 struct PixelRect {
   // [0, 0] = Upper-left corner of image.
   // The exact area of pixels actually covered is:
   //   [x0 .. x1 - 1] by [y0 .. y1 - 1]
   // A rectangle where { x0, x1, y0, y1 } are set to { 0, w, 0, h }
   //   will exactly cover the full image.
-  int x0;     // Range: [0 .. x1).
-  int x1;     // Range: (x0 .. width].
-  int y0;     // Range: [0 .. y1).
-  int y1;     // Range: (y0 .. height].
+  int x0 = 0;  // Range: [0 .. x1).
+  int x1 = 0;  // Range: (x0 .. width].
+  int y0 = 0;  // Range: [0 .. y1).
+  int y1 = 0;  // Range: (y0 .. height].
 
   bool IsEmpty() const;
   bool Check() const;
@@ -38,21 +37,21 @@ struct PixelRect {
 
 // Return the intersection of two PixelRects.
 inline PixelRect Intersect(const PixelRect& a, const PixelRect& b) {
-  return PixelRect {
-    std::max(a.x0, b.x0),
-    std::min(a.x1, b.x1),
-    std::max(a.y0, b.y0),
-    std::min(a.y1, b.y1)
-  };
+  PixelRect result;
+  result.x0 = std::max(a.x0, b.x0);
+  result.x1 = std::min(a.x1, b.x1);
+  result.y0 = std::max(a.y0, b.y0);
+  result.y1 = std::min(a.y1, b.y1);
+  return result;
 }
 
 struct NormalizedRect {
   // [0,0] = Upper-left corner of image.
   // [1,1] = Lower-right corner of image.
-  float x0 = 0;     // Range: [0 .. x1).
-  float x1 = 1;     // Range: (x0 .. 1].
-  float y0 = 0;     // Range: [0 .. y1).
-  float y1 = 1;     // Range: (y0 .. 1].
+  float x0 = 0;  // Range: [0 .. x1).
+  float x1 = 1;  // Range: (x0 .. 1].
+  float y0 = 0;  // Range: [0 .. y1).
+  float y1 = 1;  // Range: (y0 .. 1].
 
   bool Check() const;
   void Print(LogLevel log_level, int indent_spaces) const;

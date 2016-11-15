@@ -271,6 +271,10 @@ struct halide_type_t {
                 lanes == other.lanes);
     }
 
+    bool operator!=(const halide_type_t &other) const {
+        return !(*this == other);
+    }
+
     /** Size in bytes for a single element, even if width is not 1, of this type. */
     size_t bytes() const { return (bits + 7) / 8; }
 #endif
@@ -281,11 +285,10 @@ enum halide_trace_event_code {halide_trace_load = 0,
                               halide_trace_begin_realization = 2,
                               halide_trace_end_realization = 3,
                               halide_trace_produce = 4,
-                              halide_trace_update = 5,
-                              halide_trace_consume = 6,
-                              halide_trace_end_consume = 7,
-                              halide_trace_begin_pipeline = 8,
-                              halide_trace_end_pipeline = 9};
+                              halide_trace_consume = 5,
+                              halide_trace_end_consume = 6,
+                              halide_trace_begin_pipeline = 7,
+                              halide_trace_end_pipeline = 8};
 
 #pragma pack(push, 1)
 struct halide_trace_event {
@@ -491,7 +494,7 @@ extern int halide_create_temp_file(void *user_context,
 extern void halide_msan_annotate_memory_is_initialized(void *user_context, const void *ptr, uint64_t len);
 
 /** Mark the data pointed to by the buffer_t as initialized (but *not* the buffer_t itself),
- * using halide_msan_annotate_memory_is_initialized() for marking. 
+ * using halide_msan_annotate_memory_is_initialized() for marking.
  *
  * The default implementation takes pains to only mark the active memory ranges
  * (skipping padding), and sorting into ranges to always mark the smallest number of

@@ -54,6 +54,7 @@ class SpatialGainMap {
 
   SpatialGainMap(int w, int h, bool is_precise = false,
                  bool has_extra_vignetting_applied = false);
+  explicit SpatialGainMap(const InterleavedReadViewF& gain_map);
   SpatialGainMap(const SpatialGainMap& src);
   SpatialGainMap() = default;
   SpatialGainMap(SpatialGainMap&& other) = default;

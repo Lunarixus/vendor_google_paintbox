@@ -11,12 +11,12 @@
 #include "googlex/gcam/gcam/src/lib_gcam/init_params.h"
 #include "googlex/gcam/gcam/src/lib_gcam/shot_params.h"
 #include "googlex/gcam/gcam/src/lib_gcam/tuning.h"
-#include "googlex/gcam/image/raw.h"
 #include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_io/image_saver.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_metadata/static_metadata.h"
+#include "googlex/gcam/image_raw/raw.h"
 
 // Note: Do not #include anything else here; keep client-side
 // #includes to a minimum.
@@ -137,7 +137,6 @@ class Gcam {
   // be trusted if the next (hypothetical) shot is captured using the same
   // tuning, debug_params, etc.  If any of those are changed, then the memory
   // estimate is no longer valid.
-  // TODO(hasinoff): Refactor reprocessing into a separate API.
   int64_t PeakMemoryWithNewShotBytes() const;
 
   // Returns the future peak memory usage for Gcam *without* any additional
@@ -266,7 +265,7 @@ class Gcam {
   //     version of the frame.  Around QVGA (320x240) is optimal for AE: high
   //     enough resolution for best-quality AE, without the expense of software
   //     downsampling.
-  // Takes ownership of raw, sgm_capture, sgm_ideal.
+  // Takes ownership of raw, sgm.
   // TODO(geiss, jiawen): Pass the now-required SpatialGainMap by value.
   // TODO(geiss): There's an outstanding potential bug that AdjustDigitalGain
   //   doesn't seem to be applied to frames coming in here (unlike
@@ -277,11 +276,8 @@ class Gcam {
       const FrameMetadata& metadata,
       const AeShotParams& ae_shot_params,
       int64_t raw_id,
-      const RawWriteView& raw,                          // Recommended.
-      // At least one of 'sgm_capture' or 'sgm_ideal' must be valid if
-      // raw != nullptr; otherwise, they can be invalid.
-      const SpatialGainMap& sgm_capture,
-      const SpatialGainMap& sgm_ideal);
+      const RawWriteView& raw,
+      const SpatialGainMap& sgm);
 
   // For use with eager smart metering.
   // Returns the latest results of background AE, from the viewfinder

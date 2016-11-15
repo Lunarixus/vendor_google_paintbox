@@ -201,10 +201,8 @@ struct FrameMetadata {
   // of the frame.
   FlashMetadata flash;
 
-  // White balance gains * kWbGainUnityValue.
+  // White balance gains.
   // The 4 indices are for the [R, Gr, Gb, B] channels, respectively.
-  // A value of kWbGainUnityValue means a scale of 1.0 was applied to that
-  //   channel, while the image was still in a linear color space.
   // There are two sets of values:
   //   -One set for the actual gains applied to the image that this metadata
   //    represents.
@@ -331,19 +329,6 @@ struct FrameMetadata {
   //   which indicates that the Bayer raw black level offsets are unknown.
   // A common value for, say, 10-bit Bayer data, might be around 64.
   float black_levels_bayer[4];
-
-  // The client should completely ignore this field; it is set and managed by
-  //   Gcam internally!
-  // Rectangle that the frame should be cropped to. If the rectangle is empty,
-  //   no cropping should be applied. If non-empty, pixels outside this
-  //   rectangle should be considered potentially invalid, but safe to use as
-  //   the spatial support for stencil operations that would otherwise require a
-  //   boundary condition at the edges of this rectangle.
-  // TODO(hasinoff): Delete this field. This crop is only set for the merged
-  //   frame metadata, reflecting the recommendation from CropSchedule. We
-  //   should plumb the desired crop more directly, and get rid of this publicly
-  //   visible internal state.
-  PixelRect crop_rect;
 
   // Distance to plane of sharpest focus, in units of diopters, measured from
   //   the frontmost surface of the lens.

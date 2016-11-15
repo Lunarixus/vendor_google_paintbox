@@ -5,14 +5,15 @@
 #include <vector>
 
 #include "googlex/gcam/gcam/src/lib_gcam/burst_spec.h"
+#include "googlex/gcam/gcam/src/lib_gcam/gcam_constants.h"
 #include "googlex/gcam/gcam/src/lib_gcam/shot_params.h"
 #include "googlex/gcam/gcam/src/lib_gcam/tuning.h"
-#include "googlex/gcam/image/raw.h"
 #include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_metadata/client_exif_metadata.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_metadata/static_metadata.h"
+#include "googlex/gcam/image_raw/raw.h"
 
 namespace gcam {
 
@@ -56,18 +57,13 @@ class IShot {
   //            use, for each metering frame, are in the '.awb' member for
   //            each frame in the returned BurstSpec.)
   //       5. The LSC (lens shading correction) map that is applied to the image
-  //            (sgm_capture) should be chosen by the ISP based on the manual
-  //            white balance parameters requested by Gcam for the frame --
-  //            not by information from prior frames.
+  //            (sgm) should be chosen by the ISP based on the manual white
+  //            balance parameters requested by Gcam for the frame -- not by
+  //            information from prior frames.
   //       6. The ISP's auto white balance algorithm should still run on each
   //            frame, in isolation (i.e. a zero-history/zero-damping mode),
   //            and the results should be stored in 'Metadata::wb_ideal' for
   //            that same exact frame, when you pass it to Gcam.
-  //       7. The revised/ideal LSC map (which can be produced by the ISP after
-  //            it has has analyzed the whole frame) should be produced by the
-  //            ISP by looking solely at the frame itself (zero-history), or at
-  //            statistics / white balance info / etc. derived from just that
-  //            frame -- not by information from prior frames.
   //   BLOCKING vs. NON-BLOCKING:
   //     AddMeteringFrame() is non-blocking: it processes the metering
   //     frames in the background, asynchronously, on another thread.
@@ -113,16 +109,8 @@ class IShot {
   //     If they are smaller than QVGA, there might not be enough
   //     information, and the quality of Gcam's AE might suffer.
   //   SPATIAL GAIN MAPS:
-  //     sgm_capture should describe the LSC (lens shading correction)
-  //       maps that the ISP applied to the actual Bayer raw frame.
-  //     sgm_ideal should describe a revised/refined LSC map that,
-  //       ideally, would have been applied to the image.  (This second map
-  //       is produced by the ISP after reading in the full image and
-  //       analyzing it, ideally in isolation - i.e. with no information
-  //       from prior frames - which might have been captured at vastly
-  //       different exposure times and/or gains.)
-  //     You don't have to provide both of these to Gcam, but if either
-  //       is missing, AE quality will be slightly lower.
+  //     sgm describes the LSC (lens shading correction) maps that the
+  //       ISP will apply to the Bayer raw frame.
   //     Note that these maps are typically configured to fully correct
   //       the color shading of the lens, but to only PARTIALLY correct
   //       the vignetting of the lens.  They also might be a mixture of
@@ -140,16 +128,22 @@ class IShot {
   //     gcam::kInvalidImageId is reserved for the null image when the
   //     parameter can be invalid and will not receive a callback.
   virtual bool AddMeteringFrame(
-      const FrameMetadata& metadata,                     // Required.
+      const FrameMetadata& metadata,
       // At least one of 'yuv' or 'raw' must be valid.
       int64_t yuv_id,
       const YuvWriteView& yuv,
       int64_t raw_id,
       const RawWriteView& raw,
-      // At least one of 'sgm_capture' or 'sgm_ideal' must be valid if
-      // raw != nullptr; otherwise, they can be invalid.
-      const SpatialGainMap& sgm_capture,
-      const SpatialGainMap& sgm_ideal) = 0;
+      // May be invalid if raw != nullptr.
+      const SpatialGainMap& sgm) = 0;
+
+  // Raw-only wrapper, for clients that don't need the old YUV pipeline.
+  inline bool AddMeteringFrame(const FrameMetadata& metadata, int64_t raw_id,
+                               const RawWriteView& raw,
+                               const SpatialGainMap& sgm) {
+    return AddMeteringFrame(metadata, kInvalidImageId, YuvWriteView(), raw_id,
+                            raw, sgm);
+  }
 
   virtual BurstSpec EndMeteringFrames(
       // This parameter is for internal use by Gcam.  Use the default value.
@@ -275,17 +269,16 @@ class IShot {
   // be non-negative. The constant gcam::kInvalidImageId is reserved for invalid
   // images, in which case the client will not receive a callback.
   virtual bool AddPayloadFrame(
-      const FrameMetadata& metadata,  // Required.
+      const FrameMetadata& metadata,   // Required.
       int64_t raw_id,
       const RawWriteView& raw,
-      const SpatialGainMap& sgm_capture,     // Must be valid.
-      const SpatialGainMap& sgm_ideal) = 0;  // Can be invalid.
+      const SpatialGainMap& sgm) = 0;  // Required.
 
   // Call EndPayloadFrames once all payload frames have been submitted.
   virtual bool EndPayloadFrames(
-      const ClientExifMetadata*         client_exif_metadata,     // Optional.
-      const std::vector<std::string>*   general_warnings,         // Optional.
-      const std::vector<std::string>*   general_errors) = 0;      // Optional.
+      const ClientExifMetadata*       client_exif_metadata,     // Optional.
+      const std::vector<std::string>* general_warnings,         // Optional.
+      const std::vector<std::string>* general_errors) = 0;      // Optional.
 
   // Step 6:
   // Call gcam::EndShotCapture.

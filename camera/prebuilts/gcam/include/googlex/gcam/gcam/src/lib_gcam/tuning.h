@@ -16,9 +16,11 @@
 #include "googlex/gcam/base/pixel_rect.h"
 #include "googlex/gcam/gcam/src/lib_gcam/tet_model.h"
 #include "googlex/gcam/image/t_image.h"
+#include "googlex/gcam/image_metadata/bayer_pattern.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_proc/color_saturation.h"
+#include "googlex/gcam/image_raw/raw.h"
 #include "googlex/gcam/tonemap/tonemap_yuv.h"
 
 namespace gcam {
@@ -92,6 +94,7 @@ inline RawVignetteParams LerpTuning<RawVignetteParams>(
   return Lerp(a, b, t);
 }
 
+// TODO(yuntatsai): Reorganize noise model code.
 // Description of the noise found in a particular raw/linear image. This model
 // describes noise variance as a linear function of the ideal signal level,
 // given as digital values of the input image after black level subtraction,
@@ -122,6 +125,16 @@ struct RawNoiseModel {
     return raw;
   }
 };
+
+// Compute the average SNR for a given frame, by evaluating the given noise
+// model at the mean signal level. As in RawNoiseModel, only a single value is
+// used for black level.
+float AverageSnrFromFrame(const RawReadView& raw,
+                          BayerPattern bayer_pattern,
+                          float noise_model_black_level,
+                          float white_level,
+                          const RawNoiseModel& noise_model,
+                          const Context& context);
 
 // Description of the noise found in raw/linear images captured by a
 // particular sensor as a function of an analog gain stage followed by a readout
@@ -347,6 +360,30 @@ RawSharpenParams LerpTuning<RawSharpenParams>(const RawSharpenParams& a,
                                              const RawSharpenParams& b,
                                              float t);
 
+// The struct records the arc flare that is present on marlin/sailfish when
+// the main light source is at ~46-degree
+struct ArcFlareParam {
+  // specify if the arc flare can exist in this device
+  bool can_exist;
+
+  // Compute the mean arc flare radius. According to the calibration data, the
+  // average radius largely depends on the focus distance. It is very linear
+  // to the focus step, but unfortunately not available at the app level.
+  // Here we fit a polynomial to the focus distance in diopters for it.
+  // Assumption: the sensor dimension is the 2x2 binned, as the one used in
+  // FinishRaw
+  float GetMeanRadius(float focus_distance_diopters) const {
+    const float fdd2 = focus_distance_diopters * focus_distance_diopters;
+    const float fdd3 = fdd2 * focus_distance_diopters;
+    return radius_param[0] + radius_param[1] *
+        (radius_param[2] + radius_param[3] * focus_distance_diopters +
+         radius_param[4] * fdd2 +
+         radius_param[5] * fdd3);
+  }
+
+  double radius_param[6];
+};
+
 struct RawFinishParams {
   RawFinishParams();
 
@@ -387,6 +424,12 @@ struct RawFinishParams {
   // zoom factor.
   SmoothKeyValueMap<float> post_zoom_sharpen_strength;
 
+  // How much error to expect in the black level metadata, in DNs. If this is
+  // greater than zero, we attempt to estimate an offset within the margin of
+  // error.
+  // TODO(dsharlet): The code that uses this assumes the white level is 1023.
+  float max_black_level_offset;
+
   // Biases to apply to the final RGB output color.
   // The values are normalized, so 1.0 corresponds to kRawFinishWhiteLevel.
   //   They can be positive or negative.  A value of -0.01, for example, would
@@ -394,6 +437,11 @@ struct RawFinishParams {
   //   kRawFinishWhiteLevel.
   // Use of this feature is HEAVILY DISCOURAGED.
   float final_rgb_bias_hack[3];
+
+  // If > 0, limits the maximum number of synthetic exposures in the HDR block.
+  int max_synthetic_exposures;
+
+  ArcFlareParam arc_flare;
 };
 
 // This struct houses a subset of the parameters for capture, and is limited
@@ -431,6 +479,22 @@ struct CaptureParams {
   //   or some combination of the two. In this case, the HDR ratio after
   //   adjustments will be exactly max_hdr_ratio.
   float max_hdr_ratio;  // Should be > 1.
+
+  // *** The YUV pipeline ignores this member. ***
+  // Limit the maximum post-capture gain for ZSL shots.
+  // In practice, this only triggers for ZSL shots where the scene has a very
+  //   high dynamic range, and the in-driver dynamic underexposure code went too
+  //   far, chasing very bright highlights, and capturing frames with a TET that
+  //   is below what our (higher-quality) AE would have called for.
+  // In that case, without this limit, in the HDR block, the synthetic long
+  //   exposure would (potentially) use up to 8x digital gain (from the hdr
+  //   ratio), *in addition to some extra gain that the synthetic short exposure
+  //   needed*, pushing the long exposure over 8x, which we're not yet capable
+  //   of handling, due to artifacts from:
+  //     1. Imperfect black levels result in more color shifting
+  //     2. Noise
+  //     3. Quantization
+  float max_zsl_post_capture_gain;
 
   // *** The YUV pipeline ignores this member. ***
   // In the raw pipeline (only), this value controls the ratio between the

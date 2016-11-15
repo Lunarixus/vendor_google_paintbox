@@ -44,7 +44,7 @@ enum GcamInputFrameType {
   kUnknownFrameType = 0,
   kMeteringFrame,
   kPayloadFrame,
-  kPayloadAuxFrame,
+  kPayloadAuxFrame,  // Deprecated.
   kViewfinderFrame,
 };
 
