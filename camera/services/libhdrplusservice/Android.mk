@@ -20,8 +20,11 @@ LOCAL_SHARED_LIBRARIES:= \
     libhdrplusmessenger \
     liblog
 
-LOCAL_STATIC_LIBRARIES:= \
-    libmockeasel
+ifeq ($(USE_LIB_EASEL), 1)
+    LOCAL_STATIC_LIBRARIES := libeasel
+else
+    LOCAL_STATIC_LIBRARIES := libmockeasel
+endif
 
 LOCAL_C_INCLUDES += \
     hardware/google/paintbox/include \
