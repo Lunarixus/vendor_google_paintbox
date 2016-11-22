@@ -597,7 +597,6 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     // Convert lens shading map.
     uint32_t smWidth = mStaticMetadata->shadingMapSize[0];
     uint32_t smHeight = mStaticMetadata->shadingMapSize[1];
-    uint32_t numElementsPerChannel = smWidth * smHeight;
 
     frame->gcamSpatialGainMap = std::make_shared<gcam::SpatialGainMap>(smWidth, smHeight,
             /*is_precise*/true);
@@ -605,8 +604,7 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     for (uint32_t c = 0; c < 4; c++) {
         for (uint32_t y = 0; y < smHeight; y++) {
             for (uint32_t x = 0; x < smWidth; x++) {
-                uint32_t index = y * smWidth + x + getCameraChannelIndex(c, cfa) *
-                        numElementsPerChannel;
+                uint32_t index = (y * smWidth + x) * 4 + getCameraChannelIndex(c, cfa);
                 frame->gcamSpatialGainMap->WriteRggb(x, y, c, metadata->lensShadingMap[index]);
             }
         }
