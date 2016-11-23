@@ -624,6 +624,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
     gcam::InitParams initParams;
     initParams.thread_count = kGcamThreadCounts;
     initParams.tuning_locked = kGcamTuningLocked;
+    initParams.use_hexagon = false;
     initParams.planning_to_provide_both_yuv_and_raw_for_metering = false;
     initParams.planning_to_provide_both_yuv_and_raw_for_payload = false;
     initParams.planning_to_process_bayer_for_metering = false;
