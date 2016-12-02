@@ -3,7 +3,9 @@
 #include <thread>
 
 #include <assert.h>
+#include <condition_variable>
 #include <fcntl.h>
+#include <limits.h>
 #include <pthread.h>
 #include <pty.h>
 #include <signal.h>
@@ -17,34 +19,60 @@
 namespace {
 static const int kMaxTtyDataBufferSize = 2048;
 
+// Dynamically generated files truncated to this max size in bytes
+static const int kDynamicMaxSize = 8 * 1024; // 8KB
+
 #define SHELL_PATH      "/bin/sh"
 
 enum Command {
-    CMD_OPEN,      // Open new shell session
-    CMD_TTY_DATA,  // Data for writing to local TTY
-    CMD_CLOSE,     // Close the shell session
+    CMD_OPEN_SHELL,    // Open new shell session
+    CMD_TTY_DATA,      // Data for writing to local TTY
+    CMD_CLOSE_SHELL,   // Close the shell session
+    CMD_PULL_REQUEST,  // Request pull file from Easel
+    CMD_PULL_RESPONSE, // Pull file from Easel response
 };
 
 // Common message header for all messages containing the command and data len
 struct MsgHeader {
     uint32_t command;
     uint32_t datalen;
+    MsgHeader(enum Command cmd, uint32_t dlen): command(cmd), datalen(dlen) {};
+    MsgHeader(): command(-1), datalen(0) {};
 };
 
-// Open session message from server to client, no further data
-struct OpenMsg {
+// Open shell session message from server to client, no further data
+struct OpenShellMsg {
     struct MsgHeader h;
+    OpenShellMsg(): h(CMD_OPEN_SHELL, 0) {};
 };
 
 // TTY data message contains bytes to write to remote TTY/PTY
 struct TtyDataMsg {
     struct MsgHeader h;
     char data[kMaxTtyDataBufferSize];
+    TtyDataMsg(): h(CMD_TTY_DATA, 0) {};
 };
 
 // Close session message from server to client, no further data
-struct CloseMsg {
+struct CloseShellMsg {
     struct MsgHeader h;
+    CloseShellMsg(): h(CMD_CLOSE_SHELL, 0) {};
+};
+
+// File pull request from client to server contains file path
+struct FilePullRequest {
+    struct MsgHeader h;
+    char path[PATH_MAX];
+    FilePullRequest(): h(CMD_PULL_REQUEST, 0) {};
+};
+
+// File pull response from server to client contains response code
+struct FilePullResponse {
+    struct MsgHeader h;
+    int response_code;
+    FilePullResponse(int respcode):
+        h(CMD_PULL_RESPONSE, sizeof(response_code)), response_code(respcode)
+        {};
 };
 
 // Local tty/pty file descriptor
@@ -61,11 +89,75 @@ pid_t shell_pid = 0;
 // server shell session thread
 std::thread *shell_session_thread = nullptr;
 
-void client_exit_shell(int exitcode) {
+// client: file transfer info shared between main and command handler
+char *file_xfer_path_remote;            // remote file path
+char *file_xfer_path_local;             // local file path
+std::mutex file_xfer_lock;              // protects following fields
+bool file_xfer_done = false;            // is file transfer done?
+std::condition_variable file_xfer_cond; // signals transfer done to waiter
+
+void client_exit(int exitcode) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
     fprintf(stderr, "\rezlsh exiting\n");
     easel_comm_client.close();
     exit(exitcode);
+}
+
+// Client saves pulled file based on response from server.
+void client_save_pulled_file(EaselComm::EaselMessage *msg) {
+    FilePullResponse *resp = (FilePullResponse *)msg->message_buf;
+
+    if (resp->response_code) {
+        fprintf(stderr, "ezlsh: %s: %s\n", file_xfer_path_remote,
+                strerror(resp->response_code));
+        return;
+    }
+
+    char *file_data = nullptr;
+
+    if (msg->dma_buf_size) {
+        file_data = (char *)malloc(msg->dma_buf_size);
+
+        if (file_data == nullptr) {
+            perror("malloc");
+            // Discard DMA transfer
+            msg->dma_buf = nullptr;
+            (void) easel_comm_client.receiveDMA(msg);
+            return;
+        }
+
+        msg->dma_buf = file_data;
+        int ret = easel_comm_client.receiveDMA(msg);
+        if (ret) {
+            perror("EaselComm receiveDMA");
+            free(file_data);
+            return;
+        }
+    }
+
+    int fd = creat(file_xfer_path_local, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        perror(file_xfer_path_local);
+    } else if (msg->dma_buf_size) {
+        ssize_t len = write(fd, file_data, msg->dma_buf_size);
+        if (len < 0)
+            perror(file_xfer_path_local);
+    }
+
+    close(fd);
+    free(file_data);
+}
+
+// Client receives file pull response.
+void client_pull_handler(EaselComm::EaselMessage *msg) {
+    client_save_pulled_file(msg);
+
+    // Done, wake up main thread
+    {
+        std::lock_guard<std::mutex> xferlock(file_xfer_lock);
+        file_xfer_done = true;
+    }
+    file_xfer_cond.notify_one();
 }
 
 // Client incoming message handler
@@ -96,9 +188,15 @@ void client_message_handler() {
                     perror("write");
                 break;
             }
-            case CMD_CLOSE:
+
+            case CMD_CLOSE_SHELL:
                 close_conn = true;
                 break;
+
+            case CMD_PULL_RESPONSE:
+                client_pull_handler(&msg);
+                break;
+
             default:
                 fprintf(stderr, "ERROR: unrecognized command %d\n",
                         h->command);
@@ -107,7 +205,7 @@ void client_message_handler() {
             free(msg.message_buf);
         }
     }
-    client_exit_shell(exitcode);
+    client_exit(exitcode);
 }
 
 void shell_client_session() {
@@ -134,12 +232,13 @@ void shell_client_session() {
     easel_comm_client.flush();
 
     msg_handler_thread = new std::thread(client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+        client_exit(1);
+    }
 
     // Tell server to start a new session
-    OpenMsg open_msg;
-    open_msg.h.command = CMD_OPEN;
-    open_msg.h.datalen = 0;
-
+    OpenShellMsg open_msg;
     EaselComm::EaselMessage msg;
     msg.message_buf = &open_msg;
     msg.message_buf_size = sizeof(MsgHeader);
@@ -148,8 +247,6 @@ void shell_client_session() {
     easel_comm_client.sendMessage(&msg);
 
     TtyDataMsg data_msg;
-
-    data_msg.h.command = CMD_TTY_DATA;
 
     while ((ret = read(STDIN_FILENO, &data_msg.data,
                        kMaxTtyDataBufferSize)) > 0) {
@@ -165,7 +262,50 @@ void shell_client_session() {
             break;
     }
 
-    client_exit_shell(0);
+    client_exit(0);
+}
+
+// Client file pull command processing. Send pull request and wait for
+// incoming message handler to process the response from server.
+void client_pull_file(char *remote_path, char *dest_arg) {
+    file_xfer_path_remote = remote_path;
+    char *local_path_str;
+
+    if (dest_arg) {
+        local_path_str = strdup(dest_arg);
+        file_xfer_path_local = local_path_str;
+    } else {
+        local_path_str = strdup(remote_path);
+        file_xfer_path_local = basename(local_path_str);
+    }
+
+    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
+    assert(ret == 0);
+    easel_comm_client.flush();
+
+    std::thread *msg_handler_thread;
+    msg_handler_thread = new std::thread(client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+        client_exit(1);
+    }
+
+    // Send request
+    FilePullRequest pull_msg;
+    strlcpy(pull_msg.path, remote_path, PATH_MAX);
+    pull_msg.h.datalen = strlen(pull_msg.path) + 1;
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &pull_msg;
+    msg.message_buf_size = sizeof(MsgHeader) + pull_msg.h.datalen;
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    easel_comm_client.sendMessage(&msg);
+
+    // Wait for transfer done
+    std::unique_lock<std::mutex> lk(file_xfer_lock);
+    file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
+
+    free(local_path_str);
 }
 
 void server_kill_shell() {
@@ -199,8 +339,6 @@ void shell_server_session() {
         TtyDataMsg data_msg;
         int ret;
 
-        data_msg.h.command = CMD_TTY_DATA;
-
         while ((ret = read(tty_fd, &data_msg.data,
                            kMaxTtyDataBufferSize)) > 0) {
             data_msg.h.datalen = ret;
@@ -216,10 +354,7 @@ void shell_server_session() {
         }
 
         // EOF from server shell PTY;  tell client to close its connection
-        CloseMsg close_msg;
-        close_msg.h.command = CMD_CLOSE;
-        close_msg.h.datalen = 0;
-
+        CloseShellMsg close_msg;
         EaselComm::EaselMessage msg;
         msg.message_buf = &close_msg;
         msg.message_buf_size = sizeof(MsgHeader);
@@ -227,6 +362,58 @@ void shell_server_session() {
         msg.dma_buf_size = 0;
         easel_comm_server.sendMessage(&msg);
    }
+}
+
+// Server receives file pull request, send file data as DMA transfer
+void server_send_pull_file(FilePullRequest *req) {
+    int fd = open(req->path, O_RDONLY);
+    off_t file_size = -1;
+    struct stat stat_buf;
+    ssize_t data_len = 0;
+    ssize_t data_max_len;
+
+    if (fd >= 0) {
+        if (fstat(fd, &stat_buf) == 0)
+            file_size = stat_buf.st_size;
+    }
+
+    if (file_size < 0) {
+        // Send errno as response code
+        FilePullResponse pull_resp(errno);
+        EaselComm::EaselMessage msg;
+        msg.message_buf = &pull_resp;
+        msg.message_buf_size = sizeof(FilePullResponse);
+        msg.dma_buf = 0;
+        msg.dma_buf_size = 0;
+        easel_comm_server.sendMessage(&msg);
+        close(fd);
+        return;
+    }
+
+    // If size is zero it may be dynamically generated, send up to a
+    // maximum number of bytes configured above.
+    data_max_len = file_size ? file_size : kDynamicMaxSize;
+
+    // Read file, send errno as response code and file data as DMA buffer
+    // (if successful).
+    errno = 0;
+    char *file_data = (char *)malloc(data_max_len);
+    if (file_data != nullptr)
+        data_len = read(fd, file_data, data_max_len);
+    // If dynamically-generated file larger than our max then send error
+    if (!file_size && data_len == kDynamicMaxSize)
+        errno = EFBIG;
+
+    FilePullResponse pull_resp(errno);
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &pull_resp;
+    msg.message_buf_size = sizeof(FilePullResponse);
+    msg.dma_buf = (errno || !data_len) ? NULL : file_data;
+    msg.dma_buf_size = errno ? 0 : data_len;
+    easel_comm_server.sendMessage(&msg);
+
+    free(file_data);
+    close(fd);
 }
 
 void server_run() {
@@ -252,10 +439,13 @@ void server_run() {
             MsgHeader *h = (MsgHeader *)msg.message_buf;
 
             switch(h->command) {
-            case CMD_OPEN:
+            case CMD_OPEN_SHELL:
                 server_kill_shell();
                 shell_session_thread =
                   new std::thread(shell_server_session);
+                if (shell_session_thread == nullptr)
+                    fprintf(stderr,
+                          "failed to allocate thread for shell session\n");
                 break;
 
             case CMD_TTY_DATA:
@@ -267,8 +457,12 @@ void server_run() {
                 break;
             }
 
-            case CMD_CLOSE:
+            case CMD_CLOSE_SHELL:
                 server_kill_shell();
+                break;
+
+            case CMD_PULL_REQUEST:
+                server_send_pull_file((FilePullRequest *)msg.message_buf);
                 break;
 
             default:
@@ -294,18 +488,42 @@ int main(int argc, char **argv) {
             client = 0;
             break;
           default:
-            fprintf(stderr, "Usage: server: ezlsh -d\n");
-            fprintf(stderr, "       client: ezlsh\n");
+            fprintf(stderr,
+                    "Usage: server: ezlsh -d\n");
+            fprintf(stderr,
+                    "       client: ezlsh [pull <remote-path> [<local-path>]\n"
+                    );
             exit(1);
         }
     }
 
     if (client) {
-        shell_client_session();
+        if (optind < argc) {
+            if (!strcmp(argv[optind], "pull")) {
+                char *remote_path;
+                char *local_path = NULL;
+
+                if (++optind >= argc) {
+                  fprintf(stderr,
+                          "ezlsh: remote-path missing after \"pull\"\n");
+                  exit(1);
+                }
+
+                remote_path = argv[optind];
+                if (++optind < argc)
+                    local_path = argv[optind];
+                client_pull_file(remote_path, local_path);
+
+            } else {
+                fprintf(stderr,
+                        "ezlsh: unknown command \"%s\"\n", argv[optind]);
+                exit(1);
+            }
+        } else {
+            // No command, run shell session
+            shell_client_session();
+        }
     } else {
         server_run();
     }
-
-    // Not expected to reach here.
-    exit(3);
 }
