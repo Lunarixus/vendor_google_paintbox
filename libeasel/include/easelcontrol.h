@@ -31,6 +31,10 @@
   void operator=(const TypeName&) = delete
 #endif  // DISALLOW_COPY_AND_ASSIGN
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
+
 #ifndef ANDROID
 // Supply the Android priority enum values for non-Android build
 typedef enum android_LogPriority {
