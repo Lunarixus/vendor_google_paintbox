@@ -10,12 +10,14 @@ enum MipiRxPort {
     RX_0,
     RX_1,
     RX_2,
+    RX_IPU,
 };
 
 // Definition of ports of Easel MIPI TX
 enum MipiTxPort {
     TX_0,
     TX_1,
+    TX_IPU,
 };
 
 // Definition of MIPI MUX state
@@ -25,6 +27,7 @@ typedef struct {
 
 class EaselMipiService {
 public:
+    EaselMipiService() { init(); }
     ~EaselMipiService() { release(); };
     /*
      * Initializes Easel MIPI service.
@@ -49,7 +52,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int enableRx(MipiRxPort rx, uint32_t num_lanes, uint32_t bitrate_mbps);
+    int enable(MipiRxPort rx, uint32_t num_lanes, uint32_t bitrate_mbps);
 
     /*
      * Configures MIPI DPHY and controller of a particular MIPI tx port.
@@ -62,7 +65,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int enableTx(MipiTxPort tx, uint32_t num_lanes, uint32_t bitrate_mbps);
+    int enable(MipiTxPort tx, uint32_t num_lanes, uint32_t bitrate_mbps);
 
     /*
      * Disables a particular MIPI rx port and it goes to low power state.
@@ -71,7 +74,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int disableRx(MipiRxPort rx);
+    int disable(MipiRxPort rx);
 
     /*
      * Disables a particular MIPI tx port and it goes to low power state.
@@ -80,38 +83,54 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int disableTx(MipiTxPort tx);
+    int disable(MipiTxPort tx);
 
     /*
-     * Sets the MIPI bypass mux to route from rx to tx. If force is set,
-     * the new configuration will be effective immediately, otherwise it
-     * will take effect after vsync received on the original rx port.
+     * Sets the MIPI smart mux to route from rx to tx.
+     *
+     * Before calling this function, rx (excluding IPU) should be streaming.
+     *
+     * When force_on is disabled, the mux switches on the next vsync high
+     * from rx (excluding IPU), otherwise it will switch immediately in the
+     * middle of a frame.
+     *
+     * When force_off is disabled, the next mux switch call (setMux, disableMux)
+     * will wait for vsync low before turning the current route off,
+     * otherwise it will be switched off from current route immediately
+     * in the middle of a frame.
+     *
+     * rx the rx port to be routed from, including IPU.
+     * tx the tx port to be routed to, including IPU.
+     * force_on force set the mux on without waiting for vsync.
+     * force_off in the next mux switch call, force set current mux off
+     *    without waiting for vsync.
+     *
+     * Returns zero for success or -1 for failure.
+     */
+    int setMux(MipiRxPort rx, MipiTxPort tx, bool force_on=false,
+            bool force_off=false);
+
+    /*
+     * Disables the MIPI smart mux routing from rx to tx.
+     *
+     * It is recommended to explicitly call disableMux on old path before setting
+     * a new mux path on shared tx (excluding ipu) to avoid going to unknown
+     * states.
+     *
+     * When force_off is disabled, the mux waits for vsync low before turning
+     * the current route off, otherwise it will disable the current route immediately
+     * in the middle of a frame.
      *
      * rx the rx port to be routed from.
      * tx the tx port to be routed to.
-     * force force set the mux without waiting for vsync .
+     * force_off force set current mux off without waiting for vsync.
      *
      * Returns zero for success or -1 for failure.
      */
-    int setBypass(MipiRxPort rx, MipiTxPort tx, bool force);
+    int disableMux(MipiRxPort rx, MipiTxPort tx, bool force_off=false);
 
     /*
-     * Sets Easel MIPI out port to be routed to IPU MIPI out. Tx0 will
-     * be connected to IPU MPO0 if tx is TX_0. Tx1 will be connected to
-     * IPU MPO1 if tx is TX_1. If force is set, the new configuration
-     * will be effective immediately, otherwise it will take effect after
-     * vsync received on the original rx port previously routed to
-     * current tx port.
-     *
-     * tx the tx port to be routed to.
-     * force force set the mux without waiting for vsync .
-     *
-     * Returns zero for success or -1 for failure.
-     */
-    int setFunctional(MipiTxPort tx, bool force);
-
-    /*
-     * Get the current connection status from MIPI rx port to MIPI tx port.
+     * Get the current connection status from rx port to tx port.
      * Status will be reported through MipiMuxStatus parameter.
      *
      * rx the rx port to be routed from.
@@ -120,26 +139,32 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int getBypassStatus(MipiRxPort rx, MipiTxPort tx, MipiMuxStatus* status);
-
-    /*
-     * Get the current connection status from IPU MIPI out port to MIPI tx port.
-     * Status will be reported through MipiMuxStatus parameter.
-     *
-     * rx the rx port to be routed from.
-     * tx the tx port to be routed to.
-     * status reported connection status.
-     *
-     * Returns zero for success or -1 for failure.
-     */
-    int getFunctionalStatus(MipiTxPort tx, MipiMuxStatus* status);
+    int getMuxStatus(MipiRxPort rx, MipiTxPort tx, MipiMuxStatus* status);
 
     /*
      * Resets Easel MIPI PHY and Controller to default state.
      *
+     * rx the rx port to be reset.
+     *
      * Returns zero for success or -1 for failure.
      */
-    int reset();
+    int reset(MipiRxPort rx);
+
+    /*
+     * Resets Easel MIPI PHY and Controller to default state.
+     *
+     * tx the tx port to be reset.
+     *
+     * Returns zero for success or -1 for failure.
+     */
+    int reset(MipiTxPort tx);
+
+    /*
+     * Resets all Easel MIPI PHYs and Controllers to default state.
+     *
+     * Returns zero for success or -1 for failure.
+     */
+    int resetAll();
 
 private:
     int mEaselMipiFd; // fd of ioctl dev node.
