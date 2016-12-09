@@ -326,9 +326,20 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         }
     }
 
+    // TODO: Assume the first frame is the base frame. GCAM should privide the base frame index.
+    // b/32721233.
+    uint32_t baseFrameIndex = 0;
+
     // Set frame metadata.
     outputResult.metadata.frameMetadata =
-            finishingShot->frames[0]->input.metadata.frameMetadata;
+            finishingShot->frames[baseFrameIndex]->input.metadata.frameMetadata;
+
+    // Set the result metadata. GCAM should provide more result metadata. b/32721233.
+    outputResult.metadata.resultMetadata = std::make_shared<ResultMetadata>();
+    outputResult.metadata.resultMetadata->easelTimestamp =
+            outputResult.metadata.frameMetadata->easelTimestamp;
+    outputResult.metadata.resultMetadata->timestamp =
+            outputResult.metadata.frameMetadata->timestamp;
 
     auto pipeline = mPipeline.lock();
     if (pipeline == nullptr) {

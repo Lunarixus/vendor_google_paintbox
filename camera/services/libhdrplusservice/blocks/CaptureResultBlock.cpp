@@ -57,6 +57,7 @@ bool CaptureResultBlock::doWorkLocked() {
     OutputResult blockResult = input;
     CaptureResult captureResult = {};
     captureResult.requestId = input.metadata.requestId;
+    captureResult.metadata = *input.metadata.resultMetadata.get();
 
     for (auto buffer : blockResult.buffers) {
         StreamBuffer resultBuffer = {};
