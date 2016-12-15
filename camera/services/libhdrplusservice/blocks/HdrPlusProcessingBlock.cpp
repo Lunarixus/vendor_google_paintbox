@@ -145,6 +145,10 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     // TODO: support non-ZSL.
     shotParams.zsl = true;
 
+    if (mStaticMetadata->flashInfoAvailable == ANDROID_FLASH_INFO_AVAILABLE_FALSE) {
+        shotParams.flash_mode = gcam::FlashMode::kOff;
+    }
+
     // camera_id is always 0 because we only set 1 static metadata in GCAM for current camera
     // which could be rear or front camera.
     gcam::IShot* shot = mGcam->StartShotCapture(/*camera_id*/0, shotCapture->burstId,
