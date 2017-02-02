@@ -84,9 +84,13 @@ void *msgHandlerThread() {
                   assert(0);
                     timesync_local_boottime = 0;
                 }
-#ifndef MOCKEASEL
-                // TODO(toddpoynor): Call clock_settime for REALTIME clock
-                // with value tmsg->realtime on Easel.
+#ifndef MOCKEASEL    // System clock should not be modified when using libmockeasel
+                uint64_t timesync_ap_realtime = tmsg->realtime;
+                ts.tv_sec = timesync_ap_realtime / NSEC_PER_SEC;
+                ts.tv_nsec = timesync_ap_realtime - ts.tv_sec * NSEC_PER_SEC;
+                if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
+                  assert(0);
+                }
 #endif
             }
             break;
