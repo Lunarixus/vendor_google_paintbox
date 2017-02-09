@@ -16,6 +16,7 @@ LOCAL_SRC_FILES :=  \
     PipelineStream.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
+    libcapture \
     libgcam \
     libhdrplusmessenger \
     liblog
@@ -43,7 +44,6 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 LOCAL_CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter
 
 LOCAL_MODULE:= libhdrplusservice
-
 LOCAL_MULTILIB := 64
 
 include $(BUILD_SHARED_LIBRARY)

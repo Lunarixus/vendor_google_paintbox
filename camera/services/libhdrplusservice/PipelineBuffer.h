@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <vector>
 
+#include <capture.h>
+
 #include "HdrPlusTypes.h"
 
 namespace pbcamera {
@@ -51,6 +53,13 @@ public:
 
     // Return the size of the allocated data including padding.
     virtual uint32_t getDataSize() const = 0;
+
+    // Lock data of the frame buffer. It must be called before calling getPlaneData() to access
+    // the plane data. After accessc finishes, call unlockData to unlock data.
+    virtual status_t lockData() = 0;
+
+    // Unlock the data of the frame buffer.
+    virtual void unlockData() = 0;
 
     // Set each pixel to black.
     status_t clear();
@@ -119,11 +128,57 @@ public:
     // Return the size of the data.
     virtual uint32_t getDataSize() const override;
 
+    // Lock data of the frame buffer. It must be called before calling getPlaneData() to access
+    // the plane data. After accessc finishes, call unlockData to unlock data.
+    virtual status_t lockData() override;
+
+    // Unlock the data of the frame buffer.
+    virtual void unlockData() override;
+
 private:
     // Raw data of the image.
     std::vector<uint8_t> mData;
 
     // Free the memory of the buffer.
+};
+
+/**
+ * PipelineCaptureFrameBuffer
+ *
+ * PipelineCaptureFrameBuffer inherited from PipelineBuffer defines HDR+ buffers allocated using
+ * capture Easel capture API in order to capture frames from MIPI.
+ */
+class PipelineCaptureFrameBuffer : public PipelineBuffer {
+public:
+    PipelineCaptureFrameBuffer(const std::weak_ptr<PipelineStream> &stream,
+            const StreamConfiguration &config);
+    virtual ~PipelineCaptureFrameBuffer() = default;
+
+    // Use allocate(std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory) to allocate buffers.
+    virtual status_t allocate() override;
+
+    // Allocate the image data using CaptureFrameBufferFactory.
+    status_t allocate(std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory);
+
+    // Return the pointer to the raw data of an image plane.
+    virtual uint8_t* getPlaneData(uint32_t planeNum) override;
+
+    // Return the size of the data.
+    virtual uint32_t getDataSize() const override;
+
+    // Lock data of the frame buffer. It must be called before calling getPlaneData() to access
+    // the plane data. After accessc finishes, call unlockData to unlock data.
+    virtual status_t lockData() override;
+
+    // Unlock the data of the frame buffer.
+    virtual void unlockData() override;
+
+    // Return the capture frame buffer associated with this buffer.
+    std::shared_ptr<CaptureFrameBuffer> getCaptureFrameBuffer();
+
+private:
+    std::shared_ptr<CaptureFrameBuffer> mCaptureFrameBuffer;
+    void* mLockedData;
 };
 
 } // namespace pbcamera

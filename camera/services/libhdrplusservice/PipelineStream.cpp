@@ -3,7 +3,9 @@
 #include "Log.h"
 
 #include <errno.h>
+#include <system/graphics.h>
 
+#include "CaptureServiceConsts.h"
 #include "PipelineStream.h"
 
 namespace pbcamera {
@@ -51,6 +53,99 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
             return -EINVAL;
         }
         status_t res = buffer->allocate();
+        if (res != 0) {
+            ALOGE("%s: Allocating stream (%ux%u format %d with %d buffers) failed: %s (%d)",
+                    __FUNCTION__, config.image.width, config.image.height, config.image.format,
+                    numBuffers, strerror(-res), res);
+            destroyLocked();
+            return res;
+        }
+
+        mAvailableBuffers.push_back(buffer.get());
+        mAllBuffers.push_back(std::move(buffer));
+    }
+
+    mConfig = config;
+    ALOGV("%s: Allocated stream id %d res %ux%u format %d with %d buffers.", __FUNCTION__,
+            config.id, config.image.width, config.image.height, config.image.format, numBuffers);
+
+    return 0;
+}
+
+std::shared_ptr<PipelineStream> PipelineStream::newInputPipelineStream(
+        const SensorMode &sensorMode, int numBuffers) {
+    std::shared_ptr<PipelineStream> stream = std::shared_ptr<PipelineStream>(new PipelineStream());
+    if (stream == nullptr) {
+        ALOGE("%s: Creating an input pipeline stream instance failed.", __FUNCTION__);
+        return nullptr;
+    }
+    status_t res = stream->createInput(sensorMode, numBuffers);
+    if (res != 0) {
+        ALOGE("%s: Creating an input pipeline stream failed: %s (%d).", __FUNCTION__,
+                strerror(-res), res);
+        return nullptr;
+    }
+
+    return stream;
+}
+
+status_t PipelineStream::createInput(const SensorMode &sensorMode, int numBuffers) {
+    std::unique_lock<std::mutex> lock(mApiLock);
+    if (mAllBuffers.size() > 0) {
+        // Stream is already created.
+        return -EEXIST;
+    }
+
+    uint32_t dataType = 0, bitsPerPixel = 0;
+    switch (sensorMode.format) {
+        case HAL_PIXEL_FORMAT_RAW10:
+            // TODO: Replace with a macro once defined in capture.h.
+            dataType = capture_service_consts::kMipiRaw10DataType;
+            bitsPerPixel = 10;
+            break;
+        default:
+            ALOGE("%s: Only HAL_PIXEL_FORMAT_RAW10 is supported but sensor mode has %d",
+                    __FUNCTION__, sensorMode.format);
+            return -EINVAL;
+    }
+
+    std::vector<CaptureStreamConfig> captureStreamConfigs = {
+            { dataType, sensorMode.pixelArrayWidth, sensorMode.pixelArrayHeight, bitsPerPixel }};
+
+    // TODO: Support front camera. b/35674729.
+    CaptureConfig captureConfig = { MipiRxPort::RX0,
+            capture_service_consts::kMainImageVirtualChannelId,
+            capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
+            captureStreamConfigs };
+
+    // Create a capture frame buffer factory.
+    mBufferFactory = CaptureFrameBufferFactory::CreateInstance(captureConfig);
+    if (mBufferFactory == nullptr) {
+        ALOGE("%s: Failed to create a buffer factory.", __FUNCTION__);
+        return -ENOMEM;
+    }
+
+    StreamConfiguration config;
+    config.image.width = sensorMode.pixelArrayWidth;
+    config.image.height = sensorMode.pixelArrayHeight;
+    config.image.format = sensorMode.format;
+
+    PlaneConfiguration plane = {};
+    plane.stride = config.image.width * bitsPerPixel / 8;
+    plane.scanline = config.image.height;
+
+    config.image.planes.push_back(plane);
+
+    // Allocate the buffers using capture frame buffer factory.
+    for (int i = 0; i < numBuffers; i++) {
+        std::unique_ptr<PipelineCaptureFrameBuffer> buffer =
+                std::make_unique<PipelineCaptureFrameBuffer>(shared_from_this(), config);
+        if (buffer == nullptr) {
+            ALOGE("%s: Creating a buffer instance failed.", __FUNCTION__);
+            destroyLocked();
+            return -EINVAL;
+        }
+        status_t res = buffer->allocate(mBufferFactory);
         if (res != 0) {
             ALOGE("%s: Allocating stream (%ux%u format %d with %d buffers) failed: %s (%d)",
                     __FUNCTION__, config.image.width, config.image.height, config.image.format,

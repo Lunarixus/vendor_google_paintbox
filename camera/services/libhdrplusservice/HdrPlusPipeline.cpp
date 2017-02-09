@@ -80,33 +80,8 @@ status_t HdrPlusPipeline::configure(const InputConfiguration &inputConfig,
     // TODO: Check if we can avoid allocating unchanged streams again.
     destroyLocked();
 
-    // Prepare a input stream configuration depending on whether the input comes from MIPI or AP.
-    StreamConfiguration inputStreamConfig;
-    if (inputConfig.isSensorInput) {
-        inputStreamConfig.image.width = inputConfig.sensorMode.pixelArrayWidth;
-        inputStreamConfig.image.height = inputConfig.sensorMode.pixelArrayHeight;
-        inputStreamConfig.image.format = inputConfig.sensorMode.format;
-
-        pbcamera::PlaneConfiguration plane;
-
-        switch(inputConfig.sensorMode.format) {
-            case HAL_PIXEL_FORMAT_RAW10:
-                // Assuming no padding is needed for IPU buffers.
-                plane.stride = inputConfig.sensorMode.pixelArrayWidth * 10 / 8;
-                plane.scanline = inputConfig.sensorMode.pixelArrayHeight;
-                break;
-            default:
-                // TODO: Support other RAW formats.
-                return -EINVAL;
-        }
-
-        inputStreamConfig.image.planes.push_back(plane);
-    } else {
-        inputStreamConfig = inputConfig.streamConfig;
-    }
-
     // Allocate pipeline streams.
-    res = createStreamsLocked(inputStreamConfig, outputConfigs);
+    res = createStreamsLocked(inputConfig, outputConfigs);
     if (res != 0) {
         ALOGE("%s: Configuring stream failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         destroyLocked();
@@ -114,7 +89,8 @@ status_t HdrPlusPipeline::configure(const InputConfiguration &inputConfig,
     }
 
     // Set up routes for each stream.
-    res = createBlocksAndStreamRouteLocked();
+    const SensorMode *sensorMode = inputConfig.isSensorInput ? &inputConfig.sensorMode : nullptr;
+    res = createBlocksAndStreamRouteLocked(sensorMode);
     if (res != 0) {
         ALOGE("%s: Configuring pipeline route failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         destroyLocked();
@@ -241,15 +217,20 @@ void HdrPlusPipeline::destroyLocked() {
     mState = STATE_UNCONFIGURED;
 }
 
-status_t HdrPlusPipeline::createStreamsLocked(const StreamConfiguration &inputConfig,
+status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) {
-    // Allocate input stream if it doesn't exist or changed.
-    if (mInputStream == nullptr || !mInputStream->hasConfig(inputConfig)) {
-        mInputStream = PipelineStream::newPipelineStream(inputConfig, kDefaultNumInputBuffers);
-        if (mInputStream == nullptr) {
-            ALOGE("%s: Initialize input stream failed.", __FUNCTION__);
-            return -ENODEV;
-        }
+    // TODO: Avoid recreate input stream if it has not changed. b/35673698
+    if (inputConfig.isSensorInput) {
+        mInputStream = PipelineStream::newInputPipelineStream(inputConfig.sensorMode,
+                kDefaultNumInputBuffers);
+    } else {
+        mInputStream = PipelineStream::newPipelineStream(inputConfig.streamConfig,
+                kDefaultNumInputBuffers);
+    }
+
+    if (mInputStream == nullptr) {
+        ALOGE("%s: Initialize input stream failed.", __FUNCTION__);
+        return -ENODEV;
     }
 
     // TODO: Don't delete the output streams that have the same configuration as the new one.
@@ -269,10 +250,10 @@ status_t HdrPlusPipeline::createStreamsLocked(const StreamConfiguration &inputCo
     return 0;
 }
 
-status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked() {
+status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sensorMode) {
     // Create an source capture block for capturing input streams.
     mSourceCaptureBlock = SourceCaptureBlock::newSourceCaptureBlock(shared_from_this(),
-            mMessengerToClient);
+            mMessengerToClient, sensorMode);
     if (mSourceCaptureBlock == nullptr) {
         ALOGE("%s: Creating SourceCaptureBlock failed.", __FUNCTION__);
         return -ENODEV;
