@@ -34,10 +34,12 @@ status_t MessengerListenerFromPbTiClient::onMessage(Message *message) {
 
 status_t MessengerListenerFromPbTiClient::deserializeSubmitPbTiTestRequest(
   Message *message) {
-    std::string request;
+    PbTiTestRequest request;
 
     // Deserialize PbTi test request
-    RETURN_ERROR_ON_READ_ERROR(message->readString(&request));
+    RETURN_ERROR_ON_READ_ERROR(message->readInt32(&request.timeout_seconds));
+    RETURN_ERROR_ON_READ_ERROR(message->readString(&request.log_path));
+    RETURN_ERROR_ON_READ_ERROR(message->readString(&request.test_command));
 
     return submitPbTiTestRequest(request);
 }

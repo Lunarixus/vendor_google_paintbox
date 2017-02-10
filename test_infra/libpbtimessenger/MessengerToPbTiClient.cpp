@@ -52,7 +52,7 @@ void MessengerToPbTiClient::disconnect() {
     EaselMessenger::disconnect();
 }
 
-void MessengerToPbTiClient::notifyPbTiTestResult(const std::string *result) {
+void MessengerToPbTiClient::notifyPbTiTestResult(const std::string &result) {
     std::lock_guard<std::mutex> lock(mApiLock);
 
     if (!mConnected) {

@@ -86,18 +86,18 @@ status_t Message::writeChar(char value) {
     return write(value);
 }
 
-status_t Message::writeString(const std::string *values) {
+status_t Message::writeString(const std::string &values) {
     // Write the size of the string.
-    status_t res = writeUint32(values->size());
+    status_t res = writeUint32(values.size());
     if (res != 0) {
         return res;
     }
 
-    if (mDataPos + values->size() > mCapacity) {
+    if (mDataPos + values.size() > mCapacity) {
         return -ENOMEM;
     }
-    memcpy(mData + mDataPos, values->c_str(), values->size());
-    mDataPos += values->size();
+    memcpy(mData + mDataPos, values.c_str(), values.size());
+    mDataPos += values.size();
     mDataSize = mDataPos;
 
     return 0;
