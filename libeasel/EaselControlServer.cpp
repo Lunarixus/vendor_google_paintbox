@@ -147,9 +147,8 @@ void EaselControlServer::close() {
     }
 }
 
-int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
-    struct timespec ts;
-
+int EaselControlServer::localToApSynchronizedClockBoottime(
+        int64_t localClockval, int64_t *apSyncedClockval) {
     if (!timesync_ap_boottime)
         return -EAGAIN;
 
@@ -157,14 +156,20 @@ int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
      * Return AP's base at last time sync + local delta since time of last
      * sync.
      */
+    *apSyncedClockval = timesync_ap_boottime +
+        (localClockval - timesync_local_boottime);
+    return 0;
+}
+
+int EaselControlServer::getApSynchronizedClockBoottime(int64_t *clockval) {
+    struct timespec ts;
+
     if (clock_gettime(CLOCK_BOOTTIME, &ts))
         return -errno;
     uint64_t now_local_boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC +
         ts.tv_nsec;
 
-    *clockval = timesync_ap_boottime +
-        (now_local_boottime - timesync_local_boottime);
-    return 0;
+    return localToApSynchronizedClockBoottime(now_local_boottime, clockval);
 }
 
 int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
