@@ -12,7 +12,8 @@ LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := \
 	EaselComm.cpp \
 	EaselControlClient.cpp \
-	EaselControlServer.cpp
+	EaselControlServer.cpp \
+	EaselStateManager.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -22,6 +23,16 @@ LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
 LOCAL_SRC_FILES := easelcomm_test.cpp
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
+LOCAL_STATIC_LIBRARIES := libeasel liblog
+include $(BUILD_NATIVE_TEST)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := EaselStateManagerTest
+LOCAL_MODULE_TAGS := tests
+LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
+LOCAL_SRC_FILES := EaselStateManagerTest.cpp
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
 LOCAL_STATIC_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
