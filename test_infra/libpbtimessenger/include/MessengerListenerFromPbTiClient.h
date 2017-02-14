@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "PbTiTestRequest.h"
 #include "EaselMessenger.h"
 #include "PbTiMessageTypes.h"
 
@@ -39,7 +40,7 @@ class MessengerListenerFromPbTiClient : public EaselMessengerListener {
      *  0:              on success.
      *  -EINVAL:        if the request is invalid.
      */
-    virtual status_t submitPbTiTestRequest(const std::string &request) = 0;
+    virtual status_t submitPbTiTestRequest(const PbTiTestRequest &request) = 0;
 
     /*
      * Override EaselMessengerListener::onMessage

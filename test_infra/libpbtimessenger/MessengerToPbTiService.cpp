@@ -112,11 +112,7 @@ void MessengerToPbTiService::disconnectWithLockHeld() {
 }
 
 status_t MessengerToPbTiService::submitPbTiTestRequest(
-  const std::string *request) {
-    if (request == nullptr) {
-        return -EINVAL;
-    }
-
+  const PbTiTestRequest &request) {
     std::lock_guard<std::mutex> lock(mApiLock);
     if (!mConnected) {
         ALOGE("%s: Not connected to service.", __FUNCTION__);
@@ -133,7 +129,9 @@ status_t MessengerToPbTiService::submitPbTiTestRequest(
     RETURN_ERROR_ON_WRITE_ERROR(
       message->writeUint32(MESSAGE_SUBMIT_PBTI_TEST_REQUEST));
     // Serialize test request.
-    RETURN_ERROR_ON_WRITE_ERROR(message->writeString(request));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32(request.timeout_seconds));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeString(request.log_path));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeString(request.test_command));
 
     // Send to service.
     return sendMessage(message);

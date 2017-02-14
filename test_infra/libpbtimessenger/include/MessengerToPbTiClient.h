@@ -41,7 +41,7 @@ class MessengerToPbTiClient : public EaselMessenger {
      /*
       * Sends a test result to paintbox test client.
       */
-     void notifyPbTiTestResult(const std::string *result);
+     void notifyPbTiTestResult(const std::string &result);
 
  private:
     // Protect API methods from being called simultaneously.

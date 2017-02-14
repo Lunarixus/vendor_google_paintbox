@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "PbTiTestRequest.h"
 #include "EaselMessenger.h"
 #include "mockeaselcomm.h"
 
@@ -41,7 +42,7 @@ class MessengerToPbTiService : public EaselMessenger {
      *  0:              on success.
      *  -EINVAL:        if the request is invalid.
      */
-    status_t submitPbTiTestRequest(const std::string *request);
+    status_t submitPbTiTestRequest(const PbTiTestRequest &request);
 
  private:
     // Disconnect with mApiLock held.

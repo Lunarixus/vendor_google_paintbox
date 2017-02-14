@@ -54,7 +54,7 @@ class Message {
     status_t writeFloat(float value);
     status_t writeDouble(double value);
     status_t writeChar(char value);
-    status_t writeString(const std::string *values);
+    status_t writeString(const std::string &values);
 
     /*
      * Read from the message.
