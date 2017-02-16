@@ -26,11 +26,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   return 1
 fi
 
-if [ $# -ne 1 ]; then
+if [ $# -ne 2 ]; then
   echo "`basename $0`: Build and update the gcam libraries from google3"
   echo ""
-  echo "Usage: source `basename $0` <google3 base path> <device name>"
-  echo "For example, \"`basename $0` ~/google3 angler\""
+  echo "Usage: source `basename $0` <google3 base path> <variant>"
+  echo "For example, \"`basename $0` ~/google3 ipu\""
   echo ""
   return 1
 fi
@@ -39,16 +39,23 @@ fi
 # Setup paths
 
 GOOGLE3_PATH="$1"
+VARIANT="$2"
 
-GOOGLE3_GCAM_PATH="googlex/gcam/gcam/src"
+if [ $VARIANT == "ipu" ]; then
+  GOOGLE3_TOP="hardware"
+  GOOGLE3_GCAM_PATH="hardware/gchips/paintbox/googlex/gcam/hdrplus"
+else
+  GOOGLE3_TOP="googlex"
+  GOOGLE3_GCAM_PATH="googlex/gcam/hdrplus"
+fi
+
 GOOGLE3_GCAM_OUT="blaze-bin/${GOOGLE3_GCAM_PATH}"
 GOOGLE3_GCAM_TARGET="libgcam-package"
 GOOGLE3_GCAM_OUT_TGZ="libgcam.tgz"
-GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/halide/src/runtime/HalideRuntime.h"
-GOOGLE3_HALIDE_BUFFER_H="third_party/halide/halide/src/runtime/HalideBuffer.h"
+GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
+GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
 
 ANDROID_GCAM_PREBUILT_PATH="vendor/google_paintbox/camera/prebuilts/gcam/"
-ANDROID_GCAM_LIB32_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib"
 ANDROID_GCAM_LIB_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib64"
 ANDROID_GCAM_INC_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/include"
 ANDROID_GCAM_BUILD_PATH="vendor/google_paintbox/camera"
@@ -56,11 +63,10 @@ ANDROID_GCAM_BUILD_PATH="vendor/google_paintbox/camera"
 GOOGLE3_GCAM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_PATH}"
 GOOGLE3_GCAM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_OUT}"
 GOOGLE3_GCAM_OUT_TGZ_FULL="${GOOGLE3_GCAM_OUT_FULL_PATH%%/}/${GOOGLE3_GCAM_OUT_TGZ}"
-GOOGLE3_HALIDE_RUNTIME_H_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_HALIDE_RUNTIME_H}"
-GOOGLE3_HALIDE_BUFFER_H_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_HALIDE_BUFFER_H}"
+GOOGLE3_HALIDE_RUNTIME_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/${GOOGLE3_HALIDE_RUNTIME_H}"
+GOOGLE3_HALIDE_BUFFER_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/${GOOGLE3_HALIDE_BUFFER_H}"
 
 ANDROID_GCAM_PREBUILT_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_PREBUILT_PATH}"
-ANDROID_GCAM_LIB32_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_LIB32_PATH}"
 ANDROID_GCAM_LIB_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_LIB_PATH}"
 ANDROID_GCAM_INC_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_INC_PATH}"
 ANDROID_GCAM_BUILD_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_BUILD_PATH}"
@@ -103,16 +109,6 @@ echo -e "\e[1;34m** Building libgcam library\e[00m"
 
 pushd ${GOOGLE3_GCAM_FULL_PATH}
 
-blaze build --config=android_arm --define prod=1 -c opt libgcam.so
-if [ $? -ne 0 ]; then
-  echo "** Blaze opt build failure, cancelling update **"
-  popd
-  return 1
-fi
-
-cp "${GOOGLE3_GCAM_OUT_FULL_PATH}/libgcam.so" "${ANDROID_GCAM_LIB32_FULL_PATH}/"
-
-
 blaze build --config=android_arm64 --define prod=1 -c opt ${GOOGLE3_GCAM_TARGET}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
@@ -146,7 +142,7 @@ popd
 echo -e "\e[1;34m** Copying build results to Android tree\e[00m"
 
 mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}/"
-mv -vf "${gcam_tmp_lib}/googlex" "${ANDROID_GCAM_INC_FULL_PATH}/"
+mv -vf "${gcam_tmp_lib}/${GOOGLE3_TOP}" "${ANDROID_GCAM_INC_FULL_PATH}/"
 
 [[ -f "$gcam_tmp_lib" ]] && rm -f "$gcam_tmp_lib"
 
