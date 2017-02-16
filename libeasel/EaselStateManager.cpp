@@ -21,10 +21,19 @@
 int EaselStateManager::init()
 {
     mFd = open(ESM_DEV_FILE, O_RDONLY);
-    if (mFd >= 0)
-        return 0;
-    else
+
+    if (mFd < 0)
         return -1;
+
+    return 0;
+}
+
+int EaselStateManager::close()
+{
+    if (mFd >= 0)
+        return ::close(mFd);
+
+    return 0;
 }
 
 int EaselStateManager::powerOn(bool blocking)
@@ -101,13 +110,15 @@ int EaselStateManager::setState(enum EaselStateManager::State state, bool blocki
     if (ioctl(mFd, MNH_SM_IOC_SET_STATE, (int)state) == -1)
         return -errno;
 
-    if (blocking)
-        return waitForState(state);
+    if (blocking) {
+        int res = waitForState(state);
+        return res;
+    }
 
     return 0;
 }
 
-#define LOOP_DELAY_US 100
+#define LOOP_DELAY_US 1000
 int EaselStateManager::waitForState(enum State state)
 {
     enum EaselStateManager::State currState;
@@ -116,29 +127,34 @@ int EaselStateManager::waitForState(enum State state)
 
     switch (state) {
         case ESM_STATE_OFF:
-            loopCount = 50000 / LOOP_DELAY_US;
+            loopCount = 100000 / LOOP_DELAY_US;
             break;
         case ESM_STATE_INIT:
             loopCount = 100000 / LOOP_DELAY_US;
             break;
         case ESM_STATE_CONFIG_DDR:
-            loopCount = 20000 / LOOP_DELAY_US;
+            loopCount = 40000 / LOOP_DELAY_US;
             break;
         case ESM_STATE_ACTIVE:
-            loopCount = 1000000 / LOOP_DELAY_US;
+            loopCount = 4000000 / LOOP_DELAY_US;
             break;
         default:
             return -EINVAL;
     }
 
-    for (int i = 0; i < loopCount; i++) {
+    // TODO (b/35991340): Use timeout instead of infinite loop
+    int i = 0;
+    while (1) {
         ret = getState(&currState);
-        if (ret < 0)
+        if (ret < 0) {
             return ret;
-        else if (currState == state)
+        } else if (currState == state) {
+            ALOGI("Found state %d after %d iterations\n", state, i);
             return 0;
+        }
 
         usleep(LOOP_DELAY_US);
+        i++;
     }
 
     return -ETIMEDOUT;

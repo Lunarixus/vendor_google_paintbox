@@ -35,12 +35,9 @@ public:
     };
 
     EaselStateManager(): mFd(-1) {};
-    ~EaselStateManager() {
-        if (mFd >= 0)
-            close(mFd);
-    }
 
     int init();
+    int close();
 
     int powerOn(bool blocking = true);
     int powerOff(bool blocking = true);

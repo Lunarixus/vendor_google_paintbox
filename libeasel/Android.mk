@@ -54,5 +54,6 @@ LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG -DMOCKEASEL
 LOCAL_SRC_FILES := \
         EaselCommNet.cpp \
         EaselControlClient.cpp \
-        EaselControlServer.cpp
+        EaselControlServer.cpp \
+	EaselStateManager.cpp
 include $(BUILD_STATIC_LIBRARY)
