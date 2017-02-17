@@ -44,4 +44,6 @@ LOCAL_CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter
 
 LOCAL_MODULE:= libhdrplusservice
 
+LOCAL_MULTILIB := 64
+
 include $(BUILD_SHARED_LIBRARY)
