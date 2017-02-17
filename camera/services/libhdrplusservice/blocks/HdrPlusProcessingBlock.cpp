@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <system/graphics.h>
 
-#include "googlex/gcam/gcam/src/lib_gcam/shot_interface.h"
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
 
 #include "HdrPlusProcessingBlock.h"
 #include "HdrPlusPipeline.h"
@@ -662,6 +662,9 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.progress_callback = nullptr;
     initParams.finished_callback = nullptr;
 
+    // Do not use IPU for now
+    initParams.use_ipu = false;
+
     // There is only 1 static metadata for current device.
     std::vector<gcam::StaticMetadata> gcamMetadataList = {*mGcamStaticMetadata};
 
@@ -670,7 +673,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
 
     // Create a gcam instance.
     mGcam = std::unique_ptr<gcam::Gcam>(gcam::Gcam::Create(initParams, gcamMetadataList,
-            &debugParams));
+            debugParams));
     if (mGcam == nullptr) {
         ALOGE("%s: Failed to create a Gcam instance.", __FUNCTION__);
         mGcamInputImageReleaseCallback = nullptr;
