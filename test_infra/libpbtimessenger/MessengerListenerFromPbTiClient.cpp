@@ -37,9 +37,9 @@ status_t MessengerListenerFromPbTiClient::deserializeSubmitPbTiTestRequest(
     PbTiTestRequest request;
 
     // Deserialize PbTi test request
-    RETURN_ERROR_ON_READ_ERROR(message->readInt32(&request.timeout_seconds));
+    RETURN_ERROR_ON_READ_ERROR(message->readUint32(&request.timeout_seconds));
     RETURN_ERROR_ON_READ_ERROR(message->readString(&request.log_path));
-    RETURN_ERROR_ON_READ_ERROR(message->readString(&request.test_command));
+    RETURN_ERROR_ON_READ_ERROR(message->readString(&request.command));
 
     return submitPbTiTestRequest(request);
 }
