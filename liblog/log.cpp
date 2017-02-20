@@ -57,13 +57,15 @@ int __android_log_write(int prio, const char* tag, const char *text) {
   getTimestamp(timestamp, TIMESTAMP_BUF_SIZE);
   // Prints to stdout.
   printf("%s  <%s> %s: %s\n", timestamp, PRIO_LIST[prio].c_str(), tag, text);
-  // Logs to AP logcat.
-  char buf[LOG_BUF_SIZE];
-  // TODO(cjluo): Currently easel and AP timestamp syncing is not accurate.
-  // Once the timesyncing is improved, we could remove the easel side
-  // timestamp.
-  snprintf(buf, LOG_BUF_SIZE, "[EASEL %s] %s", timestamp, text);
-  EaselControlServer::log(prio, tag, buf);
+  // Logs to AP logcat if prio is equal or higher to WARN
+  if (prio >= ANDROID_LOG_WARN) {
+    char buf[LOG_BUF_SIZE];
+    // TODO(cjluo): Currently easel and AP timestamp syncing is not accurate.
+    // Once the timesyncing is improved, we could remove the easel side
+    // timestamp.
+    snprintf(buf, LOG_BUF_SIZE, "[EASEL %s] %s", timestamp, text);
+    EaselControlServer::log(prio, tag, buf);
+  }
   return strlen(text);
 }
 
