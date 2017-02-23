@@ -4,6 +4,8 @@
 #include <deque>
 #include <memory>
 
+#include <capture.h>
+
 #include "blocks/PipelineBlock.h"
 #include "PipelineBuffer.h"
 #include "HdrPlusTypes.h"
@@ -23,6 +25,9 @@ public:
     /*
      * Create a PipelineStream.
      *
+     * If the pipeline stream will be used to capture frames from MIPI, must use
+     * newInputPipelineStream to create the stream.
+     *
      * config is the configuration to create the stream of.
      * numBuffers is the number of buffers to create for the stream.
      *
@@ -30,6 +35,19 @@ public:
      * Returns a std::shared_ptr<PipelineStream> pointing to nullptr if it failed.
      */
     static std::shared_ptr<PipelineStream> newPipelineStream(const StreamConfiguration &config,
+            int numBuffers);
+
+    /*
+     * Create an input PipelineStream with a sensor mode that can be used to capture frames from
+     * MIPI.
+     *
+     * sensorMode is the sensor mode for this input pipeline stream.
+     * numBuffers is the number of buffers to create for the stream.
+     *
+     * Returns a std::shared_ptr<PipelineStream> pointing to a PipelineStream on success.
+     * Returns a std::shared_ptr<PipelineStream> pointing to nullptr if it failed.
+     */
+    static std::shared_ptr<PipelineStream> newInputPipelineStream(const SensorMode &sensorMode,
             int numBuffers);
 
     // Return whether the stream has the specified configuration.
@@ -72,7 +90,7 @@ private:
     PipelineStream();
 
     /**
-     * Create a stream based stream configuration.
+     * Create a stream based on stream configuration.
      *
      * config is the configuration to create the stream of.
      * numBuffers is the number of buffers to create for the stream.
@@ -83,6 +101,19 @@ private:
      *  -EEXIST:        if stream is already created.
      */
     status_t create(const StreamConfiguration &config, int numBuffers);
+
+    /**
+     * Create an input stream based on sensor mode.
+     *
+     * sensorMode is the sensor mode for this input stream.
+     * numBuffers is the number of buffers to create for the stream.
+     *
+     * Returns:
+     *  0:              on success.
+     *  -EINVAL:        if config is not supported or invalid.
+     *  -EEXIST:        if stream is already created.
+     */
+    status_t createInput(const SensorMode &sensorMode, int numBuffers);
 
     // Destroy the stream and free all buffers with mApiLock held.
     void destroyLocked();
@@ -101,6 +132,9 @@ private:
 
     // All allocated buffers.
     std::deque<std::unique_ptr<PipelineBuffer>> mAllBuffers;
+
+    // Capture frame buffer factory to allocate capture frame buffers used for MIPI capture.
+    std::unique_ptr<CaptureFrameBufferFactory> mBufferFactory;
 };
 
 } // namespace pbcamera

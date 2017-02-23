@@ -72,6 +72,12 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         while (mInputQueue.size() > kGcamMaxPayloadFrames) {
             ALOGV("%s: Input queue is full (%zu). Send the oldest buffer back.", __FUNCTION__,
                     mInputQueue.size());
+
+            // Unlock the frame buffer before returning it.
+            for (auto & buffer : mInputQueue[0].buffers) {
+                buffer->unlockData();
+            }
+
             pipeline->inputDone(mInputQueue[0]);
             mInputQueue.pop_front();
         }
@@ -233,6 +239,13 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
     }
 
     // Create a gcam RAW image.
+    res = input.buffers[0]->lockData();
+    if (res != 0) {
+        ALOGE("%s: Locking buffer data failed: %s (%d)", __FUNCTION__,
+                strerror(-res), res);
+        return res;
+    }
+
     gcam::RawWriteView raw(input.buffers[0]->getWidth(), input.buffers[0]->getHeight(),
             input.buffers[0]->getStride(0) - widthBytes, layout, input.buffers[0]->getPlaneData(0));
     if (!shot->AddPayloadFrame(frame->gcamFrameMetadata,
@@ -512,8 +525,8 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
         gcamMetadata->applied_digital_gain = 1.0f;
     }
 
-    gcamMetadata->post_raw_digital_gain =
-            metadata->postRawSensitivityBoost / kPostRawSensitivityBoostUnity;
+    gcamMetadata->post_raw_digital_gain = metadata->postRawSensitivityBoost > 0 ?
+            metadata->postRawSensitivityBoost / kPostRawSensitivityBoostUnity : 1.0f;
     gcamMetadata->flash =
             (metadata->flashMode == ANDROID_FLASH_MODE_SINGLE ||
              metadata->flashMode == ANDROID_FLASH_MODE_TORCH) ?

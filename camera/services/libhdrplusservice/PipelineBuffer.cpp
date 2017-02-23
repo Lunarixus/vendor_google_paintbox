@@ -168,6 +168,9 @@ status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
     return 0;
 }
 
+/********************************************
+ * PipelineHeapBuffer implementation starts.
+ ********************************************/
 PipelineHeapBuffer::PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
         const StreamConfiguration &config) :
     PipelineBuffer(stream, config) {
@@ -214,6 +217,135 @@ uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
 
 uint32_t PipelineHeapBuffer::getDataSize() const {
     return mData.size();
+}
+
+status_t PipelineHeapBuffer::lockData() {
+    // Do nothing.
+    return 0;
+}
+
+void PipelineHeapBuffer::unlockData() {
+    // Do nothing.
+}
+
+/***************************************************
+ * PipelineCaptureFrameBuffer implementation starts.
+ ***************************************************/
+PipelineCaptureFrameBuffer::PipelineCaptureFrameBuffer(const std::weak_ptr<PipelineStream> &stream,
+        const StreamConfiguration &config) :
+        PipelineBuffer(stream, config),
+        mLockedData(nullptr) {
+}
+
+status_t PipelineCaptureFrameBuffer::allocate() {
+    ALOGE("%s: Use CaptureFrameBufferFactory to allocate capture frame buffers.", __FUNCTION__);
+    return -EINVAL;
+}
+
+status_t PipelineCaptureFrameBuffer::allocate(
+        std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory) {
+    // Check if buffer is already allocated.
+    if (mCaptureFrameBuffer != nullptr) return -EEXIST;
+
+    if (bufferFactory == nullptr) {
+        ALOGE("%s: Buffer factory is nullptr", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    status_t res = validateConfig(mRequestedConfig);
+    if (res != 0) {
+        ALOGE("%s: Requested configuration is invalid: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return res;
+    }
+
+    mCaptureFrameBuffer = bufferFactory->Create();
+    if (mCaptureFrameBuffer == nullptr) {
+        ALOGE("%s: Failed to allocate a capture frame buffer.", __FUNCTION__);
+        return -ENOMEM;
+    }
+
+    mAllocatedConfig = mRequestedConfig;
+    return 0;
+}
+
+uint8_t* PipelineCaptureFrameBuffer::getPlaneData(uint32_t planeNum) {
+    if (mCaptureFrameBuffer == nullptr) {
+        ALOGE("%s: Capture frame buffer is nullptr.", __FUNCTION__);
+        return nullptr;
+    } else if(planeNum >= mAllocatedConfig.image.planes.size()) {
+        ALOGE("%s: Getting plane %d but the image has %lu planes.", __FUNCTION__, planeNum,
+                mAllocatedConfig.image.planes.size());
+        return nullptr;
+    } else if (mLockedData == nullptr) {
+        ALOGE("%s: Data is not locked.", __FUNCTION__);
+        return nullptr;
+    }
+
+    uint32_t planeOffset = 0;
+    for (uint32_t i = 0; i < planeNum; i++) {
+        planeOffset += (mAllocatedConfig.image.planes[i].stride *
+                        mAllocatedConfig.image.planes[i].scanline);
+    }
+
+    return static_cast<uint8_t*>(mLockedData) + planeOffset;
+}
+
+uint32_t PipelineCaptureFrameBuffer::getDataSize() const {
+    uint32_t size = 0;
+    for (uint32_t i = 0; i < mAllocatedConfig.image.planes.size(); i++) {
+        size += (mAllocatedConfig.image.planes[i].stride *
+                 mAllocatedConfig.image.planes[i].scanline);
+    }
+    return size;
+}
+
+status_t PipelineCaptureFrameBuffer::lockData() {
+    if (mCaptureFrameBuffer == nullptr) {
+        ALOGE("%s: Capture frame buffer is nullptr.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    if (mLockedData != nullptr) {
+        return 0;
+    }
+
+    const std::vector<int> dataTypes = mCaptureFrameBuffer->GetDataTypeList();
+    if (dataTypes.size() != 1) {
+        ALOGE("%s: This buffer has %lu data types. Only 1 is supported.", __FUNCTION__,
+                dataTypes.size());
+        return -EINVAL;
+    }
+
+    CaptureError err = mCaptureFrameBuffer->LockFrameData(dataTypes[0], &mLockedData);
+    if (err != CaptureError::SUCCESS) {
+        ALOGE("%s: Locking frame data failed: %s (%d)", __FUNCTION__,
+                GetCaptureErrorDesc(err).data(),  err);
+        mLockedData = nullptr;
+    }
+
+    return 0;
+}
+
+void PipelineCaptureFrameBuffer::unlockData() {
+    if (mLockedData == nullptr)
+        return;
+
+    const std::vector<int> dataTypes = mCaptureFrameBuffer->GetDataTypeList();
+    if (dataTypes.size() != 1) {
+        ALOGE("%s: This buffer has %lu data types. Only 1 is supported.", __FUNCTION__,
+                dataTypes.size());
+        return;
+    }
+
+    CaptureError err = mCaptureFrameBuffer->UnlockFrameData(dataTypes[0]);
+    if (err != CaptureError::SUCCESS) {
+        ALOGE("%s: Unlocking frame data failed: err=%d", __FUNCTION__, err);
+    }
+}
+
+std::shared_ptr<CaptureFrameBuffer> PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
+    return mCaptureFrameBuffer;
 }
 
 } // namespace pbcamera

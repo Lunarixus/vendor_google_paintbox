@@ -165,11 +165,11 @@ private:
     };
 
     // Create streams and buffers with mApiLock held.
-    status_t createStreamsLocked(const StreamConfiguration &inputConfig,
+    status_t createStreamsLocked(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs);
 
     // Create blocks and stream routes with mApiLock held.
-    status_t createBlocksAndStreamRouteLocked();
+    status_t createBlocksAndStreamRouteLocked(const SensorMode *sensorMode);
 
     // Destroy streams, buffer, and routes with mApiLock held.
     void destroyLocked();
