@@ -78,8 +78,14 @@ void appendMessegeToLog(const std::string &logFile, const std::string &msg) {
 status_t PbTiService::submitPbTiTestRequest(const PbTiTestRequest &request) {
     std::unique_lock<std::mutex> lock(mApiLock);
 
-    std::string cmd = "rm -f " + request.log_path + " && " +
-                      request.test_command + " &> " + request.log_path;
+    std::string cmd;
+    if (request.log_path.empty()) {
+        cmd = request.command;
+    } else {
+        cmd = "mkdir -p $(dirname " + request.log_path + ")" + " && " +
+              "rm -f " + request.log_path + " && " +
+              request.command + " &> " + request.log_path;
+    }
     ALOGD("Executing: %s", cmd.c_str());
     int pid = fork();
     clock_t begin = clock();
@@ -93,33 +99,41 @@ status_t PbTiService::submitPbTiTestRequest(const PbTiTestRequest &request) {
         execl("/bin/sh", "sh", "-c", cmd.c_str(), NULL);
     }
 
+    // TODO(kebai): try use alarm to simplify logic.
     // If elapsed time is less than timeout seconds and pid is still running.
     // we have to wait.
     int status;
     while (
-      static_cast<int>(clock() - begin) / CLOCKS_PER_SEC <= request.timeout_seconds &&
+      static_cast<uint>(clock() - begin) / CLOCKS_PER_SEC <= request.timeout_seconds &&
       waitpid(pid, &status, WNOHANG) == 0) {
         sleep(2);
     }
 
     // Timed out, kill the child process
-    if (static_cast<int>(clock() - begin) / CLOCKS_PER_SEC > request.timeout_seconds) {
+    if (static_cast<uint>(clock() - begin) / CLOCKS_PER_SEC > request.timeout_seconds) {
         kill(pid, SIGTERM);
-        std::string errMsg = "ERROR: Command <" + cmd + "> is timed out!";
+        std::string errMsg = "FAILED: Command <" + cmd + "> is timed out!\n";
         ALOGE("%s", errMsg.c_str());
         // Append error message to log file so that AP can parse it
         appendMessegeToLog(request.log_path, errMsg);
     }
 
     if (!WIFEXITED(status)) {
-        std::string errMsg = "ERROR: Test process is not terminated normally!";
+        std::string errMsg = "FAILED: Test process is not terminated normally!\n";
         ALOGE("%s", errMsg.c_str());
         // Append error message to log file so that AP can parse it
         appendMessegeToLog(request.log_path, errMsg);
+    } else {
+        int errorCode = WEXITSTATUS(status);
+        if (errorCode != 0) {
+            appendMessegeToLog(request.log_path,
+              "TEST FAILED with code " + std::to_string(errorCode) + "\n");
+        } else {
+            appendMessegeToLog(request.log_path, "TEST PASSED\n");
+        }
     }
 
     ALOGD("Done.");
-    appendMessegeToLog(request.log_path, "TEST SUCCESS");
 
     // Send the test log file to client.
     mMessengerToClient.notifyPbTiTestResult(request.log_path);

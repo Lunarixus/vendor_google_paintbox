@@ -9,12 +9,12 @@ namespace pbti {
  * PbTiTestRequest defines test request from AP to Easel.
  */
 struct PbTiTestRequest {
-    // seconds set to run a test.
-    int timeout_seconds;
-    // absolute path for test log.
+    // timeout seconds to run command.
+    uint timeout_seconds;
+    // absolute path for log file.
     std::string log_path;
-    // command to run the test.
-    std::string test_command;
+    // command to run on Easel.
+    std::string command;
 };
 
 }  // namespace pbti

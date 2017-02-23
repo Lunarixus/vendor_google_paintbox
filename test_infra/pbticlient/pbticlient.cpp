@@ -17,11 +17,14 @@ PbTiClientRunner::~PbTiClientRunner() {
 }
 
 void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
-    // Get test log file to /data/local/tmp
-    const std::string ap_log_dir = "/data/local/tmp/";
-    const std::string cmd("ezlsh pull " + result + " " + ap_log_dir + result);
-    system(cmd.c_str());
-    ALOGI("Log file: %s", (ap_log_dir + result).c_str());
+    if (result.empty()) {
+        return;
+    }
+
+    // Get log file from Easel to AP
+    system(("mkdir -p $(dirname " + result + ")").c_str());
+    system(("ezlsh pull " + result + " " + result).c_str());
+    ALOGI("Log file: %s", result.c_str());
 }
 
 android::status_t PbTiClientRunner::connectClient() {
@@ -43,19 +46,20 @@ android::status_t PbTiClientRunner::submitPbTiTestRequest(
 }
 
 void usage() {
-    std::cout << "Usage: pbticlient [-c TEST_COMMAND] [-l LOG_PATH] "
-              << "[-t TIMEOUT_SECONDS]\n"
-              << "Arguments: \n"
-              << "  -c, --test_command \t command line to run tests on easel \n"
-              << "  -l, --test_path \t test log path on Easel \n"
-              << "  -t, --timeout_seconds \t timeout seconds"
-              << std::endl;
+    std::string usage = std::string("Usage: ") +
+        "pbticlient [-c TEST_COMMAND] [-l LOG_PATH] [-t TIMEOUT_SECONDS]\n" +
+        "Arguments: \n" +
+        "  -c, --command           command line to run tests on easel \n" +
+        "  -l, --test_path         test log path on Easel \n" +
+        "  -t, --timeout_seconds   timeout seconds \n";
+    std::cout << usage;
+    ALOGE("%s", usage.c_str());
 }
 
 int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
     const struct option long_options[] = {
         { "help",              no_argument,       0, 'h' },
-        { "test_command",      required_argument, 0, 'c' },
+        { "command",           required_argument, 0, 'c' },
         { "log_path",          required_argument, 0, 'l' },
         { "timeout_seconds",   required_argument, 0, 't' },
         { 0,                   0,                 0, 0   }
@@ -64,7 +68,6 @@ int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
     while (true) {
         // getopt_long stores the option index here.
         int option_index = 0;
-
         int option_val = getopt_long(argc, (char * const *)(argv),
                                      "hc:l:t:", long_options, &option_index);
 
@@ -84,9 +87,9 @@ int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
           break;
         case 'h':
             usage();
-            break;
+            exit(0);
         case 'c':
-            request.test_command = optarg;
+            request.command = optarg;
             break;
         case 'l':
             request.log_path = optarg;
@@ -117,14 +120,23 @@ int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
 }
 
 int main(int argc, const char *argv[]) {
+    const uint DEFAULT_TIMEOUT_SECONDS = 3;
+
     pbti::PbTiTestRequest request;
     int ret = parse_args(argc, argv, request);
-    if (ret != 0) {
+    if (ret != 0 || request.command.empty()) {
         usage();
+        exit(-1);
     }
 
-    ALOGD("Test command: %s", request.test_command.c_str());
-    ALOGD("Log path: %s", request.log_path.c_str());
+    if (request.timeout_seconds == 0) {
+        request.timeout_seconds = DEFAULT_TIMEOUT_SECONDS;
+    }
+
+    ALOGD("Command: %s", request.command.c_str());
+    if (!request.log_path.empty()) {
+        ALOGD("Log path: %s", request.log_path.c_str());
+    }
     ALOGD("Timeout seconds: %d", request.timeout_seconds);
 
     std::unique_ptr<PbTiClientRunner> client_runner =
