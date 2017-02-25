@@ -25,6 +25,45 @@ namespace {
 static const char *kEaselCommDevPathClient = "/dev/easelcomm-client";
 static const char *kEaselCommDevPathServer = "/dev/easelcomm-server";
 
+enum {
+    KBUF_FILL_UNUSED,
+    KBUF_FILL_MSG,
+    KBUF_FILL_DMA,
+};
+
+static void fill_kbuf(easelcomm_kbuf_desc *buf_desc,
+                      easelcomm_msgid_t message_id,
+                      const EaselComm::EaselMessage *msg,
+                      int fill_type) {
+
+    // message_id should be passed to kbuf_desc no matter it is a DMA or MSG
+    // transfer or just to discard DMA tranfser
+    buf_desc->message_id = message_id;
+
+    if (msg == nullptr || fill_type == KBUF_FILL_UNUSED) {
+        buf_desc->buf = nullptr;
+        buf_desc->dma_buf_fd = -1;
+        buf_desc->buf_type = EASELCOMM_DMA_BUFFER_UNUSED;
+        buf_desc->buf_size = 0;
+        return;
+    }
+
+    switch (fill_type) {
+        case KBUF_FILL_MSG:
+            buf_desc->buf = msg->message_buf;
+            buf_desc->dma_buf_fd = msg->dma_buf_fd;
+            buf_desc->buf_type = msg->dma_buf_type;
+            buf_desc->buf_size = msg->message_buf_size;
+            break;
+        case KBUF_FILL_DMA:
+            buf_desc->buf = msg->dma_buf;
+            buf_desc->dma_buf_fd = msg->dma_buf_fd;
+            buf_desc->buf_type = msg->dma_buf_type;
+            buf_desc->buf_size = msg->dma_buf_size;
+            break;
+    }
+}
+
 /*
  * Helper for sending a message, called for all APIs that send a message
  * (sendMessage, sendMessageReceiveReply, sendReply).
@@ -66,14 +105,10 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
      * buffer size is zero and even if no EaselMessage is supplied (to
      * sendReply).
      */
-    buf_desc.message_id = kmsg_desc->message_id;
-
     if (msg) {
-        buf_desc.buf = msg->message_buf;
-        buf_desc.buf_size = msg->message_buf_size;
+        fill_kbuf(&buf_desc, kmsg_desc->message_id, msg, KBUF_FILL_MSG);
     } else {
-        buf_desc.buf = nullptr;
-        buf_desc.buf_size = 0;
+        fill_kbuf(&buf_desc, kmsg_desc->message_id, nullptr, KBUF_FILL_UNUSED);
     }
     if (ioctl(fd, EASELCOMM_IOC_WRITEDATA, &buf_desc) == -1)
         return -errno;
@@ -86,9 +121,7 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
      * A successful call returns once the DMA transfer is completed.
      */
     if (msg && msg->dma_buf_size) {
-        buf_desc.buf = msg->dma_buf;
-        buf_desc.buf_size = msg->dma_buf_size;
-        buf_desc.message_id = kmsg_desc->message_id;
+        fill_kbuf(&buf_desc, kmsg_desc->message_id, msg, KBUF_FILL_DMA);
 
         if (ioctl(fd, EASELCOMM_IOC_SENDDMA, &buf_desc) == -1)
             return -errno;
@@ -163,15 +196,14 @@ int EaselComm::sendMessageReceiveReply(
         assert(reply->need_reply == false);
 
         if (reply->message_buf_size) {
-            buf_desc.buf_size = reply->message_buf_size;
             reply->message_buf = malloc(reply->message_buf_size);
             if (reply->message_buf == nullptr) {
                 ret = -errno;
-                buf_desc.buf_size = 0;
+                return ret;
             }
 
-            buf_desc.buf = reply->message_buf;
-            buf_desc.message_id = reply->message_id;
+            fill_kbuf(&buf_desc, reply->message_id, reply, KBUF_FILL_MSG);
+
             if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1) {
                 free(reply->message_buf);
                 reply->message_buf = nullptr;
@@ -186,9 +218,7 @@ int EaselComm::sendMessageReceiveReply(
          */
         if (kmsg_desc.message_size || kmsg_desc.dma_buf_size)
             ret = -EIO;
-        buf_desc.message_id = kmsg_desc.message_id;
-        buf_desc.buf = nullptr;
-        buf_desc.buf_size = 0;
+        fill_kbuf(&buf_desc, kmsg_desc.message_id, nullptr, KBUF_FILL_UNUSED);
         if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1)
             return -errno;
         if (kmsg_desc.dma_buf_size) {
@@ -229,18 +259,15 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
     msg->message_id = kmsg_desc.message_id;
     msg->need_reply = kmsg_desc.need_reply;
 
-    buf_desc.buf_size = msg->message_buf_size;
-
     if (kmsg_desc.message_size) {
         msg->message_buf = malloc(msg->message_buf_size);
         if (msg->message_buf == nullptr) {
             ret = -errno;
-            buf_desc.buf_size = 0;
+            return ret;
         }
     }
 
-    buf_desc.message_id = msg->message_id;
-    buf_desc.buf = msg->message_buf;
+    fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_MSG);
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1) {
         ret = -errno;
         free(msg->message_buf);
@@ -253,9 +280,7 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
      * discard the DMA transfer.
      */
     if (ret && kmsg_desc.dma_buf_size) {
-        buf_desc.message_id = kmsg_desc.message_id;
-        buf_desc.buf = nullptr;
-        buf_desc.buf_size = 0;
+        fill_kbuf(&buf_desc, kmsg_desc.message_id, nullptr, KBUF_FILL_UNUSED);
         ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc);
         msg->dma_buf_size = 0;
     }
@@ -290,9 +315,7 @@ int EaselComm::sendReply(EaselMessage *origmessage, int replycode,
 int EaselComm::receiveDMA(const EaselMessage *msg) {
     struct easelcomm_kbuf_desc buf_desc;
 
-    buf_desc.buf = msg->dma_buf;
-    buf_desc.buf_size = msg->dma_buf_size;
-    buf_desc.message_id = msg->message_id;
+    fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_DMA);
 
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1)
         return -errno;
