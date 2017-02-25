@@ -748,9 +748,23 @@ ImxError ImxFinalizeBuffers(
     const ImxFinalizeBufferInfo *info, /* in */
     int num_info);
 
+/*
+ * TODO(ahalambi): Consolidate the two API functions (below) for executing a
+ * job into a single function that takes a timeout argument. Also provide a
+ * "default" value for the timeout.
+ */
+
 ImxError ImxExecuteJob(
-    ImxJobHandle job /* modified */
-    );
+    ImxJobHandle job /* modified */);
+
+/*
+ * timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
+ * If job execution time exceeds timeout, the job is terminated and
+ * IMX_TIMEOUT is returned.
+ */
+ImxError ImxExecuteJobWithUserSpecifiedTimeout(
+    ImxJobHandle job /* modified */,
+    int64_t timeout_ns);
 
 ImxError ImxJobSetStpPcHistogramEnable(ImxJobHandle job, /* modified */
                                        uint64_t stp_pc_histogram_mask);
