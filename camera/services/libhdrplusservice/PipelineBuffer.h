@@ -173,11 +173,12 @@ public:
     // Unlock the data of the frame buffer.
     virtual void unlockData() override;
 
-    // Return the capture frame buffer associated with this buffer.
-    std::shared_ptr<CaptureFrameBuffer> getCaptureFrameBuffer();
+    // Return the pointer to capture frame buffer associated with this buffer. This does not
+    // transfer buffer ownership.
+    CaptureFrameBuffer *getCaptureFrameBuffer();
 
 private:
-    std::shared_ptr<CaptureFrameBuffer> mCaptureFrameBuffer;
+    std::unique_ptr<CaptureFrameBuffer> mCaptureFrameBuffer;
     void* mLockedData;
 };
 
