@@ -132,8 +132,7 @@ bool SourceCaptureBlock::doWorkLocked() {
     // Enqueue a request to capture service to capture a frame from MIPI.
     PipelineCaptureFrameBuffer* pipelineBuffer =
             static_cast<PipelineCaptureFrameBuffer*>(outputRequest.buffers[0]);
-    std::shared_ptr<CaptureFrameBuffer> frameBuffer = pipelineBuffer->getCaptureFrameBuffer();
-    mCaptureService->EnqueueRequest(frameBuffer.get());
+    mCaptureService->EnqueueRequest(pipelineBuffer->getCaptureFrameBuffer());
 
     // Add the pending request to dequeue request thread.
     mDequeueRequestThread->addPendingRequest(outputRequest);
@@ -322,7 +321,7 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                     PipelineCaptureFrameBuffer* pipelineBuffer =
                             static_cast<PipelineCaptureFrameBuffer*>(pendingRequest->buffers[0]);
                     if (pipelineBuffer == nullptr ||
-                        pipelineBuffer->getCaptureFrameBuffer().get() != frameBuffer) {
+                        pipelineBuffer->getCaptureFrameBuffer() != frameBuffer) {
                         continue;
                     }
 

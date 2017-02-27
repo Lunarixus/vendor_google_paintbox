@@ -344,8 +344,8 @@ void PipelineCaptureFrameBuffer::unlockData() {
     }
 }
 
-std::shared_ptr<CaptureFrameBuffer> PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
-    return mCaptureFrameBuffer;
+CaptureFrameBuffer* PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
+    return mCaptureFrameBuffer.get();
 }
 
 } // namespace pbcamera
