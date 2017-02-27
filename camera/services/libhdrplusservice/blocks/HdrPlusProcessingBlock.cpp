@@ -124,6 +124,13 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     return true;
 }
 
+status_t HdrPlusProcessingBlock::flushLocked() {
+    // Wait until there is no pending shot.
+    std::unique_lock<std::mutex> eventLock(mHdrPlusProcessingLock);
+    mShotCompletedCondition.wait(eventLock, [&] { return mPendingShotCapture == nullptr; });
+    return 0;
+}
+
 status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
         const std::vector<Input> &inputs) {
     if (mGcam == nullptr) {
@@ -359,24 +366,23 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
             outputResult.metadata.frameMetadata->timestamp;
 
     auto pipeline = mPipeline.lock();
-    if (pipeline == nullptr) {
-        ALOGE("%s: Pipeline is destroyed.", __FUNCTION__);
-        return;
-    }
+    if (pipeline != nullptr) {
+        // Check if we got all output buffers.
+        if (finishingShot->outputRequest.buffers.size() != outputResult.buffers.size()) {
+            ALOGE("%s: Processed %zu output buffers but expecting %zu.", __FUNCTION__,
+                    outputResult.buffers.size(), finishingShot->outputRequest.buffers.size());
 
-    // Check if we got all output buffers.
-    if (finishingShot->outputRequest.buffers.size() != outputResult.buffers.size()) {
-        ALOGE("%s: Processed %zu output buffers but expecting %zu.", __FUNCTION__,
-                outputResult.buffers.size(), finishingShot->outputRequest.buffers.size());
+            // Abort output request.
+            pipeline->outputRequestAbort(finishingShot->outputRequest);
+            // TODO: Notify the client about the failed request.
 
-        // Abort output request.
-        pipeline->outputRequestAbort(finishingShot->outputRequest);
-        // TODO: Notify the client about the failed request.
-
-        // Continue to return input buffers.
+            // Continue to return input buffers.
+        } else {
+            // Send out output result.
+            pipeline->outputDone(outputResult);
+        }
     } else {
-        // Send out output result.
-        pipeline->outputDone(outputResult);
+        ALOGW("%s: Pipeline is destroyed.", __FUNCTION__);
     }
 
     // Return input buffers back to the input queue.
@@ -393,6 +399,9 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
 
     // Notify worker thread that it can start next processing.
     notifyWorkerThreadEvent();
+
+    // Notify shot is completed.
+    mShotCompletedCondition.notify_one();
 }
 
 status_t HdrPlusProcessingBlock::convertToGcamStaticMetadata(

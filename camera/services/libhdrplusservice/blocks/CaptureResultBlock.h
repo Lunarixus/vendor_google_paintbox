@@ -31,6 +31,7 @@ public:
             std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     bool doWorkLocked() override;
+    status_t flushLocked() override;
 private:
     // Use newCaptureResultBlock to create a CaptureResultBlock.
     CaptureResultBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger);

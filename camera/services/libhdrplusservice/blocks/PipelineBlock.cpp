@@ -131,6 +131,8 @@ void PipelineBlock::threadLoop() {
 
             // Check the block state
             if (mState == STATE_STOPPING) {
+                ALOGV("%s: Flushing block %s", __FUNCTION__, mName.data());
+                flushLocked();
                 ALOGV("%s: %s block thread stopped doing work.", __FUNCTION__, mName.data());
                 mState = STATE_STOPPED;
                 // Notify that worker thread has stopping doing work.

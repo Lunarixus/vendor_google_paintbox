@@ -192,6 +192,17 @@ protected:
     virtual bool doWorkLocked() = 0;
 
     /*
+     * Flush all pending processing in the block.
+     *
+     * When this function is called, the block should abort or wait until all pending processing
+     * completes. Before returning from this function, the block must return all buffers to the
+     * the pipeline.
+     *
+     * This will be called with mWorkLock held.
+     */
+    virtual status_t flushLocked() = 0;
+
+    /*
      * Notify the worker thread of a new event. This will wake up the worker thread when it's
      * waiting on mEventCondition.
      */

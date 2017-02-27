@@ -93,4 +93,9 @@ bool CaptureResultBlock::doWorkLocked() {
     return true;
 }
 
+status_t CaptureResultBlock::flushLocked() {
+    // Do nothing because CaptureResultBlock doesn't keep any pending requets.
+    return 0;
+}
+
 } // pbcamera

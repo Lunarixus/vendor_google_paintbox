@@ -32,6 +32,7 @@ public:
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata);
     bool doWorkLocked() override;
+    status_t flushLocked() override;
 
 protected:
     // Set static metadata.
@@ -148,6 +149,9 @@ private:
 
     // Pending shot capture that is being processed in gcam.
     std::shared_ptr<ShotCapture> mPendingShotCapture;
+
+    // Condition for shot complete.
+    std::condition_variable mShotCompletedCondition;
 };
 
 } // namespace pbcamera

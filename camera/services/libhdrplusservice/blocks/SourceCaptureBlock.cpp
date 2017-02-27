@@ -24,17 +24,42 @@ void SourceCaptureBlock::dequeueRequestThreadLoop() {
 }
 
 SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
-        std::unique_ptr<CaptureService> captureService) :
+        const CaptureConfig &config = {}) :
         PipelineBlock("SourceCaptureBlock"),
         mMessengerToClient(messenger),
-        mCaptureService(std::move(captureService)) {
-    if (mCaptureService != nullptr) {
-        // Create a dequeue request thread.
-        mDequeueRequestThread = std::make_unique<DequeueRequestThread>(this);
+        mCaptureConfig(config) {
+    // Check if capture config is valid.
+    if (mCaptureConfig.stream_config_list.size() > 0) {
+        mIsMipiInput = true;
     }
 }
 
-SourceCaptureBlock::~SourceCaptureBlock(){
+SourceCaptureBlock::~SourceCaptureBlock() {
+}
+
+status_t SourceCaptureBlock::createCaptureService() {
+    if (mCaptureService != nullptr) {
+        return -EEXIST;
+    }
+
+    mCaptureService = CaptureService::CreateInstance(mCaptureConfig);
+    CaptureError err = mCaptureService->Initialize();
+    if (err != CaptureError::SUCCESS) {
+        ALOGE("%s: Initializing capture service failed: %s (%d)", __FUNCTION__,
+                GetCaptureErrorDesc(err).data(), err);
+        mCaptureService = nullptr;
+        return -ENODEV;
+    }
+
+    // Create a dequeue request thread.
+    mDequeueRequestThread = std::make_unique<DequeueRequestThread>(this);
+
+    return 0;
+}
+
+void SourceCaptureBlock::destroyCaptureService() {
+    mCaptureService = nullptr;
+    mDequeueRequestThread = nullptr;
 }
 
 std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
@@ -48,9 +73,9 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
         return nullptr;
     }
 
-    std::unique_ptr<CaptureService> captureService;
-
+    std::shared_ptr<SourceCaptureBlock> block;
     if (sensorMode != nullptr) {
+        // Create a source capture block with capture service for capturing from Easel MIPI.
         uint32_t dataType = 0, bitsPerPixel = 0;
         switch (sensorMode->format) {
             case HAL_PIXEL_FORMAT_RAW10:
@@ -73,17 +98,13 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
                 capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
                 captureStreamConfigs };
 
-        captureService = CaptureService::CreateInstance(config);
-        CaptureError err = captureService->Initialize();
-        if (err != CaptureError::SUCCESS) {
-            ALOGE("%s: Initializing capture service failed: %s (%d)", __FUNCTION__,
-                    GetCaptureErrorDesc(err).data(), err);
-            return nullptr;
-        }
+        block = std::shared_ptr<SourceCaptureBlock>(new SourceCaptureBlock(messenger, config));
+
+    } else {
+        // Create a source capture block to receive input buffers from AP.
+        block = std::shared_ptr<SourceCaptureBlock>(new SourceCaptureBlock(messenger));
     }
 
-    auto block = std::shared_ptr<SourceCaptureBlock>(new SourceCaptureBlock(messenger,
-            std::move(captureService)));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -103,7 +124,16 @@ bool SourceCaptureBlock::doWorkLocked() {
 
     // For input buffers coming from the client via notifyDmaInputBuffer(), there is nothing to do
     // here.
-    if (mCaptureService == nullptr) return false;
+    if (!mIsMipiInput) return false;
+
+    if (mCaptureService == nullptr) {
+        status_t res = createCaptureService();
+        if (res != 0) {
+            ALOGE("%s: Creating capture service failed: %s (%d)", __FUNCTION__, strerror(-res),
+                    res);
+            return false;
+        }
+    }
 
     // Check if we have any output request
     OutputRequest outputRequest = {};
@@ -138,6 +168,27 @@ bool SourceCaptureBlock::doWorkLocked() {
     mDequeueRequestThread->addPendingRequest(outputRequest);
 
     return true;
+}
+
+status_t SourceCaptureBlock::flushLocked() {
+
+    // Capture service does not support flush so we need to destroy the dequeue request thread
+    // and destroy camera service to flush capture service. Capture service will be created again
+    // when handling a request.
+    // b/35676087.
+    destroyCaptureService();
+
+    // Return incomplete output results.
+    {
+        std::unique_lock<std::mutex> lock(mPendingOutputResultQueueLock);
+        for (auto result : mPendingOutputResultQueue) {
+            abortOutputRequest(result);
+        }
+
+        mPendingOutputResultQueue.clear();
+    }
+
+    return 0;
 }
 
 void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
@@ -266,6 +317,11 @@ DequeueRequestThread::~DequeueRequestThread() {
     signalExit();
     mDequeueRequestThread->join();
     mDequeueRequestThread = nullptr;
+
+    // Return all pending requests.
+    for (auto request : mPendingCaptureRequests) {
+        mParent->abortOutputRequest(request);
+    }
 }
 
 void DequeueRequestThread::addPendingRequest(PipelineBlock::OutputRequest request) {
@@ -275,11 +331,9 @@ void DequeueRequestThread::addPendingRequest(PipelineBlock::OutputRequest reques
 }
 
 void DequeueRequestThread::signalExit() {
-    {
-        std::unique_lock<std::mutex> lock(mDequeueThreadLock);
-        mExiting = true;
-        mEventCondition.notify_one();
-    }
+    std::unique_lock<std::mutex> lock(mDequeueThreadLock);
+    mExiting = true;
+    mEventCondition.notify_one();
 }
 
 void DequeueRequestThread::dequeueRequestThreadLoop() {
@@ -298,9 +352,13 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             }
         }
 
-        // We have to wait for requests that have been sent to capture service.
-        // TODO: A way to abort requests so we can exit early. b/35676087
-        if (waitForRequest) {
+        if (mExiting) {
+            // Upon exiting, pending requests in camera service have not be flushed. b/35676087
+            // So after exit, mCaptureService must be destroyed before releasing all pending
+            // buffers.
+            ALOGV("%s: Exit thread loop.", __FUNCTION__);
+            return;
+        } else if (waitForRequest) {
             ALOGV("%s: Waiting for a completed request from capture service.", __FUNCTION__);
             CaptureFrameBuffer *frameBuffer = mParent->mCaptureService->DequeueCompletedRequest();
             if (frameBuffer == nullptr) {
@@ -343,8 +401,6 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                     frameBuffer->GetTimestampStartNs(), &syncedEaselTimeNs);
 
             mParent->handleCompletedCaptureForRequest(request, syncedEaselTimeNs);
-        } else if (mExiting) {
-            return;
         }
     }
 }

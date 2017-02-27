@@ -59,13 +59,21 @@ public:
     // Override PipelineBlock::doWorkLocked.
     bool doWorkLocked() override;
 
+    status_t flushLocked() override;
+
     // Thread loop that dequeues completed buffers from capture service.
     void dequeueRequestThreadLoop();
 
 private:
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
-            std::unique_ptr<CaptureService> captureService);
+        const CaptureConfig &config);
+
+    // Create capture service.
+    status_t createCaptureService();
+
+    // Destroy capture service.
+    void destroyCaptureService();
 
     // Send a completed output result back to pipeline.
     void sendOutputResult(const OutputResult &result);
@@ -86,8 +94,14 @@ private:
     std::mutex mPendingOutputResultQueueLock;
     std::deque<OutputResult> mPendingOutputResultQueue;
 
+    // Whether to capture input buffers from MIPI or from AP.
+    bool mIsMipiInput;
+
     // Capture service for MIPI capture.
     std::unique_ptr<CaptureService> mCaptureService;
+
+    // Capture config used to create the capture service.
+    const CaptureConfig mCaptureConfig;
 
     // A DequeueRequestThread to dequeue completed buffers from capture service.
     std::unique_ptr<DequeueRequestThread> mDequeueRequestThread;
