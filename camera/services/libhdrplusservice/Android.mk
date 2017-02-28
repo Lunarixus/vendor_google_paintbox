@@ -21,10 +21,10 @@ LOCAL_SHARED_LIBRARIES:= \
     libhdrplusmessenger \
     liblog
 
-ifeq ($(USE_LIB_EASEL), 1)
-    LOCAL_STATIC_LIBRARIES := libeasel
-else
+ifeq ($(USE_LIB_EASEL), 0)
     LOCAL_STATIC_LIBRARIES := libmockeasel
+else
+    LOCAL_STATIC_LIBRARIES := libeasel
 endif
 
 LOCAL_C_INCLUDES += \
