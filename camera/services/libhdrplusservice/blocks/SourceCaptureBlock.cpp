@@ -89,11 +89,24 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
                 return nullptr;
         }
 
+        MipiRxPort mipiRxPort;
+        switch (sensorMode->cameraId) {
+            case 0:
+                mipiRxPort = MipiRxPort::RX0;
+                break;
+            case 1:
+                mipiRxPort = MipiRxPort::RX1;
+                break;
+            default:
+                ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__, sensorMode->cameraId);
+                return nullptr;
+        }
+
         // Create a capture service.
         std::vector<CaptureStreamConfig> captureStreamConfigs;
         captureStreamConfigs.push_back({ dataType, sensorMode->pixelArrayWidth,
                 sensorMode->pixelArrayHeight, bitsPerPixel});
-        CaptureConfig config = { MipiRxPort::RX0,
+        CaptureConfig config = { mipiRxPort,
                 capture_service_consts::kMainImageVirtualChannelId,
                 capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
                 captureStreamConfigs };

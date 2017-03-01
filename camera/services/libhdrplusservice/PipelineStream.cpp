@@ -112,8 +112,20 @@ status_t PipelineStream::createInput(const SensorMode &sensorMode, int numBuffer
     std::vector<CaptureStreamConfig> captureStreamConfigs = {
             { dataType, sensorMode.pixelArrayWidth, sensorMode.pixelArrayHeight, bitsPerPixel }};
 
-    // TODO: Support front camera. b/35674729.
-    CaptureConfig captureConfig = { MipiRxPort::RX0,
+    MipiRxPort mipiRxPort;
+    switch (sensorMode.cameraId) {
+        case 0:
+            mipiRxPort = MipiRxPort::RX0;
+            break;
+        case 1:
+            mipiRxPort = MipiRxPort::RX1;
+            break;
+        default:
+            ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__, sensorMode.cameraId);
+            return -EINVAL;
+    }
+
+    CaptureConfig captureConfig = { mipiRxPort,
             capture_service_consts::kMainImageVirtualChannelId,
             capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
             captureStreamConfigs };
