@@ -94,7 +94,7 @@ int __android_log_write(int prio, const char* tag, const char *text) {
   // TODO(cjluo): Currently easel and AP timestamp syncing is not accurate.
   // Once the timesyncing is improved, we could remove the easel side
   // timestamp.
-  snprintf(buf, LOG_BUF_SIZE, "EASEL: %s", timestamp, text);
+  snprintf(buf, LOG_BUF_SIZE, "EASEL: %s", text);
   EaselControlServer::log(prio, tag, buf);
 
   return strlen(text);
