@@ -149,6 +149,10 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     }
 
     gcam::ShotParams shotParams;
+    // TODO(b/35848231): removes cropping when memory leak is resolved.
+    if (strcmp(std::getenv("USE_IPU"), "true") == 0) {
+        shotParams.ae.crop.x1 = shotParams.ae.crop.y1 = 0.1f;
+    }
     shotParams.ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
     shotParams.ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
     shotParams.ae.process_bayer_for_payload = true;
@@ -684,8 +688,11 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.progress_callback = nullptr;
     initParams.finished_callback = nullptr;
 
-    // Do not use IPU for now
-    initParams.use_ipu = false;
+    if (strcmp(std::getenv("USE_IPU"), "true") == 0) {
+        initParams.use_ipu = true;
+    } else {
+        initParams.use_ipu = false;
+    }
 
     // There is only 1 static metadata for current device.
     std::vector<gcam::StaticMetadata> gcamMetadataList = {*mGcamStaticMetadata};
