@@ -27,7 +27,8 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
         const CaptureConfig &config = {}) :
         PipelineBlock("SourceCaptureBlock"),
         mMessengerToClient(messenger),
-        mCaptureConfig(config) {
+        mCaptureConfig(config),
+        mPaused(false) {
     // Check if capture config is valid.
     if (mCaptureConfig.stream_config_list.size() > 0) {
         mIsMipiInput = true;
@@ -58,8 +59,8 @@ status_t SourceCaptureBlock::createCaptureService() {
 }
 
 void SourceCaptureBlock::destroyCaptureService() {
-    mCaptureService = nullptr;
     mDequeueRequestThread = nullptr;
+    mCaptureService = nullptr;
 }
 
 std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
@@ -132,12 +133,27 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
     return block;
 }
 
+void SourceCaptureBlock::pause() {
+    std::unique_lock<std::mutex> lock(mPauseLock);
+    destroyCaptureService();
+    mPaused = true;
+}
+
+void SourceCaptureBlock::resume() {
+    std::unique_lock<std::mutex> lock(mPauseLock);
+    mPaused = false;
+    notifyWorkerThreadEvent();
+}
+
 bool SourceCaptureBlock::doWorkLocked() {
     ALOGV("%s", __FUNCTION__);
 
     // For input buffers coming from the client via notifyDmaInputBuffer(), there is nothing to do
     // here.
     if (!mIsMipiInput) return false;
+
+    std::unique_lock<std::mutex> lock(mPauseLock);
+    if (mPaused) return false;
 
     if (mCaptureService == nullptr) {
         status_t res = createCaptureService();

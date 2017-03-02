@@ -13,18 +13,21 @@
 
 namespace pbcamera {
 
-HdrPlusProcessingBlock::HdrPlusProcessingBlock() :
-        PipelineBlock("HdrPlusProcessingBlock") {
+HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) :
+        PipelineBlock("HdrPlusProcessingBlock"),
+        mSourceCaptureBlock(sourceCaptureBlock) {
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
 }
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
-        std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata) {
+        std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
+        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) {
     ALOGV("%s", __FUNCTION__);
 
-    auto block = std::shared_ptr<HdrPlusProcessingBlock>(new HdrPlusProcessingBlock());
+    auto block = std::shared_ptr<HdrPlusProcessingBlock>(
+            new HdrPlusProcessingBlock(sourceCaptureBlock));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -106,6 +109,12 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     auto shotCapture = std::make_shared<ShotCapture>();
     shotCapture->burstId = outputRequest.metadata.requestId;
 
+
+    auto sourceCaptureBlock = mSourceCaptureBlock.lock();
+    if (sourceCaptureBlock != nullptr) {
+        sourceCaptureBlock->pause();
+    }
+
     // Start a HDR+ shot.
     status_t res = IssueShotCapture(shotCapture, inputs);
     if (res != 0) {
@@ -115,6 +124,11 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         std::unique_lock<std::mutex> lock(mQueueLock);
         mInputQueue.insert(mInputQueue.begin(), inputs.begin(), inputs.end());
         mOutputRequestQueue.push_front(outputRequest);
+
+        if (sourceCaptureBlock != nullptr) {
+            sourceCaptureBlock->resume();
+        }
+
         return false;
     }
 
@@ -314,6 +328,11 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
 
         finishingShot = mPendingShotCapture;
         mPendingShotCapture = nullptr;
+
+        auto sourceCaptureBlock = mSourceCaptureBlock.lock();
+        if (sourceCaptureBlock != nullptr) {
+            sourceCaptureBlock->resume();
+        }
     }
 
     OutputResult outputResult = finishingShot->outputRequest;

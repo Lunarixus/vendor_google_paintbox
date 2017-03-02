@@ -252,8 +252,10 @@ status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputCon
 
 status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sensorMode) {
     // Create an source capture block for capturing input streams.
-    mSourceCaptureBlock = SourceCaptureBlock::newSourceCaptureBlock(shared_from_this(),
-            mMessengerToClient, sensorMode);
+    std::shared_ptr<SourceCaptureBlock> sourceCaptureBlock =
+            SourceCaptureBlock::newSourceCaptureBlock(shared_from_this(), mMessengerToClient,
+            sensorMode);
+    mSourceCaptureBlock = sourceCaptureBlock;
     if (mSourceCaptureBlock == nullptr) {
         ALOGE("%s: Creating SourceCaptureBlock failed.", __FUNCTION__);
         return -ENODEV;
@@ -271,7 +273,7 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sen
 
     // Create an HDR+ processing block for HDR+ processing.
     mHdrPlusProcessingBlock = HdrPlusProcessingBlock::newHdrPlusProcessingBlock(shared_from_this(),
-            mStaticMetadata);
+            mStaticMetadata, sourceCaptureBlock);
     if (mHdrPlusProcessingBlock == nullptr) {
         ALOGE("%s: Creating HdrPlusProcessingBlock failed.", __FUNCTION__);
         return -ENODEV;

@@ -64,6 +64,11 @@ public:
     // Thread loop that dequeues completed buffers from capture service.
     void dequeueRequestThreadLoop();
 
+    // Paused and resume capturing from MIPI. This is to work around the limitation that MIPI
+    // capture and IPU HDR+ processing cannot happen at the same time. b/34854987
+    void pause();
+    void resume();
+
 private:
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
@@ -105,6 +110,10 @@ private:
 
     // A DequeueRequestThread to dequeue completed buffers from capture service.
     std::unique_ptr<DequeueRequestThread> mDequeueRequestThread;
+
+    // Whether to pause capturing from MIPI to work around b/34854987.
+    std::mutex mPauseLock;
+    bool mPaused;
 };
 
 // DequeueRequestThread dequeues completed buffers from capture service.

@@ -3,6 +3,7 @@
 
 #include "PipelineBuffer.h"
 #include "PipelineBlock.h"
+#include "SourceCaptureBlock.h"
 
 #include <stdlib.h>
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam.h"
@@ -30,7 +31,8 @@ public:
      * Returns a std::shared_ptr<HdrPlusProcessingBlock> pointing to nullptr if it failed.
      */
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
-                std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata);
+                std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
+                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -40,7 +42,7 @@ protected:
 
 private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
-    HdrPlusProcessingBlock();
+    HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
 
     // Gcam related constants.
     static const gcam::GcamPixelFormat kGcamFinalImageFormat = gcam::GcamPixelFormat::kNv21;
@@ -152,6 +154,9 @@ private:
 
     // Condition for shot complete.
     std::condition_variable mShotCompletedCondition;
+
+    // TODO: Remove reference to source capture block. b/34854987
+    std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;
 };
 
 } // namespace pbcamera
