@@ -150,7 +150,8 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
 
     gcam::ShotParams shotParams;
     // TODO(b/35848231): removes cropping when memory leak is resolved.
-    if (strcmp(std::getenv("USE_IPU"), "true") == 0) {
+    char *use_ipu = std::getenv("USE_IPU");
+    if (use_ipu != nullptr && strcmp(use_ipu, "true") == 0) {
         shotParams.ae.crop.x1 = shotParams.ae.crop.y1 = 0.1f;
     }
     shotParams.ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
@@ -688,7 +689,8 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.progress_callback = nullptr;
     initParams.finished_callback = nullptr;
 
-    if (strcmp(std::getenv("USE_IPU"), "true") == 0) {
+    char *use_ipu = std::getenv("USE_IPU");
+    if (use_ipu != nullptr && strcmp(use_ipu, "true") == 0) {
         initParams.use_ipu = true;
     } else {
         initParams.use_ipu = false;
