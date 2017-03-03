@@ -9,12 +9,13 @@ LOCAL_MODULE := libeasel
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_AOSP_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
+LOCAL_SHARED_LIBRARIES = liblog
 LOCAL_SRC_FILES := \
 	EaselComm.cpp \
 	EaselControlClient.cpp \
 	EaselControlServer.cpp \
 	EaselStateManager.cpp
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := easelcomm_test_client
@@ -23,7 +24,7 @@ LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
 LOCAL_SRC_FILES := easelcomm_test.cpp
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
-LOCAL_STATIC_LIBRARIES := libeasel liblog
+LOCAL_SHARED_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -33,7 +34,7 @@ LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
 LOCAL_SRC_FILES := EaselStateManagerTest.cpp
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(PB_AOSP_INCLUDES)
-LOCAL_STATIC_LIBRARIES := libeasel liblog
+LOCAL_SHARED_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -43,7 +44,7 @@ LOCAL_CFLAGS += -UNDEBUG -DEASEL_SERVER
 LOCAL_SRC_FILES := easelcomm_test.cpp
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_C_INCLUDES := $(PB_AOSP_INCLUDES)
-LOCAL_STATIC_LIBRARIES := libeasel liblog
+LOCAL_SHARED_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -55,4 +56,4 @@ LOCAL_SRC_FILES := \
         EaselCommNet.cpp \
         EaselControlClient.cpp \
         EaselControlServer.cpp
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)

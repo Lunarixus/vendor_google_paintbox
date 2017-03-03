@@ -21,10 +21,10 @@ LOCAL_C_INCLUDES += \
     system/core/include
 
 ifeq ($(USE_LIB_EASEL), 1)
-       LOCAL_STATIC_LIBRARIES := libeasel
+       LOCAL_SHARED_LIBRARIES := libeasel
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
 else
-       LOCAL_STATIC_LIBRARIES := libmockeasel
+       LOCAL_SHARED_LIBRARIES := libmockeasel
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
 endif
 

@@ -22,9 +22,9 @@ LOCAL_SHARED_LIBRARIES:= \
     liblog
 
 ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_STATIC_LIBRARIES := libmockeasel
+    LOCAL_SHARED_LIBRARIES := libmockeasel
 else
-    LOCAL_STATIC_LIBRARIES := libeasel
+    LOCAL_SHARED_LIBRARIES := libeasel
 endif
 
 LOCAL_C_INCLUDES += \
