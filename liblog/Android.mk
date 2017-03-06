@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := log.cpp
 
-LOCAL_SHARED_LIBRARIES := libeasel
+LOCAL_STATIC_LIBRARIES := libeasel
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
