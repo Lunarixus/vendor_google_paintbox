@@ -5,6 +5,7 @@
 // Reference:
 // https://cs.corp.google.com/android/system/core/liblog/logger_write.c
 
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +16,9 @@
 #include <vector>
 #include <unordered_map>
 
-#include <android/log.h>
+#include <cutils/properties.h>
+#include <log/log.h>
+#include <tombstone.h>
 
 #include "easelcontrol.h"
 
@@ -100,9 +103,7 @@ int __android_log_write(int prio, const char* tag, const char *text) {
   return strlen(text);
 }
 
-int __android_log_close() {
-  return 0;
-}
+void __android_log_close() {}
 
 int __android_log_print(int prio, const char *tag,  const char *fmt, ...) {
   va_list ap;
@@ -146,4 +147,95 @@ void __android_log_assert(const char *cond, const char *tag,
   __android_log_write(ANDROID_LOG_FATAL, tag, buf);
   abort(); // abort so we have a chance to debug the situation
   // NOTREACHED
+}
+
+int __android_log_buf_print(int bufID, int prio,
+                            const char *tag,
+                            const char *fmt, ...)
+{
+    va_list ap;
+    char buf[LOG_BUF_SIZE];
+
+    int len = snprintf(buf, LOG_BUF_SIZE, "buf id %d: ", bufID);
+    if (len >= LOG_BUF_SIZE - len) {
+      return 0;
+    }
+
+    va_start(ap, fmt);
+    vsnprintf(buf + len, LOG_BUF_SIZE - len, fmt, ap);
+    va_end(ap);
+
+    return __android_log_write(prio, tag, buf);
+}
+
+// Block to register fatal signal handler to dumpstack trace.
+// The default signal hander in linker64 requires crash_dump and tombstoned
+// to be present and they are deeply integrated with Android implementation
+// of logd. Here is the simplified implementation of generating the stack dump
+// on Easel when program crashes.
+// Reference:
+// https://cs.corp.google.com/android/system/core/debuggerd/handler/debuggerd_handler.cpp
+
+// Mutex to ensure only one crashing thread dumps itself.
+static pthread_mutex_t crash_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+extern "C" void __linker_use_fallback_allocator();
+
+static void signal_handler(int, siginfo_t* info, void* context) {
+  int ret = pthread_mutex_lock(&crash_mutex);
+  if (ret != 0) {
+    __android_log_print(ANDROID_LOG_FATAL, "DEBUG", "pthread_mutex_lock failed: %s", strerror(ret));
+    return;
+  }
+
+  ucontext_t* ucontext = static_cast<ucontext_t*>(context);
+  engrave_tombstone_ucontext(-1, getpid(), gettid(), 0, info, ucontext);
+
+  signal(info->si_signo, SIG_DFL);
+  pthread_mutex_unlock(&crash_mutex);
+}
+
+struct RegisterSignalHandler {
+  RegisterSignalHandler() {
+    struct sigaction action = {};
+    sigfillset(&action.sa_mask);
+    action.sa_sigaction = signal_handler;
+    action.sa_flags = SA_RESTART | SA_SIGINFO;
+
+    // Use the alternate signal stack if available so we can catch stack overflows.
+    action.sa_flags |= SA_ONSTACK;
+
+    sigaction(SIGABRT, &action, nullptr);
+    sigaction(SIGBUS, &action, nullptr);
+    sigaction(SIGFPE, &action, nullptr);
+    sigaction(SIGILL, &action, nullptr);
+    sigaction(SIGSEGV, &action, nullptr);
+#if defined(SIGSTKFLT)
+    sigaction(SIGSTKFLT, &action, nullptr);
+#endif
+    sigaction(SIGSYS, &action, nullptr);
+    sigaction(SIGTRAP, &action, nullptr);
+  };
+};
+
+static RegisterSignalHandler register_signal_handler_block;
+
+// Logs an log entry.
+// Overrides weak symbol in libdebuggerd.
+void _LOG(log_t*, logtype, const char *fmt, ...) {
+  va_list ap;
+  char buf[LOG_BUF_SIZE];
+
+  va_start(ap, fmt);
+  vsnprintf(buf, LOG_BUF_SIZE, fmt, ap);
+  va_end(ap);
+
+  __android_log_write(ANDROID_LOG_FATAL, "DEBUG", buf);
+}
+
+// Dummy implementation: workaround of library dependecy
+// TODO(cjluo): Considering tunneling it to Android AP
+
+int property_get(const char *, char *, const char *) {
+  return 0;
 }
