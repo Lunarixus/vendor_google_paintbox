@@ -182,10 +182,28 @@ int EaselControlClient::configMipi(enum EaselControlClient::Camera camera, int r
 
 // Called when the camera app is opened
 int EaselControlClient::resumeEasel() {
+    enum EaselStateManager::State state;
     int ret;
+
+    ret = stateMgr.getState(&state);
+    if (ret) {
+        ALOGE("Could not read the current state of Easel (%d)\n", ret);
+        return ret;
+    }
+
+    if ((state >= EaselStateManager::ESM_STATE_INIT) &&
+        (state <= EaselStateManager::ESM_STATE_ACTIVE)) {
+        ALOGD("Easel is already powered, no need to resume it\n");
+        return 0;
+    }
+
     ret = stateMgr.setState(EaselStateManager::ESM_STATE_INIT);
-    ALOG_ASSERT(ret == 0);
-    return ret;
+    if (ret) {
+        ALOGE("Could not resume Easel (%d)\n", ret);
+        return ret;
+    }
+
+    return 0;
 }
 
 // Called when the camera app is closed
