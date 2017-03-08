@@ -18,6 +18,7 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
+#include <private/android_logger.h>
 #include <tombstone.h>
 
 #include "easelcontrol.h"
@@ -166,6 +167,10 @@ int __android_log_buf_print(int bufID, int prio,
     va_end(ap);
 
     return __android_log_write(prio, tag, buf);
+}
+
+int __android_log_is_debuggable() {
+    return (kLogLevel <= ANDROID_LOG_DEBUG);
 }
 
 // Block to register fatal signal handler to dumpstack trace.
