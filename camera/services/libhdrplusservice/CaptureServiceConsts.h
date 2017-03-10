@@ -6,7 +6,7 @@ namespace pbcamera {
 namespace capture_service_consts {
 
 // Timeout for capture frame buffer factory.
-const uint32_t kCaptureFrameBufferFactoryTimeoutMs = 50;
+const uint32_t kCaptureFrameBufferFactoryTimeoutMs = 100;
 
 // MIPI RAW10 data type.
 const uint32_t kMipiRaw10DataType = 0x2b;
