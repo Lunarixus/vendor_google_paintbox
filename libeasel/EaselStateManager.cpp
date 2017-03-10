@@ -23,7 +23,7 @@ int EaselStateManager::init()
     mFd = open(ESM_DEV_FILE, O_RDONLY);
 
     if (mFd < 0)
-        return -1;
+        return -errno;
 
     return 0;
 }
