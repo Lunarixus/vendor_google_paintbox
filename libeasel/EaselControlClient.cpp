@@ -155,7 +155,7 @@ int EaselControlClient::deactivateEasel() {
 
     easel_conn.close();
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_INIT);
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
     ALOG_ASSERT(ret == 0);
 
     return ret;
@@ -197,7 +197,7 @@ int EaselControlClient::resumeEasel() {
         return 0;
     }
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_INIT);
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
     if (ret) {
         ALOGE("Could not resume Easel (%d)\n", ret);
         return ret;
@@ -223,7 +223,7 @@ int EaselControlClient::open() {
         return ret;
     }
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_INIT);
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
     if (ret) {
         ALOGE("failed to power on EaselStateManager (%d)\n", ret);
         return ret;
