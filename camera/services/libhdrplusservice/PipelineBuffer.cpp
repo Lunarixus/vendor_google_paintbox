@@ -342,6 +342,8 @@ void PipelineCaptureFrameBuffer::unlockData() {
     if (err != CaptureError::SUCCESS) {
         ALOGE("%s: Unlocking frame data failed: err=%d", __FUNCTION__, err);
     }
+
+    mLockedData = nullptr;
 }
 
 CaptureFrameBuffer* PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
