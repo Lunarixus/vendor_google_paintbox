@@ -13,8 +13,7 @@
 #include <time.h>
 #ifdef ANDROID
 #include <android/log.h>
-#endif
-#ifdef ANDROID
+#include <cutils/properties.h>
 #include <utils/Log.h>
 #endif
 
@@ -34,6 +33,8 @@ EaselStateManager stateMgr;
 
 // Incoming message handler thread
 std::thread *msg_handler_thread;
+
+enum Mode { BYPASS, HDRPLUS } gMode;
 
 /*
  * Handle CMD_LOG Android logging control message received from server.
@@ -59,10 +60,10 @@ void msgHandlerThread() {
         if (ret) {
             if (errno != ESHUTDOWN)
 #ifdef ANDROID
-                ALOGI("easelcontrol: receiveMessage error, exiting\n");
+                ALOGI("easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
 #else
                 fprintf(stderr,
-                        "easelcontrol: receiveMessage error, exiting\n");
+                        "easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
 #endif
             break;
         }
@@ -103,25 +104,31 @@ void msgHandlerThread() {
 
 } // anonymous namespace
 
-int EaselControlClient::activateEasel(int sleepTime) {
+int EaselControlClient::activate() {
     int ret;
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, true /* blocking */);
-    ALOG_ASSERT(ret == 0);
+    if (gMode != HDRPLUS)
+        return 0;
 
-    /* give some time for Easel to boot */
-    sleep(sleepTime);
+    ALOGI("%s\n", __FUNCTION__);
 
-    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
-        ALOGE("%s: %d", __FUNCTION__, __LINE__);
+        ALOGE("Failed to observe ACTIVE state (%d)\n", ret);
         return ret;
     }
+
+    // Open easelcomm connection
+    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    if (ret) {
+        ALOGE("%s: Failed to open easelcomm connection", __FUNCTION__);
+        return ret;
+    }
+
+    // start thread for handling easelcomm messages
     msg_handler_thread = new std::thread(msgHandlerThread);
 
-    /*
-     * Send a message with the new boottime base and time of day clock.
-     */
+    // Send a message with the new boottime base and time of day clock
     EaselControlImpl::SetTimeMsg ctrl_msg;
     ctrl_msg.h.command = EaselControlImpl::CMD_SET_TIME;
     struct timespec ts ;
@@ -135,13 +142,24 @@ int EaselControlClient::activateEasel(int sleepTime) {
     msg.message_buf_size = sizeof(ctrl_msg);
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
-    ALOGE("%s: %d", __FUNCTION__, __LINE__);
-    return easel_conn.sendMessage(&msg);
+
+    ret = easel_conn.sendMessage(&msg);
+    if (ret) {
+        ALOGE("%s: Failed to send message to Easel (%d)\n", __FUNCTION__, ret);
+        return ret;
+    }
+
+    return 0;
 }
 
-int EaselControlClient::deactivateEasel() {
+int EaselControlClient::deactivate() {
     EaselControlImpl::DeactivateMsg ctrl_msg;
     int ret;
+
+    if (gMode != HDRPLUS)
+        return 0;
+
+    ALOGI("%s\n", __FUNCTION__);
 
     ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
 
@@ -153,21 +171,28 @@ int EaselControlClient::deactivateEasel() {
     ret = easel_conn.sendMessage(&msg);
     ALOG_ASSERT(ret == 0);
 
+    // disable easelcomm polling thread
+    msg_handler_thread->detach();
+    delete msg_handler_thread;
+
     easel_conn.close();
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
-    ALOG_ASSERT(ret == 0);
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+    if (ret) {
+        ALOGE("Could not deactivate Easel (%d)\n", ret);
+        return ret;
+    }
 
     return ret;
 }
 
-int EaselControlClient::configMipi(enum EaselControlClient::Camera camera, int rate)
+int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int rate)
 {
     struct EaselStateManager::EaselMipiConfig config = {
         .rxRate = rate, .txRate = rate,
     };
 
-    ALOGI("configMipi: camera %d, rate %d\n", camera, rate);
+    ALOGI("%s: camera %d, rate %d\n", __FUNCTION__, camera, rate);
 
     if (camera == EaselControlClient::MAIN) {
         config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_0;
@@ -177,13 +202,32 @@ int EaselControlClient::configMipi(enum EaselControlClient::Camera camera, int r
         config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_1;
     }
 
-    return stateMgr.configMipi(&config);
+    return stateMgr.startMipi(&config);
+}
+
+int EaselControlClient::stopMipi(enum EaselControlClient::Camera camera)
+{
+    struct EaselStateManager::EaselMipiConfig config;
+
+    ALOGI("%s: camera %d\n", __FUNCTION__, camera);
+
+    if (camera == EaselControlClient::MAIN) {
+        config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_0;
+        config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_0;
+    } else {
+        config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_1;
+        config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_1;
+    }
+
+    return stateMgr.stopMipi(&config);
 }
 
 // Called when the camera app is opened
-int EaselControlClient::resumeEasel() {
+int EaselControlClient::resume() {
     enum EaselStateManager::State state;
     int ret;
+
+    ALOGI("%s\n", __FUNCTION__);
 
     ret = stateMgr.getState(&state);
     if (ret) {
@@ -191,45 +235,76 @@ int EaselControlClient::resumeEasel() {
         return ret;
     }
 
-    if ((state >= EaselStateManager::ESM_STATE_INIT) &&
-        (state <= EaselStateManager::ESM_STATE_ACTIVE)) {
-        ALOGD("Easel is already powered, no need to resume it\n");
+    if ((state == EaselStateManager::ESM_STATE_PENDING) ||
+        (state == EaselStateManager::ESM_STATE_ACTIVE)) {
+        ALOGI("Easel is already powered, no need to resume it\n");
         return 0;
     }
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_PENDING);
     if (ret) {
-        ALOGE("Could not resume Easel (%d)\n", ret);
+        ALOGE("Failed to set Easel to PENDING state (%d)\n", ret);
         return ret;
+    }
+
+    if (gMode == HDRPLUS) {
+        ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false /* blocking */);
+        if (ret) {
+            ALOGE("Failed to set Easel to ACTIVE state (%d)\n", ret);
+            return ret;
+        }
     }
 
     return 0;
 }
 
 // Called when the camera app is closed
-int EaselControlClient::suspendEasel() {
+int EaselControlClient::suspend() {
     int ret;
+
+    ALOGI("%s\n", __FUNCTION__);
+
     ret = stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-    ALOG_ASSERT(ret == 0);
+    if (ret) {
+        ALOGE("%s: failed to suspend Easel (%d)\n", __FUNCTION__, ret);
+        return ret;
+    }
+
     return ret;
 }
 
 int EaselControlClient::open() {
-    int ret;
+    int ret = 0;
 
-    ret = stateMgr.init();
+    ALOGI("%s\n", __FUNCTION__);
+
+#ifdef ANDROID
+    gMode = (enum Mode)property_get_int32("persist.camera.hdrplus.enable", 0);
+#endif
+
+    ret = stateMgr.open();
     if (ret) {
         ALOGE("failed to initialize EaselStateManager (%d)\n", ret);
         return ret;
     }
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_CONFIG_DDR);
-    if (ret) {
-        ALOGE("failed to power on EaselStateManager (%d)\n", ret);
-        return ret;
+    if (gMode == HDRPLUS) {
+        if (!ret)
+            ret = resume();
+        if (!ret)
+            ret = activate();
+        if (!ret)
+            ret = deactivate();
+        if (!ret)
+            ret = suspend();
     }
 
-    return 0;
+    if (ret) {
+        ALOGE("%s: failed (%d)", __FUNCTION__, ret);
+        stateMgr.close();
+    }
+
+    return ret;
 }
 
 // Temporary for the TCP/IP-based mock

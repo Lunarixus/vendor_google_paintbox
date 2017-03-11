@@ -18,9 +18,9 @@
 
 #define ESM_DEV_FILE  "/dev/mnh_sm"
 
-int EaselStateManager::init()
+int EaselStateManager::open()
 {
-    mFd = open(ESM_DEV_FILE, O_RDONLY);
+    mFd = ::open(ESM_DEV_FILE, O_RDONLY);
 
     if (mFd < 0)
         return -errno;
@@ -36,29 +36,7 @@ int EaselStateManager::close()
     return 0;
 }
 
-int EaselStateManager::powerOn(bool blocking)
-{
-    if (ioctl(mFd, MNH_SM_IOC_POWERON, NULL) == -1)
-        return -errno;
-
-    if (blocking)
-        return waitForState(ESM_STATE_INIT);
-
-    return 0;
-}
-
-int EaselStateManager::powerOff(bool blocking)
-{
-    if (ioctl(mFd, MNH_SM_IOC_POWEROFF, NULL) == -1)
-        return -errno;
-
-    if (blocking)
-        return waitForState(ESM_STATE_OFF);
-
-    return 0;
-}
-
-int EaselStateManager::configMipi(struct EaselMipiConfig *config)
+int EaselStateManager::startMipi(struct EaselMipiConfig *config)
 {
     struct mnh_mipi_config mnhConfig = {
         .txdev = config->txChannel,
@@ -75,24 +53,16 @@ int EaselStateManager::configMipi(struct EaselMipiConfig *config)
     return 0;
 }
 
-int EaselStateManager::configDdr(bool blocking)
+int EaselStateManager::stopMipi(struct EaselMipiConfig *config)
 {
-    if (ioctl(mFd, MNH_SM_IOC_CONFIG_DDR, NULL) == -1)
+    struct mnh_mipi_config mnhConfig = {
+        .txdev = config->txChannel,
+        .rxdev = config->rxChannel,
+        .is_gen3 = 1,
+    };
+
+    if (ioctl(mFd, MNH_SM_IOC_STOP_MIPI, &mnhConfig) == -1)
         return -errno;
-
-    if (blocking)
-        return waitForState(ESM_STATE_CONFIG_DDR);
-
-    return 0;
-}
-
-int EaselStateManager::download(bool blocking)
-{
-    if (ioctl(mFd, MNH_SM_IOC_DOWNLOAD, NULL) == -1)
-        return -errno;
-
-    if (blocking)
-        return waitForState(ESM_STATE_ACTIVE);
 
     return 0;
 }
@@ -118,44 +88,10 @@ int EaselStateManager::setState(enum EaselStateManager::State state, bool blocki
     return 0;
 }
 
-#define LOOP_DELAY_US 1000
 int EaselStateManager::waitForState(enum State state)
 {
-    enum EaselStateManager::State currState;
-    int ret;
-    int loopCount;
+    if (ioctl(mFd, MNH_SM_IOC_WAIT_FOR_STATE, (int)state) == -1)
+        return -errno;
 
-    switch (state) {
-        case ESM_STATE_OFF:
-            loopCount = 100000 / LOOP_DELAY_US;
-            break;
-        case ESM_STATE_INIT:
-            loopCount = 100000 / LOOP_DELAY_US;
-            break;
-        case ESM_STATE_CONFIG_DDR:
-            loopCount = 40000 / LOOP_DELAY_US;
-            break;
-        case ESM_STATE_ACTIVE:
-            loopCount = 4000000 / LOOP_DELAY_US;
-            break;
-        default:
-            return -EINVAL;
-    }
-
-    // TODO (b/35991340): Use timeout instead of infinite loop
-    int i = 0;
-    while (1) {
-        ret = getState(&currState);
-        if (ret < 0) {
-            return ret;
-        } else if (currState == state) {
-            ALOGI("Found state %d after %d iterations\n", state, i);
-            return 0;
-        }
-
-        usleep(LOOP_DELAY_US);
-        i++;
-    }
-
-    return -ETIMEDOUT;
+    return 0;
 }

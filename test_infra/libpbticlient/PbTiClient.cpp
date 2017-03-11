@@ -76,7 +76,7 @@ status_t PbTiClient::activateEasel() {
     }
 
     // Activate Easel.
-    res = mEaselControl.activateEasel();
+    res = mEaselControl.activate();
     if (res != OK) {
         ALOGE("%s: Failed to activate Easel: %s (%d).",
               __FUNCTION__, strerror(errno), -errno);
@@ -96,7 +96,7 @@ void PbTiClient::deactivateEasel() {
         return;
     }
 
-    mEaselControl.deactivateEasel();
+    mEaselControl.deactivate();
     mEaselControl.close();
     mEaselActivated = false;
 }

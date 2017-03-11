@@ -22,52 +22,60 @@ int main()
     enum EaselStateManager::State state;
     int ret;
 
-    ret = mgr.init();
-    ALOGI("mgr.init() = %d\n", ret);
+    ret = mgr.open();
+    ALOGI("mgr.open() = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
-    ret = mgr.powerOn();
-    ALOGI("mgr.powerOn() = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
-
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_INIT));
-
-    ret = mgr.configMipi(&mainCamConfig);
-    ALOGI("mgr.configMipi(main_cam) = %d\n", ret);
+    ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
+    ALOGI("mgr.setState(PENDING) = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_CONFIG_MIPI));
+    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_PENDING));
 
-    ret = mgr.configMipi(&frontCamConfig);
-    ALOGI("mgr.configMipi(front_cam) = %d\n", ret);
+    ret = mgr.startMipi(&mainCamConfig);
+    ALOGI("mgr.startMipi(main_cam) = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_CONFIG_MIPI));
-
-    ret = mgr.configDdr();
-    ALOGI("mgr.configDdr() = %d\n", ret);
+    ret = mgr.startMipi(&frontCamConfig);
+    ALOGI("mgr.startMipi(front_cam) = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_CONFIG_DDR));
-
-    ret = mgr.download();
-    ALOGI("mgr.download() = %d\n", ret);
+    ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
+    ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
     ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_ACTIVE));
 
-    ret = mgr.powerOff();
-    ALOGI("mgr.powerOff() = %d\n", ret);
+    ret = mgr.setState(EaselStateManager::ESM_STATE_SUSPEND);
+    ALOGI("mgr.setState(SUSPEND) = %d\n", ret);
+    ALOG_ASSERT(ret == 0);
+
+    ret = mgr.getState(&state);
+    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
+    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_SUSPEND));
+
+    ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
+    ALOGI("mgr.setState(PENDING) = %d\n", ret);
+    ALOG_ASSERT(ret == 0);
+
+    ret = mgr.getState(&state);
+    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
+    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_PENDING));
+
+    ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
+    ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
+    ALOG_ASSERT(ret == 0);
+
+    ret = mgr.getState(&state);
+    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
+    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_ACTIVE));
+
+    ret = mgr.setState(EaselStateManager::ESM_STATE_OFF);
+    ALOGI("mgr.setState(OFF) = %d\n", ret);
     ALOG_ASSERT(ret == 0);
 
     ret = mgr.getState(&state);
