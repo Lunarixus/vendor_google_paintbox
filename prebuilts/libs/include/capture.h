@@ -60,6 +60,7 @@ enum class CaptureError {
   THREAD_ERROR,  // Capture background thread error.
   ALREADY_INITED,  // Service already initialized.
   INVALID_CONFIG,  // Capture configuration is invalid.
+  FS_ERROR, // File system error.
   UNKNOWN,  // Unknown error.
 };
 
