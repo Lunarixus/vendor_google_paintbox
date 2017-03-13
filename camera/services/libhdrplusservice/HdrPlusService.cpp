@@ -73,7 +73,7 @@ status_t HdrPlusService::connect() {
     }
 
     mPipeline = HdrPlusPipeline::newPipeline(mMessengerToClient);
-    ALOGD("%s: Connected.", __FUNCTION__);
+    ALOGI("%s: Connected.", __FUNCTION__);
 
     return 0;
 }
@@ -84,7 +84,7 @@ void HdrPlusService::disconnect() {
     if (mPipeline == nullptr) return;
 
     mPipeline = nullptr;
-    ALOGD("%s: Disconnected.", __FUNCTION__);
+    ALOGI("%s: Disconnected.", __FUNCTION__);
 }
 
 status_t HdrPlusService::setStaticMetadata(const StaticMetadata& metadata) {
@@ -104,6 +104,14 @@ status_t HdrPlusService::configureStreams(const InputConfiguration &inputConfig,
 
     // Configure the pipeline.
     return mPipeline->configure(inputConfig, outputConfigs);
+}
+
+status_t HdrPlusService::setZslHdrPlusMode(bool enabled) {
+    std::unique_lock<std::mutex> lock(mApiLock);
+
+    if (mPipeline == nullptr) return -ENODEV;
+
+    return mPipeline->setZslHdrPlusMode(enabled);
 }
 
 status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request) {

@@ -74,6 +74,21 @@ public:
             const std::vector<StreamConfiguration> &outputConfigs);
 
     /*
+     * Enable or disable ZSL HDR+ mode.
+     *
+     * When ZSL HDR+ mode is enabled, Easel will capture ZSL RAW buffers. ZSL HDR+ mode should be
+     * disabled to reduce power consumption when HDR+ processing is not necessary, e.g in video
+     * mode.
+     *
+     * enabled is a flag indicating whether to enable ZSL HDR+ mode.
+     *
+     * Returns:
+     *  0:          on success.
+     *  -ENODEV:    if HDR+ service is not connected, or streams are not configured.
+     */
+    status_t setZslHdrPlusMode(bool enabled);
+
+    /*
      * Submit a capture request. HdrPlusPipeline will send the output buffers via
      * MessengerToHdrPlusClient
      *
@@ -156,12 +171,13 @@ private:
     enum PipelineState {
         // Pipeline is not configured yet. This is the initial state.
         STATE_UNCONFIGURED = 0,
-        // Pipeline is running. This is the state after configure() return 0.
-        STATE_RUNNING,
-        // Pipeline is stopping. This is the state when pipeline initiates stopping process.
-        STATE_STOPPING,
-        // Pipeline is stopped. Pipeline blocks are also stopped.
+        // Pipeline is stopped. Pipeline blocks are also stopped. This is the state when
+        // stream is configured and ZSL HDR+ mode is disabled.
         STATE_STOPPED,
+        // Pipeline is running. This is the state when ZSL HDR+ mode is enabled.
+        STATE_RUNNING,
+        // Pipeline is stopping. This is a transient state when pipeline initiates stopping process.
+        STATE_STOPPING,
     };
 
     // Create streams and buffers with mApiLock held.
