@@ -72,7 +72,8 @@ typedef enum {
   IMX_UINT10 = IMX_kMaxProcessorNumericType, // leave first in this second category!
   IMX_UINT12,
   /* TODO(ahalambi): Add IMX_INT10, IMX_INT12 when compiler support for these
-    types is added. */
+   * types is added.
+   */
   IMX_PACKED_UINT_6_5_6,
   IMX_PACKED_UINT_5_5_5_1,
   IMX_PACKED_UINT_1_5_5_5,
@@ -83,12 +84,11 @@ typedef enum {
 
 /* Layout in memory. */
 typedef enum {
-  // TODO(billmark/ahalambi): Not clear that it's useful to distinguish
-  //                          these three layouts (linear/planar/linear_planar)
-  //                          as enums, given the ability to represent a
-  //                          hybrid.  Probably should merge them into one
-  //                          and rely on components_per_plane and strides
-  //                          to tell us what we need.
+  /* TODO(billmark/ahalambi): Not clear that it's useful to distinguish
+   * these three layouts (linear/planar/linear_planar) as enums, given the
+   * ability to represent a hybrid.  Probably should merge them into one
+   * and rely on components_per_plane and strides to tell us what we need.
+   */
   IMX_LAYOUT_LINEAR = 0, /* e.g. RGBRGBRGB... */
   IMX_LAYOUT_PLANAR,     /* e.g. RRRR ..., GGG ...., BBB .... */
   IMX_LAYOUT_LINEAR_PLANAR, /* e.g. RGBRGBRGB..., ABCDABCD... */
@@ -218,8 +218,7 @@ typedef enum {
   IMX_SPECIFIC_RESOURCES_DESCRIPTION
 } ImxResourceDescriptionMode;
 
-/*
- * Describes how the resources assigned to a device will be used for the
+/* Describes how the resources assigned to a device will be used for the
  * duration of device.
  * The default usage mode is cooperative - runtime is allowed to reassign
  * allocated resources to another device when this device is idle.
@@ -314,6 +313,10 @@ ImxError ImxGetDeviceWithAllMipiAndCoreResources(
 /* Create device with resources as specified in device_descr */
 ImxError ImxGetDevice(ImxDeviceDescription device_descr,
                       ImxDeviceHandle *device_handle_ptr);
+ImxError ImxGetDeviceWithOptions(ImxDeviceDescription device_descr,
+                                 int num_simulator_options,
+                                 char **simulator_options,
+                                 ImxDeviceHandle *device_handle_ptr);
 
 typedef void (*ImxDumpCallback)(const char *);
 
@@ -392,24 +395,24 @@ typedef struct ImxShape {
 } ImxShape;
 
 /* Data type of a kernel parameter (incl. stream/tensor) as seen by kernel.
- * Omits information about layout in memory */
+ * Omits information about layout in memory
+ */
 typedef struct ImxParameterType {
   ImxShape shape;
   ImxNumericType element_type;  /* "STP/LBP" types only, e.g. IMX_INT16 */
 } ImxParameterType;
 
 /* Storage information for a parameter/stream/tensor stored in memory,
-   augmenting information provided by ParameterType.
-   If the element_type specified here is different from that specified in an
-   associated ParameterType a conversion is implied, e.g. from INT12 to INT16.
+ * augmenting information provided by ParameterType.
+ * If the element_type specified here is different from that specified in an
+ * associated ParameterType a conversion is implied, e.g. from INT12 to INT16.
 */
 typedef struct ImxStorage {
   ImxNumericType element_type; /* can be "processor" or "memory" type */
   ImxLayout layout;
 } ImxStorage;
 
-/*
- * A "buffer" maintains the data location for dma transfer (source buffer for a
+/* A "buffer" maintains the data location for dma transfer (source buffer for a
  * transfer into IPU line-buffer, or destination buffer for a transfer from IPU
  * line-buffer). This enum indicates the type of buffer; currently, we allow
  * two types: DEVICE (i.e. DRAM memory) or MIPI.
@@ -426,24 +429,30 @@ enum { IMX_kMaxPlanes = 64 };
 typedef struct ImxLateBufferConfig {
   ImxBufferType buffer_type;
   ImxDeviceBufferHandle buffer;
-  // Information for each plane
-  //  o If layout is IMX_LAYOUT_LINEAR, only plane[0] should be set.
-  //  o If layout is IMX_LAYOUT_PLANAR*, the number of planes is
-  //    determined by the extent of the last dimension.
-  // TODO(ahalambi): Refactor this structure to more closely match purple text in API documentation
+  /* Information for each plane
+   *   o If layout is IMX_LAYOUT_LINEAR, only plane[0] should be set.
+   *   o If layout is IMX_LAYOUT_PLANAR*, the number of planes is
+   *     determined by the extent of the last dimension.
+   * TODO(ahalambi): Refactor this structure to more closely match purple text
+   * in API documentation
+   */
   struct {
     uint64_t offset; /* offset within buffer for start of the plane, in bytes */
-    uint64_t stride[IMX_DIM_MAX]; /* stride, in bytes, for the dimensions stored in
-                         * this plane.  0 = use default (tightly packed).
-                         * currently only stride[1] is allowed to be non-zero */
+    /* stride, in bytes, for the dimensions stored in this plane.
+     * 0 = use default (tightly packed).
+     * currently only stride[1] is allowed to be non-zero
+     */
+    uint64_t stride[IMX_DIM_MAX];
   } plane[IMX_kMaxPlanes]; // TODO(dfinchel) do we use planes other than 0?
 } ImxLateBufferConfig;
 
 /* Use this function to create graph with a program to be executed on
  * IPU. If the graph does not contain any kernels, set visa_string to NULL
- * (or nullptr, if using this file as C++ header) */
+ * (or nullptr, if using this file as C++ header)
+ */
 /* TODO(billmark): Switch to desired definition of ImxCreateGraph and
- * get rid of this "Hack" routine */
+ * get rid of this "Hack" routine
+ */
 ImxError ImxCreateGraphHack(
     const char *visa_string,
     ImxNodeHandle *transfer_nodes, /* Input - Array of nodes */
@@ -451,12 +460,11 @@ ImxError ImxCreateGraphHack(
     int transfer_node_count,  /* Size of previous two arrays */
     ImxGraphHandle *graph_handle_ptr /* Output */);
 
-/*
- * Option flags when compiling a graph.
+/* Option flags when compiling a graph.
  * This enum is used only for passing simulator options to the runtime
  * or for directly controlling the runtime.
  * Translator options are embedded in vISA program string as directives.
- * */
+ */
 typedef enum {
   // Simulator only options
   IMX_OPTION_SIMULATOR_DUMP_PATH = 0,
@@ -492,10 +500,11 @@ typedef struct ImxParameterSetting {
   ImxNodeHandle node;     /* kernel node containing the parameter */
   const char *parameter_name;
   ImxParameterType type;
-  // pointer to the data, which is tightly packed.
-  // For multi-dimensional arrays, access as:
-  //   value[dimension_2][dimension_1][dimension_0], where the dimension
-  //   indices match those used in the "shape".
+  /* Pointer to the data, which is tightly packed.
+   * For multi-dimensional arrays, access as:
+   * value[dimension_2][dimension_1][dimension_0], where the dimension
+   * indices match those used in the "shape".
+   */
   void *value;
 } ImxParameterSetting;
 
@@ -509,8 +518,69 @@ typedef struct ImxCompileGraphInfo {
 
 ImxError ImxCompileGraph(
     ImxGraphHandle graph,
-    const ImxCompileGraphInfo *info, /* Caller retains ownership of info */
+    const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_handle);
+
+ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
+
+/* Save a copy of compiled_graph (and related structures) to file(s) in the
+ * directory save_dir_path. Currently, multiple files are saved: the
+ * precompiled graph configuration (save_dir_path/file_name and binary pISA
+ * files (*.bpisa in save_dir_path) for the stencil-processor program kernels.
+ */
+/* TODO(ahalambi): Change this API (or provide a new one) that returns a
+ * binary blob containing all saved state. Application can decide how to use it.
+ */
+ImxError ImxSaveCompiledGraph(
+    const char *save_dir_path,
+    const char *file_name,
+    ImxCompiledGraphHandle compiled_graph  /* in */);
+
+/* Save the given compiled_graph into a unique sub-directory within
+ * save_dir_base_path, with file name "file_name".
+ * Note: This API function is typically used in conjunction with
+ * ImxLoadMatchingPrecompiledGraph
+ */
+ImxError ImxSaveAsUniqueCompiledGraph(
+    const char *save_dir_base_path,
+    const char *file_name,
+    ImxCompiledGraphHandle compiled_graph  /* in */);
+
+/* Load a precompiled graph configuration (and related files) to create an
+ * ImxCompiledGraph object. The prcompiled graph configuration file should be
+ * in the load_dir_path directory and should be named <file_name>.
+ * The supplied transfer_nodes, transfer_node_names, and info input arguments
+ * must be the same as those supplied to the saved precompiled graph (via a
+ * call to ImxSaveCompiledGraph API).
+ */
+ImxError ImxLoadPrecompiledGraph(
+    const char *load_dir_path,
+    const char *file_name,
+    ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
+    /* Input - Parameter name for each xfer node */
+    const char **transfer_node_names,
+    int transfer_node_count,  /* Size of previous two arrays */
+    const ImxCompileGraphInfo *info,
+    ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
+
+/* Find a precompiled graph configuration that matches the given input (
+ * transfer_nodes, parameter settings, etc) by searching within
+ * load_dir_base_path (and sub-directories one level down) and file named
+ * "file_name".
+ * Returns IMX_SUCCESS if a matching precompiled graph configuration was found;
+ * IMX_FAILURE (or another error code) otherwise.
+ * Note: This API function is typically used in conjunction with
+ * ImxSaveAsUniqueCompiledGraph
+ */
+ImxError ImxLoadMatchingPrecompiledGraph(
+    const char *load_dir_base_path,
+    const char *file_name,
+    ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
+    /* Input - Parameter name for each xfer node */
+    const char **transfer_node_names,
+    int transfer_node_count,  /* Size of previous two arrays */
+    const ImxCompileGraphInfo *info,
+    ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
 ImxError ImxDeleteGraph(ImxGraphHandle graph_handle);
 
@@ -518,7 +588,8 @@ typedef enum {
   IMX_CONVERT_NONE = 0,
   IMX_CONVERT_LOWBITS,  /* Raw cast of LSBs.
                          * On downsize, discard extra high bits.
-                         * On upsize, set extra high bits to zero */
+                         * On upsize, set extra high bits to zero
+                         */
   /* others will be added later */
 } ImxConversion;
 
@@ -528,7 +599,8 @@ typedef enum {
   IMX_BORDER_CONSTANT,     /* constant value, as specified in 'border_value' */
   IMX_BORDER_REPEAT_EDGE,  /* Return value of nearest in-bounds edge sample */
   IMX_BORDER_REPEAT_WIDE_EDGE, /* Out of bounds periodically repeats
-                                * 'edge_width' edge pixels in wrap/tile style */
+                                * 'edge_width' edge pixels in wrap/tile style
+                                */
   IMX_kMaxBorderMode
 } ImxBorderMode;
 
@@ -550,10 +622,12 @@ typedef struct ImxBorder {
 typedef struct ImxMipiStreamIdentifier {
   int interface_id;  /* which mipi input or output hardware interface */
   int virtual_channel_id;  /* As defined in MIPI CSI-2 spec;
-                            * valid values: 0..3 */
+                            * valid values: 0..3
+                            */
   int data_type;  /* As defined in Mipi CSI-2 spec; valid values range between
                    * 0x0 - 0x3f. Not all values in range are applicable (e.g.
-                   * some values are reserved for future use) */
+                   * some values are reserved for future use)
+                   */
 } ImxMipiStreamIdentifier;
 
 typedef struct ImxCreateTransferNodeInfo {
@@ -566,7 +640,7 @@ typedef struct ImxCreateTransferNodeInfo {
 } ImxCreateTransferNodeInfo;
 
 ImxError ImxCreateTransferNode(
-    const ImxCreateTransferNodeInfo *info, /* Caller retains ownership of info */
+    const ImxCreateTransferNodeInfo *info,
     ImxNodeHandle *node_handle_ptr);
 
 ImxError ImxDeleteNode(
@@ -578,8 +652,52 @@ ImxError ImxCreateJob(
 
 ImxError ImxDeleteJob(ImxJobHandle job_handle);
 
-ImxError ImxSetLateParameters(ImxJobHandle job, ImxParameterSetting *params,
-                              int num_params);
+ImxError ImxSetLateParameters(
+    ImxJobHandle job,
+    ImxParameterSetting *params,
+    int num_params);
+
+/* TODO(ahalambi): timestamp could be uint64
+ * Requires other timestamps (paintbox.h) to also be unsigned.
+ */
+typedef struct ImxTransferEventStatus {
+  /* Event timestamp, in nanoseconds, using device local boot time.
+   * This may need to be reconciled with global/main time (from AP).
+   */
+  int64_t timestamp_ns;
+  /* Error code, in case of error.
+   * TODO(ahalambi): Standardize and enumerate the error codes. */
+  int error;
+  /* Payload information from the event. Not valid for all nodes. For nodes
+   * representing MIPI input streams this is the frame number.
+   */
+  union {
+    uint16_t frame_number;
+  } event_data;
+} ImxTransferEventStatus;
+
+/* Collect status information (such as timestamp, error code, etc) during
+ * an actual transfer for the given node. The actual transfer (called a
+ * transfer event) may be the transfer of an image frame via MIPI Input, a
+ * DeviceBuffer transferred via DMA, etc. For the specified transfer node,
+ * latest transfer status will be recorded in the given status object.
+ * Set status = nullptr to stop monitoring.
+ *
+ * For MIPI Input transfers, Start-Of-Frame (SOF) timestamp is recorded.
+ * For MIPI Output and DMA transfers, End-Of-Frame (EOF) timestamp is recorded.
+ *
+ * The TransferEventStatus object will be updated by ImxExecuteJob.
+ * Note that the status values are undefined if this object is accessed
+ * *during* the time ImxExecuteJob is active.
+ */
+ImxError ImxSetTransferEventMonitor(
+    ImxJobHandle job,  /* in */
+    ImxNodeHandle node,  /* in */
+    ImxTransferEventStatus *status  /* will be modified later */);
+
+ImxError ImxClearTransferEventMonitor(
+    ImxJobHandle job,  /* in */
+    ImxNodeHandle node  /* in */);
 
 typedef enum ImxMemoryAllocatorType {
   IMX_MEMORY_ALLOCATOR_NONE,
@@ -588,8 +706,7 @@ typedef enum ImxMemoryAllocatorType {
   IMX_MEMORY_ALLOCATOR_DEFAULT  /* Default varies based on target system */
 } ImxMemoryAllocatorType;
 
-/*
- * A general note about the memory-allocator and device-buffer APIs below:
+/* A general note about the memory-allocator and device-buffer APIs below:
  * These APIs are not thread-aware/thread-safe. The user of these APIs must
  * use appropriate synchronization/locking mechanisms based on the usage model.
  * If two or more threads may simultaneously call these APIs on objects that
@@ -597,8 +714,7 @@ typedef enum ImxMemoryAllocatorType {
  * these APIs with appropriate locking mechanisms.
  */
 
-/*
- * MemoryAllocator manages the allocation, mapping and sharing of data buffers
+/* MemoryAllocator manages the allocation, mapping and sharing of data buffers
  * used by IPU (e.g. buffers to store input/output image frames).
  * Currrent supported memory allocators are
  *   1. user-space dynamic memory allocation (available on all systems)
@@ -607,13 +723,12 @@ typedef enum ImxMemoryAllocatorType {
  *      Corresponds to IMX_MEMORY_ALLOCATOR_ION
  *
  * Not thread-safe; see general note on thread-safety above.
-*/
+ */
 ImxError ImxGetMemoryAllocator(
     ImxMemoryAllocatorType allocator_type,
     ImxMemoryAllocatorHandle *memory_allocator_handle_ptr);
 
-/*
- * Get an ION Memory Allocator initialized with a file-descriptor (ion_fd) that
+/* Get an ION Memory Allocator initialized with a file-descriptor (ion_fd) that
  * was already created with a call to ion_open().
  *
  * Not thread-safe; see general note on thread-safety above.
@@ -626,8 +741,7 @@ ImxError ImxGetIonMemoryAllocator(
 ImxError ImxDeleteMemoryAllocator(
     ImxMemoryAllocatorHandle memory_allocator_handle_ptr);
 
-/*
- * Create a device buffer using dynamic memory allocation (i.e. malloc).
+/* Create a device buffer using dynamic memory allocation (i.e. malloc).
  * We assume that malloc is available on all systems. Using malloc'd buffers
  * will result in data copy when the buffer is transferred between CPU and IPU.
  * TODO(ahalambi): Deprecate this API in favor of always using a
@@ -647,8 +761,7 @@ ImxError ImxCreateDeviceBufferSimple(
     int flags,
     ImxDeviceBufferHandle *buffer_handle_ptr);
 
-/*
- * Create a device buffer using preferred allocation strategy of the specified
+/* Create a device buffer using preferred allocation strategy of the specified
  * memory allocator. Currently, the only zero-copy memory allocator supported
  * is ION.
  *
@@ -667,8 +780,7 @@ ImxError ImxCreateDeviceBufferManaged(
     int flags,
     ImxDeviceBufferHandle *buffer_handle_ptr);
 
-/*
- * TODO(ahalambi): Add an API to create an ION DeviceBuffer given a
+/* TODO(ahalambi): Add an API to create an ION DeviceBuffer given a
  * ion handle (or equivalent such as file-descriptor). See b/33843974
  */
 
@@ -676,8 +788,7 @@ ImxError ImxCreateDeviceBufferManaged(
 ImxError ImxDeleteDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle);
 
-/*
- * Lock: Make the buffer ready for use by CPU user-space process.
+/* Lock: Make the buffer ready for use by CPU user-space process.
  * *(vaddr) will hold the mapped virtual address of the buffer.
  * May result in a mmap operation to map a kernel buffer to user-space.
  * Will reuse a previous mapping if it is still valid.
@@ -689,8 +800,7 @@ ImxError ImxLockDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle,
     void **vaddr);
 
-/*
- * Unlock: The buffer is unavailable for use by CPU user-space process.
+/* Unlock: The buffer is unavailable for use by CPU user-space process.
  * After unlocking, the buffer can be used by IPU (to perform DMA transfers).
  * This is the default state of a newly created device buffer.
  * Note: Unlocking does *not* also unmap a previously mmap'd virtual address.
@@ -700,8 +810,7 @@ ImxError ImxLockDeviceBuffer(
 ImxError ImxUnlockDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle);
 
-/*
- * Share: Make the buffer ready to be shared with other user-space processes
+/* Share: Make the buffer ready to be shared with other user-space processes
  * and/or kernel. Note: This API is typically for sharing across processes;
  * among threads within the same process, share the buffer_handle instead.
  * (*fd) will hold the file-descriptor that can be passed to the other processes
@@ -720,8 +829,7 @@ ImxError ImxShareDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle,
     int *fd);
 
-/*
- * Import: Create a buffer handle for an imported buffer (which was shared by
+/* Import: Create a buffer handle for an imported buffer (which was shared by
  * another process). This API will create a new device buffer
  * with access to the shared content (without copying to another location).
  * fd is the file-descriptor that was shared by another process. This fd is
@@ -748,8 +856,7 @@ ImxError ImxFinalizeBuffers(
     const ImxFinalizeBufferInfo *info, /* in */
     int num_info);
 
-/*
- * TODO(ahalambi): Consolidate the two API functions (below) for executing a
+/* TODO(ahalambi): Consolidate the two API functions (below) for executing a
  * job into a single function that takes a timeout argument. Also provide a
  * "default" value for the timeout.
  */
@@ -757,8 +864,7 @@ ImxError ImxFinalizeBuffers(
 ImxError ImxExecuteJob(
     ImxJobHandle job /* modified */);
 
-/*
- * timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
+/* timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
  * If job execution time exceeds timeout, the job is terminated and
  * IMX_TIMEOUT is returned.
  */
