@@ -103,7 +103,7 @@ echo -e "\e[1;34m** Building libgcam library\e[00m"
 
 pushd ${GOOGLE3_GCAM_FULL_PATH}
 
-blaze build --config=android_arm64 --define prod=1 -c opt ${GOOGLE3_GCAM_TARGET}
+blaze build --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
   popd
