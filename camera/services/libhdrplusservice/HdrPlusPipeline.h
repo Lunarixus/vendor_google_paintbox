@@ -139,7 +139,8 @@ private:
     HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messengerToClient);
 
     // Default number of buffers in input stream.
-    const int kDefaultNumInputBuffers = 10;
+    // TODO(b/35848231): Increase this back to 10 after Easel memory leak is fixed.
+    const int kDefaultNumInputBuffers = 4;
 
     // Default number of buffers in output streams.
     const int kDefaultNumOutputBuffers = 3;
