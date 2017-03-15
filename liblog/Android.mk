@@ -15,8 +15,10 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 # liblog on easel.
 # Named as libeasellog to avoid name conflict.
 # This library may be later moved out of Android source tree.
-LOCAL_MODULE:= libeasellog
+LOCAL_MODULE_OWNER := google
 
-LOCAL_C_INCLUDES := $(DEBUGGERD_INCLUDES)
+LOCAL_MODULE := libeasellog
+
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)

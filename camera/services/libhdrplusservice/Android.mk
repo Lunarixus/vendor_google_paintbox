@@ -43,7 +43,10 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 # These are needed to ignore warnings from third_party/halide/halide/src/runtime/HalideBuffer.h
 LOCAL_CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter
 
+LOCAL_MODULE_OWNER := google
+
 LOCAL_MODULE:= libhdrplusservice
 LOCAL_MULTILIB := 64
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)

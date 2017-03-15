@@ -16,6 +16,10 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES:= libhdrplusservice
 
+LOCAL_MODULE_OWNER := google
+
 LOCAL_MODULE:= pbserver
+
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_EXECUTABLE)
