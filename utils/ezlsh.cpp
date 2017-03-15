@@ -2,17 +2,21 @@
 
 #include <thread>
 
+#include <algorithm>
 #include <assert.h>
 #include <condition_variable>
+#include <dirent.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <limits.h>
 #include <pthread.h>
 #include <pty.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string>
+#include <sstream>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -33,6 +37,8 @@ enum Command {
     CMD_PULL_RESPONSE, // Pull file Easel-side response
     CMD_PUSH_REQUEST,  // Request push file to Easel
     CMD_PUSH_RESPONSE, // Push file Easel-side response
+    CMD_LS_REQUEST,    // Request ls directory in Easel
+    CMD_LS_RESPONSE,   // Response ls diretory from Easel
 };
 
 // Common message header for all messages containing the command and data len
@@ -94,6 +100,20 @@ struct FilePushResponse {
         {};
 };
 
+struct FileLsRequest {
+    struct MsgHeader h;
+    char path[PATH_MAX];
+    FileLsRequest(): h(CMD_LS_REQUEST, 0) {};
+};
+
+struct FileLsResponse {
+    struct MsgHeader h;
+    int response_code;
+    // 4kb buffer
+    char files[PATH_MAX * 4];
+    FileLsResponse(): h(CMD_LS_RESPONSE, sizeof(response_code)) {};
+};
+
 // Local tty/pty file descriptor
 int tty_fd;
 
@@ -115,6 +135,12 @@ std::mutex file_xfer_lock;              // protects following fields
 bool file_xfer_done = false;            // is file transfer done?
 std::condition_variable file_xfer_cond; // signals transfer done to waiter
 
+char *file_recursive_path_remote;              // remote file path
+char *file_recursive_path_local;               // local file path
+std::mutex file_recursive_lock;                // protects following fields
+bool file_recursive_done = false;              // is ls transfer done?
+std::condition_variable file_recursive_cond;   // signals ls done to waiter
+
 void client_exit(int exitcode) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
     fprintf(stderr, "\rezlsh exiting\n");
@@ -129,6 +155,15 @@ void client_xfer_done() {
         file_xfer_done = true;
     }
     file_xfer_cond.notify_one();
+}
+
+void client_recursive_done() {
+    // File transfer done, wake up main thread
+    {
+        std::lock_guard<std::mutex> lslock(file_recursive_lock);
+        file_recursive_done = true;
+    }
+    file_recursive_cond.notify_one();
 }
 
 // Client receives file push response.
@@ -194,6 +229,33 @@ void client_pull_response_handler(EaselComm::EaselMessage *msg) {
     client_xfer_done();
 }
 
+const static std::string kFileSeparator = "/";
+void client_pull_file(char *remote_path, char *dest_arg);
+
+void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
+    FileLsResponse *resp = (FileLsResponse *)msg->message_buf;
+    std::string files_string(resp->files);
+    if (resp->response_code != 0) {
+        fprintf(stderr, "ezlsh: %s: %s\n", file_recursive_path_remote,
+                "Not a directory.");
+    } else {
+        // Prints to stderr.
+        std::string files(resp->files);
+        std::stringstream ss;
+        ss.str(files);
+        std::string file;
+        while (std::getline(ss, file, '\n')) {
+            std::string remote = std::string(file_recursive_path_remote) + kFileSeparator + file;
+            std::string local = std::string(file_recursive_path_local) + kFileSeparator + file;
+            fprintf(stderr, "Pulling %s as %s\n", file.c_str(), local.c_str());
+            std::string mkdir = "mkdir -p " + std::string(dirname(local.c_str()));
+            system(mkdir.c_str());
+            client_pull_file(const_cast<char*>(remote.c_str()), const_cast<char*>(local.c_str()));
+        }
+    }
+    client_recursive_done();
+}
+
 // Client incoming message handler
 void client_message_handler() {
     bool close_conn = false;
@@ -233,6 +295,10 @@ void client_message_handler() {
 
             case CMD_PULL_RESPONSE:
                 client_pull_response_handler(&msg);
+                break;
+
+            case CMD_LS_RESPONSE:
+                client_pull_recursive_response_handler(&msg);
                 break;
 
             default:
@@ -317,10 +383,6 @@ void client_pull_file(char *remote_path, char *dest_arg) {
         file_xfer_path_local = basename(local_path_str);
     }
 
-    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-    assert(ret == 0);
-    easel_comm_client.flush();
-
     std::thread *msg_handler_thread;
     msg_handler_thread = new std::thread(client_message_handler);
     if (msg_handler_thread == nullptr) {
@@ -337,10 +399,11 @@ void client_pull_file(char *remote_path, char *dest_arg) {
     msg.message_buf_size = sizeof(MsgHeader) + pull_msg.h.datalen;
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
-    easel_comm_client.sendMessage(&msg);
 
     // Wait for transfer done
     std::unique_lock<std::mutex> lk(file_xfer_lock);
+    file_xfer_done = false;
+    easel_comm_client.sendMessage(&msg);
     file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
 
     free(local_path_str);
@@ -395,11 +458,55 @@ void client_push_file(char *local_path, char *remote_path) {
     msg.message_buf_size = sizeof(MsgHeader) + push_msg.h.datalen;
     msg.dma_buf = file_data;
     msg.dma_buf_size = data_len;
-    easel_comm_client.sendMessage(&msg);
 
     // Wait for transfer done
     std::unique_lock<std::mutex> lk(file_xfer_lock);
+    file_xfer_done = false;
+    easel_comm_client.sendMessage(&msg);
     file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
+}
+
+// Client file ls command processing. Send ls request and wait for
+// incoming message handler to process the response from server.
+void client_pull_recursive_file(char *remote_path, char *dest_arg) {
+    file_recursive_path_remote = remote_path;
+    char *local_path_str;
+
+    if (dest_arg) {
+        local_path_str = strdup(dest_arg);
+    } else {
+        local_path_str = strdup(".");
+    }
+    file_recursive_path_local = local_path_str;
+
+    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
+    assert(ret == 0);
+    easel_comm_client.flush();
+
+    std::thread *msg_handler_thread;
+    msg_handler_thread = new std::thread(client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+        client_exit(1);
+    }
+
+    // Send request
+    FileLsRequest ls_msg;
+    strlcpy(ls_msg.path, remote_path, PATH_MAX);
+    ls_msg.h.datalen = strlen(ls_msg.path) + 1;
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &ls_msg;
+    msg.message_buf_size = sizeof(MsgHeader) + ls_msg.h.datalen;
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+
+    // Wait for transfer done
+    std::unique_lock<std::mutex> lk(file_recursive_lock);
+    file_recursive_done = false;
+    easel_comm_client.sendMessage(&msg);
+    file_recursive_cond.wait(lk, [&]{return file_recursive_done;});
+
+    free(local_path_str);
 }
 
 void server_kill_shell() {
@@ -564,6 +671,53 @@ void server_pull_file(FilePullRequest *req) {
     close(fd);
 }
 
+static void list_dir_recursive(
+        const std::string &root_path,
+        const std::string &dir_path,
+        std::string *files) {
+    DIR *dir;
+    struct dirent *entry;
+    dir = opendir((root_path + dir_path).c_str());
+    if (dir == NULL) {
+        return;
+    } else {
+        while ((entry = readdir(dir)) != NULL) {
+            std::string entry_name(entry->d_name);
+            if (entry_name != "." && entry_name != "..") {
+                if (entry->d_type == DT_DIR) {
+                    list_dir_recursive(root_path, dir_path + kFileSeparator + entry_name, files);
+                } else if (entry->d_type == DT_REG) {
+                    if (dir_path.empty()) {
+                        *files += entry_name + "\n";
+                    } else {
+                        *files += dir_path + kFileSeparator + entry_name + "\n";
+                    }
+                }
+            }
+        }
+    }
+    closedir(dir);
+}
+
+// Server receives file ls request, send file list back.
+void server_ls_file(FileLsRequest *req) {
+    FileLsResponse ls_resp;
+    memset(ls_resp.files, 0, sizeof(ls_resp.files));
+
+    std::string files;
+    list_dir_recursive(std::string(req->path), "", &files);
+    files.copy(ls_resp.files, sizeof(ls_resp.files) - 1, 0);
+    ls_resp.response_code = 0;
+
+    EaselComm::EaselMessage msg;
+    ls_resp.h.datalen += strlen(ls_resp.files) + 1;
+    msg.message_buf = &ls_resp;
+    msg.message_buf_size = sizeof(MsgHeader) + ls_resp.h.datalen;
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    easel_comm_server.sendMessage(&msg);
+}
+
 void server_run(bool flush) {
     int ret;
 
@@ -617,6 +771,10 @@ void server_run(bool flush) {
 
             case CMD_PULL_REQUEST:
                 server_pull_file((FilePullRequest *)msg.message_buf);
+                break;
+
+            case CMD_LS_REQUEST:
+                server_ls_file((FileLsRequest *)msg.message_buf);
                 break;
 
             default:
@@ -684,7 +842,7 @@ int main(int argc, char **argv) {
                 remote_path = argv[optind];
                 if (++optind < argc)
                     local_path = argv[optind];
-                client_pull_file(remote_path, local_path);
+                client_pull_recursive_file(remote_path, local_path);
 
             } else if (!strcmp(argv[optind], "push")) {
                 char *remote_path;
