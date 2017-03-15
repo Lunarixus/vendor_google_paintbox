@@ -22,24 +22,8 @@ PRODUCT_PACKAGES += \
     easel/mnh.dtb \
     easel/ramdisk.img
 
-# vendor/google_paintbox
-PRODUCT_PACKAGES += \
-    libgcam \
-    libimageprocessor \
-    libcapture \
-    libmipimux \
-    pbserver \
-    libhdrplusservice \
-    libeasellog
-
-# hardware/google/paintbox
-PRODUCT_PACKAGES += \
-    libhdrplusclient \
-    libhdrplusmessenger
-
 # Add ezlsh in userdebug and eng builds
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
-    ezlsh \
-    hdrplusclientest
+    ezlsh
 endif
