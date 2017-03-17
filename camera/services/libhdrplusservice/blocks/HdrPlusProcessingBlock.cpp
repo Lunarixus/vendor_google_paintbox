@@ -2,6 +2,8 @@
 #define LOG_TAG "HdrPlusProcessingBlock"
 #include "Log.h"
 
+#define ENABLE_HDRPLUS_PROFILER 1
+
 #include <inttypes.h>
 #include <stdlib.h>
 #include <system/graphics.h>
@@ -181,6 +183,8 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         shotParams.flash_mode = gcam::FlashMode::kOff;
     }
 
+    START_PROFILER_TIMER(shotCapture->timer);
+
     // camera_id is always 0 because we only set 1 static metadata in GCAM for current camera
     // which could be rear or front camera.
     gcam::IShot* shot = mGcam->StartShotCapture(/*camera_id*/0, shotCapture->burstId,
@@ -334,6 +338,8 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
             sourceCaptureBlock->resume();
         }
     }
+
+    END_PROFILER_TIMER(finishingShot->timer);
 
     OutputResult outputResult = finishingShot->outputRequest;
 

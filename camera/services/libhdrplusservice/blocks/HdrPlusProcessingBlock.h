@@ -5,6 +5,8 @@
 #include "PipelineBlock.h"
 #include "SourceCaptureBlock.h"
 
+#include "HdrPlusProfiler.h"
+
 #include <stdlib.h>
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam.h"
 #include "system/camera_metadata_tags.h"
@@ -100,6 +102,8 @@ private:
         OutputRequest outputRequest;
         // A list of payload frame data.
         std::deque<std::shared_ptr<PayloadFrame>> frames;
+
+        DECLARE_PROFILER_TIMER(timer, "HDR+ Processing");
     };
 
     // Callback invoked when Gcam releases an input image.

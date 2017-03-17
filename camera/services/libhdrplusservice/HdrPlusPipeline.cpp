@@ -99,13 +99,51 @@ status_t HdrPlusPipeline::configure(const InputConfiguration &inputConfig,
 
     // Now pipeline is configured, updated the state.
     mState = STATE_STOPPED;
+    return 0;
+}
 
-    // Start running the pipeline.
-    res = startRunningPipelineLocked();
-    if (res != 0) {
-        ALOGE("%s: Starting running pipeline failed: %s (%d)", __FUNCTION__, strerror(-res), res);
-        destroyLocked();
-        return -ENODEV;
+status_t HdrPlusPipeline::setZslHdrPlusMode(bool enabled) {
+    std::unique_lock<std::mutex> lock(mApiLock);
+    if (enabled) {
+        // Start running pipeline.
+        switch (mState) {
+            case STATE_UNCONFIGURED:
+                ALOGE("%s: Pipeline is not configured.", __FUNCTION__);
+                return -ENODEV;
+            case STATE_RUNNING:
+                return 0;
+            case STATE_STOPPED:
+                return startRunningPipelineLocked();
+            case STATE_STOPPING:
+                // This should not happen because STATE_STOPPING is a transient state in
+                // stopPipelineLocked
+                ALOGE("%s: Cannot enable ZSL HDR+ mode when pipeline is stopping.", __FUNCTION__);
+                return -EINVAL;
+            default:
+                ALOGE("%s: Pipeline is in an unknown state: %d.", __FUNCTION__,
+                        mState);
+                return -EINVAL;
+        }
+    } else {
+        // Stop the pipeline.
+        switch (mState) {
+            case STATE_UNCONFIGURED:
+                ALOGE("%s: Pipeline is not configured.", __FUNCTION__);
+                return -ENODEV;
+            case STATE_RUNNING:
+                return stopPipelineLocked();
+            case STATE_STOPPED:
+                return 0;
+            case STATE_STOPPING:
+                // This should not happen because STATE_STOPPING is a transient state in
+                // stopPipelineLocked
+                ALOGE("%s: Cannot disable ZSL HDR+ mode when pipeline is stopping.", __FUNCTION__);
+                return -EINVAL;
+            default:
+                ALOGE("%s: Pipeline is in an unknown state: %d.", __FUNCTION__,
+                        mState);
+                return -EINVAL;
+        }
     }
 
     return 0;
@@ -131,70 +169,55 @@ status_t HdrPlusPipeline::stopPipelineLocked() {
         return -ENODEV;
     }
 
-    ALOGV("%s: All blocks stopped.", __FUNCTION__);
-
     mState = STATE_STOPPED;
+
+    ALOGI("%s: HDR+ pipeline is stopped.", __FUNCTION__);
     return 0;
 }
 
 status_t HdrPlusPipeline::startRunningPipelineLocked() {
-    switch (mState) {
-        case STATE_UNCONFIGURED:
-            ALOGE("%s: Pipeline is not configured.", __FUNCTION__);
-            return -ENODEV;
-        case STATE_RUNNING:
-            return 0;
-        case STATE_STOPPED:
-            // Start the pipeline.
-            {
-                status_t res = 0;
+    status_t res = 0;
 
-                // Send all buffers in the input stream to its first block.
-                PipelineBuffer *buffer = nullptr;
-                while (mInputStream->getBuffer(&buffer, /*timeoutMs*/ 0) == 0) {
-                    PipelineBlock::OutputRequest outputRequest = {};
-                    outputRequest.buffers.push_back(buffer);
-                    outputRequest.route = mInputStreamRoute;
-                    auto block = getNextBlockLocked(outputRequest);
-                    if (block == nullptr) {
-                        ALOGE("%s: Could not find the starting block for input stream.",
-                                __FUNCTION__);
-                        mInputStream->returnBuffer(buffer);
-                        return -ENOENT;
-                    }
+    // Send all buffers in the input stream to its first block.
+    PipelineBuffer *buffer = nullptr;
+    while (mInputStream->getBuffer(&buffer, /*timeoutMs*/ 0) == 0) {
+        PipelineBlock::OutputRequest outputRequest = {};
+        outputRequest.buffers.push_back(buffer);
+        outputRequest.route = mInputStreamRoute;
+        auto block = getNextBlockLocked(outputRequest);
+        if (block == nullptr) {
+            ALOGE("%s: Could not find the starting block for input stream.",
+                    __FUNCTION__);
+            mInputStream->returnBuffer(buffer);
+            return -ENOENT;
+        }
 
-                    res = block->queueOutputRequest(&outputRequest);
-                    if (res != 0) {
-                        ALOGE("%s: Couldn't queue a request to %s: %s (%d).", __FUNCTION__,
-                                block->getName(), strerror(-res), res);
-                        abortRequest(&outputRequest);
-                        return res;
-                    }
-                }
-
-                // Set the pipeline state to running before running blocks because blocks can
-                // start sending buffers back immedidately.
-                mState = STATE_RUNNING;
-
-                // Start running all blocks.
-                for (auto block : mBlocks) {
-                    res = block->run();
-                    if (res != 0) {
-                        ALOGE("%s: Starting block %s failed: %s (%d).", __FUNCTION__,
-                                block->getName(), strerror(-res), res);
-                        stopPipelineLocked();
-                        return res;
-                    }
-                }
-
-                return 0;
-            }
-            break;
-        default:
-            ALOGE("%s: Pipeline is in an unknown state: %d.", __FUNCTION__,
-                    mState);
-            return -EINVAL;
+        res = block->queueOutputRequest(&outputRequest);
+        if (res != 0) {
+            ALOGE("%s: Couldn't queue a request to %s: %s (%d).", __FUNCTION__,
+                    block->getName(), strerror(-res), res);
+            abortRequest(&outputRequest);
+            return res;
+        }
     }
+
+    // Set the pipeline state to running before running blocks because blocks can
+    // start sending buffers back immedidately.
+    mState = STATE_RUNNING;
+
+    // Start running all blocks.
+    for (auto block : mBlocks) {
+        res = block->run();
+        if (res != 0) {
+            ALOGE("%s: Starting block %s failed: %s (%d).", __FUNCTION__,
+                    block->getName(), strerror(-res), res);
+            stopPipelineLocked();
+            return res;
+        }
+    }
+
+    ALOGI("%s: HDR+ pipeline is running.", __FUNCTION__);
+    return 0;
 }
 
 void HdrPlusPipeline::destroyLocked() {
