@@ -204,8 +204,9 @@ struct ShotLogData {
   float time_to_shot;       // In seconds.
   float time_to_postview;   // In seconds.
 
-  // Indicates whether Hexagon was used to process the shot.
+  // Indicates whether Hexagon or IPU were used to process the shot.
   bool used_hexagon;
+  bool used_ipu;
 };
 
 // Fill in the AE-related fields of ShotLogData from AeResults.

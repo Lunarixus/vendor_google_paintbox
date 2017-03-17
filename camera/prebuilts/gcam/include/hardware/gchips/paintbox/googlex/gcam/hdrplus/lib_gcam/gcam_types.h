@@ -63,10 +63,12 @@ enum class Stage : int {
   kStageCount,
 };
 
+// These enums only apply to the finish pipe
 enum ExecuteOn: int {
   kExecuteOnCpu = 0,
   kExecuteOnHexagon,
-  kExecuteOnIpu
+  kExecuteOnIpu,
+  kExecuteOnIpuStriped,  // IPU execution with striping.
 };
 
 
