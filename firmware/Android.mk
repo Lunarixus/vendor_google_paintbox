@@ -16,16 +16,6 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := easel/bl1.bin
-LOCAL_SRC_FILES := bl1.bin
-LOCAL_MODULE_OWNER := google
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
-
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-
 LOCAL_MODULE := easel/fip.bin
 LOCAL_SRC_FILES := fip.bin
 LOCAL_MODULE_OWNER := google

@@ -16,7 +16,6 @@
 
 # Easel firmware images
 PRODUCT_PACKAGES += \
-    easel/bl1.bin \
     easel/fip.bin \
     easel/Image \
     easel/mnh.dtb \
