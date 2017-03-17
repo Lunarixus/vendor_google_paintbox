@@ -26,6 +26,7 @@
 #define LOG_BUF_SIZE 1024
 #define TIMESTAMP_BUF_SIZE 30
 #define LOG_LEVEL_ENV "LOG_LEVEL"
+#define LOG_CONSOLE_ENV "LOG_TO_CONSOLE"
 #define LOG_LEVEL_DEFAULT ANDROID_LOG_INFO
 
 static std::vector<std::string> PRIO_LIST = {
@@ -50,19 +51,36 @@ static std::unordered_map<std::string, int> PRIO_MAP = {
   {"FATAL", ANDROID_LOG_FATAL},
   {"SILENT", ANDROID_LOG_SILENT}};
 
+static std::string getEnv(const char* env_name) {
+  char* env_value = std::getenv(env_name);
+  if (env_value == nullptr) {
+    return "";
+  }
+  return std::string(env_value);
+}
+
 static int getLogLevel() {
-  char* log_level = std::getenv(LOG_LEVEL_ENV);
-  if (log_level == nullptr) {
+  std::string level = getEnv(LOG_LEVEL_ENV);
+  if (level.empty()) {
     return LOG_LEVEL_DEFAULT;
   }
-  std::string level_string(log_level);
-  if (PRIO_MAP.count(level_string) == 0) {
+
+  if (PRIO_MAP.count(level) == 0) {
     return LOG_LEVEL_DEFAULT;
   }
-  return PRIO_MAP[level_string];
+  return PRIO_MAP[level];
+}
+
+static bool logToConsole() {
+  std::string log_to_console = getEnv(LOG_CONSOLE_ENV);
+  if (log_to_console == "false") {
+    return false;
+  }
+  return true;
 }
 
 static const int kLogLevel = getLogLevel();
+static const bool kLogToConsole = logToConsole();
 
 static void getTimestamp(char* timestamp, size_t size) {
   struct timeval tv;
@@ -89,10 +107,13 @@ int __android_log_write(int prio, const char* tag, const char *text) {
   if (prio < 0 || prio >= (int)PRIO_LIST.size()) {
     prio = ANDROID_LOG_UNKNOWN;
   }
-  char timestamp[TIMESTAMP_BUF_SIZE];
-  getTimestamp(timestamp, TIMESTAMP_BUF_SIZE);
-  // Prints to stdout.
-  printf("%s  <%s> %s: %s\n", timestamp, PRIO_LIST[prio].c_str(), tag, text);
+
+  if (kLogToConsole) {
+    char timestamp[TIMESTAMP_BUF_SIZE];
+    getTimestamp(timestamp, TIMESTAMP_BUF_SIZE);
+    // Prints to stdout.
+    fprintf(stderr, "%s  <%s> %s: %s\n", timestamp, PRIO_LIST[prio].c_str(), tag, text);
+  }
 
   char buf[LOG_BUF_SIZE];
   // TODO(cjluo): Currently easel and AP timestamp syncing is not accurate.
