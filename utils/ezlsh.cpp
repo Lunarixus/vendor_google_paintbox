@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <condition_variable>
 #include <fcntl.h>
+#include <getopt.h>
 #include <limits.h>
 #include <pthread.h>
 #include <pty.h>
@@ -563,12 +564,14 @@ void server_pull_file(FilePullRequest *req) {
     close(fd);
 }
 
-void server_run() {
+void server_run(bool flush) {
     int ret;
 
     ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
     assert(ret == 0);
-    easel_comm_server.flush();
+    if (flush) {
+        easel_comm_server.flush();
+    }
 
     while (true) {
         EaselComm::EaselMessage msg;
@@ -632,17 +635,35 @@ void server_run() {
 int main(int argc, char **argv) {
     int ch;
     int client = 1;
+    int server_needs_flush = 0;  // 0 is not to flush.  Default is 0.
 
-    while ((ch = getopt(argc, argv, "d")) != -1) {
+    const char *short_opt = "dh";
+    struct option long_opt[] =
+        {
+          {"daemon",  no_argument,   0, 'd'},
+          {"flush",   no_argument,   &server_needs_flush, 1},
+          {"help",    no_argument,   0, 'h'},
+          {0, 0, 0, 0}
+        };
+
+    while ((ch = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
         switch (ch) {
+          case 0:
+            /* getopt_long() set a value */
+            break;
           case 'd':
             client = 0;
             break;
+          case 'h':
+            /* FALLTHRU */
+            ;
           default:
             fprintf(stderr,
-                    "Usage: server: ezlsh -d\n");
+                    "Usage: server: ezlsh <-d|--daemon> [--flush]\n");
             fprintf(stderr,
-                    "       client: ezlsh [pull <remote-path> [<local-path>]\n"
+                    "       client: ezlsh\n"
+                    "       client: ezlsh pull <remote-path> [<local-path>]\n"
+                    "       client: ezlsh push <local-path> <remote-path>\n"
                     );
             exit(1);
         }
@@ -695,6 +716,6 @@ int main(int argc, char **argv) {
             shell_client_session();
         }
     } else {
-        server_run();
+        server_run(server_needs_flush);
     }
 }
