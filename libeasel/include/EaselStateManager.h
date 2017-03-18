@@ -22,12 +22,20 @@ public:
             ESL_MIPI_RX_CHAN_0,
             ESL_MIPI_RX_CHAN_1,
             ESL_MIPI_RX_CHAN_2,
+            ESL_MIPI_RX_IPU,
         } rxChannel;
 
         enum {
             ESL_MIPI_TX_CHAN_0,
             ESL_MIPI_TX_CHAN_1,
+            ESL_MIPI_TX_IPU,
         } txChannel;
+
+        enum {
+            ESL_MIPI_MODE_BYPASS,
+            ESL_MIPI_MODE_BYPASS_W_IPU,
+            ESL_MIPI_MODE_FUNCTIONAL,
+        } mode;
 
         int rxRate;
         int txRate;
@@ -77,7 +85,7 @@ public:
     int setState(enum State state, bool blocking = true);
 
     /*
-     * Blocking poll for state transition.
+     * Blocks until state is reached.
      *
      * state: desired state.
      *

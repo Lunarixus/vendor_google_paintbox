@@ -194,6 +194,9 @@ int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int ra
 
     ALOGI("%s: camera %d, rate %d\n", __FUNCTION__, camera, rate);
 
+    // TODO (b/36537557): intercept here to add functional mode
+    config.mode = EaselStateManager::EaselMipiConfig::ESL_MIPI_MODE_BYPASS;
+
     if (camera == EaselControlClient::MAIN) {
         config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_0;
         config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_0;

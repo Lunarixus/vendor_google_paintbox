@@ -43,8 +43,8 @@ int EaselStateManager::startMipi(struct EaselMipiConfig *config)
         .rxdev = config->rxChannel,
         .rx_rate = config->rxRate,
         .tx_rate = config->txRate,
+        .mode = config->mode,
         .vc_en_mask = MNH_MIPI_VC_ALL_EN_MASK,
-        .is_gen3 = 1,
     };
 
     if (ioctl(mFd, MNH_SM_IOC_CONFIG_MIPI, &mnhConfig) == -1)
@@ -58,7 +58,6 @@ int EaselStateManager::stopMipi(struct EaselMipiConfig *config)
     struct mnh_mipi_config mnhConfig = {
         .txdev = config->txChannel,
         .rxdev = config->rxChannel,
-        .is_gen3 = 1,
     };
 
     if (ioctl(mFd, MNH_SM_IOC_STOP_MIPI, &mnhConfig) == -1)
