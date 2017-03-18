@@ -199,6 +199,15 @@ struct InitParams {
   // Allow Gcam to use the IPU to accelerate processing.
   bool use_ipu;
 
+  // Explicit control for blacklevel correct. Setting this to false will disable
+  // TODO(ameixner) Remove this once we're done with Easel bring-up
+  bool correct_blacklevel;
+
+  // Explicit control for flare detection. Setting this to false will disable
+  // TODO(ameixner) Remove this once we're done with Easel bring-up
+  bool detect_flare;
+
+
   // Whether to allow two different shots to simultaneously *execute* in the
   //   merge and finish stages.
   // This is mainly for devices where you plan to use (for example) HVX for
