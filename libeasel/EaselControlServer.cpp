@@ -3,17 +3,23 @@
 #include <thread>
 
 #include <assert.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
 
 #define NSEC_PER_SEC    1000000000ULL
+
+// sysfs file to initiate kernel suspend
+#define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
+#define KERNEL_SUSPEND_STRING      "mem"
 
 namespace {
 // Our EaselComm server object.  Mock uses the the network version.
@@ -95,10 +101,24 @@ void *msgHandlerThread() {
             }
             break;
 
-        case EaselControlImpl::CMD_DEACTIVATE:
+        case EaselControlImpl::CMD_DEACTIVATE: {
             // Invalidate current timesync value
             timesync_ap_boottime = 0;
+
+            // Send command to suspend the kernel
+            int fd = open(KERNEL_SUSPEND_SYS_FILE, O_WRONLY);
+            char buf[] = KERNEL_SUSPEND_STRING;
+
+            if (fd >= 0) {
+                write(fd, buf, strlen(buf));
+                close(fd);
+            } else {
+                fprintf(stderr,
+                        "easelcontrol: could not open power management sysfs file\n");
+            }
+
             break;
+        }
 
         default:
             fprintf(stderr, "ERROR: unrecognized command %d\n", h->command);
