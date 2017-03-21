@@ -15,6 +15,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -325,10 +326,29 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
 /*
  * Open communications, register the Easel service ID.
  */
-int EaselCommClient::open(int service_id) {
-    mEaselCommFd = ::open(kEaselCommDevPathClient, O_RDWR);
-    if (mEaselCommFd == -1)
-        return -errno;
+int EaselCommClient::open(int service_id, long timeout_ms) {
+    struct timespec begin;
+    clock_gettime(CLOCK_MONOTONIC, &begin);
+
+    while (1) {
+        long diff_ms;
+        struct timespec now;
+
+        mEaselCommFd = ::open(kEaselCommDevPathClient, O_RDWR);
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        diff_ms = (now.tv_sec - begin.tv_sec) * 1000
+                  + (now.tv_nsec - begin.tv_nsec) / 1000000;
+
+        if (mEaselCommFd > 0) {
+            break;
+        }
+        if (diff_ms > timeout_ms) {
+            return -ETIME;
+        }
+        usleep(1000);   // Sleep for 1 ms to reduce retry attempts
+    }
+
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
         int ret = -errno;
         ::close(mEaselCommFd);
@@ -338,7 +358,7 @@ int EaselCommClient::open(int service_id) {
     return 0;
 }
 
-int EaselCommServer::open(int service_id) {
+int EaselCommServer::open(int service_id, __unused long timeout_ms) {
     mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
     if (mEaselCommFd == -1)
         return -errno;

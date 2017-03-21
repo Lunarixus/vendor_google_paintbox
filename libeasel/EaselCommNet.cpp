@@ -672,7 +672,7 @@ int EaselCommNet::receiveDMA(const EaselMessage *msg) {
  * Open communications, register the Easel service ID.  Still need to
  * connect().
  */
-int EaselCommClientNet::open(int service_id) {
+int EaselCommClientNet::open(int service_id, __unused long timeout_ms) {
     mServiceId = service_id;
     reinit();
     return 0;
@@ -767,7 +767,7 @@ int EaselCommServerNet::waitForClientConnect() {
  * Initialize communication, register Easel service ID, wait for client
  * connection.
  */
-int EaselCommServerNet::open(int service_id) {
+int EaselCommServerNet::open(int service_id, __unused long timeout_ms) {
     mServiceId = service_id;
     mShuttingDown = false;
 
