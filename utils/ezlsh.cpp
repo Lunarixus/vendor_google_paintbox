@@ -108,10 +108,7 @@ struct FileLsRequest {
 
 struct FileLsResponse {
     struct MsgHeader h;
-    int response_code;
-    // 4kb buffer
-    char files[PATH_MAX * 4];
-    FileLsResponse(): h(CMD_LS_RESPONSE, sizeof(response_code)) {};
+    FileLsResponse(): h(CMD_LS_RESPONSE, 0) {};
 };
 
 // Local tty/pty file descriptor
@@ -233,26 +230,45 @@ const static std::string kFileSeparator = "/";
 void client_pull_file(char *remote_path, char *dest_arg);
 
 void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
-    FileLsResponse *resp = (FileLsResponse *)msg->message_buf;
-    std::string files_string(resp->files);
-    if (resp->response_code != 0) {
-        fprintf(stderr, "ezlsh: %s: %s\n", file_recursive_path_remote,
-                "Not a directory.");
-    } else {
-        // Prints to stderr.
-        std::string files(resp->files);
-        std::stringstream ss;
-        ss.str(files);
-        std::string file;
-        while (std::getline(ss, file, '\n')) {
-            std::string remote = std::string(file_recursive_path_remote) + kFileSeparator + file;
-            std::string local = std::string(file_recursive_path_local) + kFileSeparator + file;
-            fprintf(stderr, "Pulling %s as %s\n", file.c_str(), local.c_str());
-            std::string mkdir = "mkdir -p " + std::string(dirname(local.c_str()));
-            system(mkdir.c_str());
-            client_pull_file(const_cast<char*>(remote.c_str()), const_cast<char*>(local.c_str()));
-        }
+
+    if (msg->dma_buf_size == 0) {
+        fprintf(stderr, "ezlsh: %s: no file found\n", __FUNCTION__);
+        return;
     }
+
+    char *files_buffer = (char *)malloc(msg->dma_buf_size);
+    if (files_buffer == NULL) {
+        fprintf(stderr, "ezlsh: %s: malloc failed", __FUNCTION__);
+        // Discard DMA transfer
+        msg->dma_buf = nullptr;
+        msg->dma_buf_size = 0;
+        easel_comm_client.receiveDMA(msg);
+        return;
+    }
+
+    msg->dma_buf = files_buffer;
+    int ret = easel_comm_client.receiveDMA(msg);
+
+    if (ret) {
+        fprintf(stderr, "ezlsh: %s: EaselComm receiveDMA failed errno %d", __FUNCTION__, ret);
+        free(files_buffer);
+        return;
+    }
+
+    // Pull files recursive.
+    std::stringstream ss;
+    ss << files_buffer;
+    free(files_buffer);
+    std::string file;
+    while (std::getline(ss, file, '\n')) {
+        std::string remote = std::string(file_recursive_path_remote) + kFileSeparator + file;
+        std::string local = std::string(file_recursive_path_local) + kFileSeparator + file;
+        fprintf(stderr, "Pulling %s as %s\n", file.c_str(), local.c_str());
+        std::string mkdir = "mkdir -p " + std::string(dirname(local.c_str()));
+        system(mkdir.c_str());
+        client_pull_file(const_cast<char*>(remote.c_str()), const_cast<char*>(local.c_str()));
+    }
+
     client_recursive_done();
 }
 
@@ -674,7 +690,7 @@ void server_pull_file(FilePullRequest *req) {
 static void list_dir_recursive(
         const std::string &root_path,
         const std::string &dir_path,
-        std::string *files) {
+        std::stringstream &files) {
     DIR *dir;
     struct dirent *entry;
     dir = opendir((root_path + dir_path).c_str());
@@ -688,9 +704,9 @@ static void list_dir_recursive(
                     list_dir_recursive(root_path, dir_path + kFileSeparator + entry_name, files);
                 } else if (entry->d_type == DT_REG) {
                     if (dir_path.empty()) {
-                        *files += entry_name + "\n";
+                        files << entry_name + "\n";
                     } else {
-                        *files += dir_path + kFileSeparator + entry_name + "\n";
+                        files << dir_path + kFileSeparator + entry_name + "\n";
                     }
                 }
             }
@@ -702,20 +718,20 @@ static void list_dir_recursive(
 // Server receives file ls request, send file list back.
 void server_ls_file(FileLsRequest *req) {
     FileLsResponse ls_resp;
-    memset(ls_resp.files, 0, sizeof(ls_resp.files));
 
-    std::string files;
-    list_dir_recursive(std::string(req->path), "", &files);
-    files.copy(ls_resp.files, sizeof(ls_resp.files) - 1, 0);
-    ls_resp.response_code = 0;
+    std::stringstream files;
+    list_dir_recursive(std::string(req->path), "", files);
+    std::string file_list = files.str();
 
     EaselComm::EaselMessage msg;
-    ls_resp.h.datalen += strlen(ls_resp.files) + 1;
     msg.message_buf = &ls_resp;
     msg.message_buf_size = sizeof(MsgHeader) + ls_resp.h.datalen;
-    msg.dma_buf = 0;
-    msg.dma_buf_size = 0;
-    easel_comm_server.sendMessage(&msg);
+    msg.dma_buf = (void *)file_list.c_str();
+    msg.dma_buf_size = file_list.length() + 1;
+    int ret = easel_comm_server.sendMessage(&msg);
+    if (ret != 0) {
+        fprintf(stderr, "%s: %s errno %d\n", "ezlsh", __FUNCTION__, ret);
+    }
 }
 
 void server_run(bool flush) {
