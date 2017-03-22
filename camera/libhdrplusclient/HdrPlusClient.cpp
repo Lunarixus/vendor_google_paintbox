@@ -199,6 +199,24 @@ void HdrPlusClient::notifyFrameMetadata(uint32_t frameNumber,
         }
     }
 
+    IF_ALOGV() {
+        // Log AP timestamp and exposure time.
+
+        int64_t timestamp = 0, exposureTime = 0;
+        camera_metadata_entry entry = cameraMetadata->find(ANDROID_SENSOR_TIMESTAMP);
+        if (entry.count != 0) {
+            timestamp = entry.data.i64[0];
+        }
+
+        entry = cameraMetadata->find(ANDROID_SENSOR_EXPOSURE_TIME);
+        if (entry.count != 0) {
+            exposureTime = entry.data.i64[0];
+        }
+
+        ALOGV("%s: Got an AP timestamp: %" PRId64" exposureTime %" PRId64" ns", __FUNCTION__,
+                timestamp, exposureTime);
+    }
+
     // Add the AP's camera metadata to metadata manager. If a PB frame metadata is ready, send
     // it to the HDR+ service.
     mApEaselMetadataManager.addCameraMetadata(cameraMetadata, &frameMetadata);
