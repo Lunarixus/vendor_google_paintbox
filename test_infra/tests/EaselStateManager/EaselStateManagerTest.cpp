@@ -1,11 +1,15 @@
+/*
+ * EaselStateManager unit tests
+ */
+
 #define LOG_TAG "EaselStateManagerTest"
 
 #include <utils/Log.h>
 
 #include "EaselStateManager.h"
+#include "gtest/gtest.h"
 
-int main()
-{
+TEST(EaselStateManagerTest, StateTransitions) {
     EaselStateManager mgr;
     struct EaselStateManager::EaselMipiConfig mainCamConfig = {
         .rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_0,
@@ -24,63 +28,86 @@ int main()
 
     ret = mgr.open();
     ALOGI("mgr.open() = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    ASSERT_EQ(ret, 0);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
     ALOGI("mgr.setState(PENDING) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_PENDING));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_PENDING);
 
     ret = mgr.startMipi(&mainCamConfig);
     ALOGI("mgr.startMipi(main_cam) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.startMipi(&frontCamConfig);
     ALOGI("mgr.startMipi(front_cam) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
     ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_ACTIVE));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_ACTIVE);
+
+    ret = mgr.stopMipi(&mainCamConfig);
+    ALOGI("mgr.stopMipi(main_cam) = %d\n", ret);
+    EXPECT_EQ(ret, 0);
+
+    ret = mgr.stopMipi(&frontCamConfig);
+    ALOGI("mgr.stopMipi(front_cam) = %d\n", ret);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_SUSPEND);
     ALOGI("mgr.setState(SUSPEND) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_SUSPEND));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_SUSPEND);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
     ALOGI("mgr.setState(PENDING) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_PENDING));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_PENDING);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
     ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_ACTIVE));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_ACTIVE);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_OFF);
     ALOGI("mgr.setState(OFF) = %d\n", ret);
-    ALOG_ASSERT(ret == 0);
+    EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    ALOG_ASSERT((ret == 0) && (state == EaselStateManager::ESM_STATE_OFF));
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_OFF);
 
-    return 0;
+    ret = mgr.close();
+    ALOGI("mgr.close() ret %d\n", ret);
+    EXPECT_EQ(ret, 0);
+}
+
+int main(int argc, char **argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+
+    return RUN_ALL_TESTS();
 }
