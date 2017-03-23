@@ -26,11 +26,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   return 1
 fi
 
-if [ $# -ne 2 ]; then
+if [ $# -ne 3 ]; then
   echo "`basename $0`: Build and update the gcam libraries from google3"
   echo ""
-  echo "Usage: source `basename $0` <google3 base path>"
-  echo "For example, \"`basename $0` ~/google3\""
+  echo "Usage: source `basename $0` <google3 base path> <checkin>"
+  echo "For example, \"`basename $0` ~/google3 true\""
   echo ""
   return 1
 fi
@@ -39,6 +39,7 @@ fi
 # Setup paths
 
 GOOGLE3_PATH="$1"
+CHECKIN="$2"
 
 GOOGLE3_TOP="hardware"
 GOOGLE3_GCAM_PATH="hardware/gchips/paintbox/googlex/gcam/hdrplus"
@@ -158,6 +159,11 @@ popd
 
 echo -e "\e[1;34m** Done\e[00m"
 echo " "
+
+if [ $CHECKIN == "false" ]; then
+  exit 0
+fi
+
 echo "Last steps:"
 echo " - Squash multiple commits with 'git rebase -i HEAD~N'"
 echo " - Run 'git commit --amend' and describe what the change actually does"
