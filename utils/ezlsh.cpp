@@ -233,6 +233,18 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
 
     if (msg->dma_buf_size == 0) {
         fprintf(stderr, "ezlsh: %s: no file found\n", __FUNCTION__);
+        client_recursive_done();
+        return;
+    } else if (msg->dma_buf_size == 1) {
+        // Remote is a file not dir
+        // Discard DMA transfer
+        msg->dma_buf = nullptr;
+        msg->dma_buf_size = 0;
+        easel_comm_client.receiveDMA(msg);
+        std::string mkdir = "mkdir -p " + std::string(dirname(file_recursive_path_local));
+        system(mkdir.c_str());
+        client_pull_file(file_recursive_path_remote, file_recursive_path_local);
+        client_recursive_done();
         return;
     }
 
@@ -243,6 +255,7 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
         msg->dma_buf = nullptr;
         msg->dma_buf_size = 0;
         easel_comm_client.receiveDMA(msg);
+        client_recursive_done();
         return;
     }
 
@@ -252,6 +265,7 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
     if (ret) {
         fprintf(stderr, "ezlsh: %s: EaselComm receiveDMA failed errno %d", __FUNCTION__, ret);
         free(files_buffer);
+        client_recursive_done();
         return;
     }
 
