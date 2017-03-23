@@ -206,6 +206,10 @@ private:
     // Return buffers to their streams.
     void returnBufferToStream(const PipelineBlock::PipelineBufferSet &buffers);
 
+    // Abort block IO data. If it has a circular route, queue it to the first block. Otherwise,
+    // return its buffers to their streams.
+    void abortBlockIoData(PipelineBlock::BlockIoData *data);
+
     // Mutex protecting public API methods.
     mutable std::mutex mApiLock;
 

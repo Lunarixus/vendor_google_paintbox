@@ -148,13 +148,24 @@ public:
     void threadLoop();
 
 protected:
+
+    // No timeout for waiting events.
+    static const int32_t NO_EVENT_TIMEOUT = -1;
+
     /*
      * PipelineBlock is derived from std::enable_shared_from_this<PipelineBlock> so constructor
      * cannot be used to create an instance. Blocks derived from PipelineBlock should provide a
      * static method to return a std::shared_ptr<>. See SourceCaptureBlock::newSourceCaptureBlock()
      * for example.
+     *
+     * blockName is the name of the block.
+     * eventTimeoutMs is the duration to wait for a block event, such as input and output requests.
+     *                If waiting for a block event timed out, handleTimeoutLocked() will be called.
+     *                If eventTimeoutMs is NO_EVENT_TIMEOUT, waiting for a block event won't time
+     *                out.
+     *
      */
-    PipelineBlock(const char *blockName);
+    PipelineBlock(const char *blockName, int32_t eventTimeoutMs = NO_EVENT_TIMEOUT);
 
     /*
      * Create the resources to run the block. Blocks derived from PipelineBlock should call this
@@ -201,6 +212,17 @@ protected:
      * This will be called with mWorkLock held.
      */
     virtual status_t flushLocked() = 0;
+
+    /*
+     * Handle event timeout.
+     *
+     * This will be called when the block has not received any events, such as input or output
+     * requests. Block can clean up things that should have happened. The default implementation
+     * only logs the timeout.
+     *
+     * This will be called with mWorkLock held.
+     */
+    virtual void handleTimeoutLocked();
 
     /*
      * Notify the worker thread of a new event. This will wake up the worker thread when it's
@@ -263,6 +285,9 @@ private:
 
     // A condition that worker thread waits on if mEventCounts is 0.
     std::condition_variable mEventCondition;
+
+    // Timeout duration for waiting for events.
+    const int32_t mEventTimeoutMs;
 
     // Held when block is doing work.
     std::mutex mWorkLock;

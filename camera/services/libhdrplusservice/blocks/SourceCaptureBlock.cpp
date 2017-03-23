@@ -25,7 +25,7 @@ void SourceCaptureBlock::dequeueRequestThreadLoop() {
 
 SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
         const CaptureConfig &config = {}) :
-        PipelineBlock("SourceCaptureBlock"),
+        PipelineBlock("SourceCaptureBlock", BLOCK_EVENT_TIMEOUT_MS),
         mMessengerToClient(messenger),
         mCaptureConfig(config),
         mPaused(false) {
@@ -220,6 +220,55 @@ status_t SourceCaptureBlock::flushLocked() {
     return 0;
 }
 
+void SourceCaptureBlock::removeTimedoutPendingOutputResult() {
+    int64_t now;
+    status_t res = EaselControlServer::getApSynchronizedClockBoottime(&now);
+    if (res != 0) {
+        ALOGE("%s: Getting AP synchronized clock boot time failed.", __FUNCTION__);
+        return;
+    }
+
+    std::unique_lock<std::mutex> lock(mPendingOutputResultQueueLock);
+
+    ALOGI("%s: There are %lu pending output results", __FUNCTION__,
+            mPendingOutputResultQueue.size());
+
+    auto result = mPendingOutputResultQueue.begin();
+    while (result != mPendingOutputResultQueue.end()) {
+        // Sanity check the timestamp.
+        int64_t frameTimestamp = result->metadata.frameMetadata->easelTimestamp;
+        if (now - frameTimestamp > FRAME_METADATA_TIMEOUT_NS) {
+            // If the pending result has not received frame metadata from AP after a timeout
+            // duration, abort the output request.
+            ALOGW("%s: AP may have dropped a frame. Easel timestamp %" PRId64 " now is %" PRId64,
+                    __FUNCTION__, result->metadata.frameMetadata->easelTimestamp, now);
+            abortOutputRequest(*result);
+            result = mPendingOutputResultQueue.erase(result);
+        } else if (frameTimestamp > now) {
+            // Easel timestamp is wrong. Abort this request.
+            ALOGE("%s: Easel timestamp is wrong: %" PRId64 " now is %" PRId64, __FUNCTION__,
+                    result->metadata.frameMetadata->easelTimestamp, now);
+            abortOutputRequest(*result);
+            result = mPendingOutputResultQueue.erase(result);
+        } else {
+            ALOGV("%s: this result timestamp %" PRId64 " now %" PRId64, __FUNCTION__,
+                result->metadata.frameMetadata->easelTimestamp, now);
+
+            result++;
+        }
+    }
+}
+
+void SourceCaptureBlock::handleTimeoutLocked() {
+    // Timeout is expected if it's paused.
+    if (mPaused) return;
+
+    ALOGI("%s: Source capture block timed out", __FUNCTION__);
+
+    // Remove pending output results that have been around for a while.
+    removeTimedoutPendingOutputResult();
+}
+
 void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
         int64_t mockingEaselTimestampNs) {
     ALOGV("%s", __FUNCTION__);
@@ -328,9 +377,15 @@ void SourceCaptureBlock::notifyFrameMetadata(const FrameMetadata &metadata) {
             sendOutputResult(*result);
             mPendingOutputResultQueue.erase(result);
             return;
+        } else if (result->metadata.frameMetadata->easelTimestamp < metadata.easelTimestamp) {
+            ALOGE("%s: AP may have dropped a frame with Easel timestamp %" PRId64, __FUNCTION__,
+                    result->metadata.frameMetadata->easelTimestamp);
+            // AP may have dropped a frame. Abort this request.
+            abortOutputRequest(*result);
+            result = mPendingOutputResultQueue.erase(result);
+        } else {
+            result++;
         }
-
-        result++;
     }
 
     ALOGE("%s: Cannot find an output buffer with easel timestamp %" PRId64, __FUNCTION__,
@@ -422,6 +477,15 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
 
             if (!foundRequest) {
                 ALOGE("%s: Cannot find a pending request for this frame buffer.", __FUNCTION__);
+                continue;
+            }
+
+            CaptureError err = frameBuffer->GetError();
+            if (err != CaptureError::SUCCESS) {
+                ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
+                        GetCaptureErrorDesc(err).c_str(), err);
+                // Abort the request.
+                mParent->abortOutputRequest(request);
                 continue;
             }
 

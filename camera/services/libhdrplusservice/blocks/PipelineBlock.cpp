@@ -7,10 +7,11 @@
 
 namespace pbcamera {
 
-PipelineBlock::PipelineBlock(const char *blockName) :
+PipelineBlock::PipelineBlock(const char *blockName, int32_t eventTimeoutMs) :
         mName(blockName),
         mState(STATE_INVALID),
-        mEventCounts(0) {
+        mEventCounts(0),
+        mEventTimeoutMs(eventTimeoutMs) {
 }
 
 PipelineBlock::~PipelineBlock() {
@@ -123,6 +124,11 @@ status_t PipelineBlock::stopAndFlush(uint32_t timeoutMs) {
     return 0;
 }
 
+void PipelineBlock::handleTimeoutLocked() {
+    ALOGI("%s: Block %s waiting for events timed out after %d ms.", __FUNCTION__, mName.data(),
+        mEventTimeoutMs);
+}
+
 void PipelineBlock::threadLoop() {
     ALOGV("Block(%s) %s.", mName.data(), __FUNCTION__);
     while (1) {
@@ -150,10 +156,25 @@ void PipelineBlock::threadLoop() {
         }
 
         // Wait for next event like new input or output request.
+        bool gotEvent = true;
         {
             std::unique_lock<std::mutex> eventLock(mEventLock);
-            mEventCondition.wait(eventLock, [&] { return mEventCounts > 0; });
-            mEventCounts--;
+            if (mEventTimeoutMs == NO_EVENT_TIMEOUT) {
+                mEventCondition.wait(eventLock, [&] { return mEventCounts > 0; });
+            } else {
+                gotEvent = mEventCondition.wait_for(eventLock,
+                        std::chrono::milliseconds(mEventTimeoutMs),
+                        [&] { return mEventCounts > 0; });
+            }
+
+            if (gotEvent) {
+                mEventCounts--;
+            }
+        }
+
+        if (!gotEvent) {
+            std::unique_lock<std::mutex> lock(mWorkLock);
+            handleTimeoutLocked();
         }
     }
 }

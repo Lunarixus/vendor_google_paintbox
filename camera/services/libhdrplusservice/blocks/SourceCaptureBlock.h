@@ -59,7 +59,11 @@ public:
     // Override PipelineBlock::doWorkLocked.
     bool doWorkLocked() override;
 
+    // Override PipelineBlock::flushLocked.
     status_t flushLocked() override;
+
+    // Override PipelineBlock::handleTimeoutLocked.
+    void handleTimeoutLocked() override;
 
     // Thread loop that dequeues completed buffers from capture service.
     void dequeueRequestThreadLoop();
@@ -70,6 +74,14 @@ public:
     void resume();
 
 private:
+    // Timeout duration for waiting for events.
+    static const int32_t BLOCK_EVENT_TIMEOUT_MS = 500;
+
+    // Timeout duration for waiting for frame metadata. If a pending output result has an Easel
+    // timestamp that's older than this value, AP may have dropped a frame or Easel timestamp is
+    // not accurate.
+    static const int64_t FRAME_METADATA_TIMEOUT_NS = 500000000; // 500ms
+
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
         const CaptureConfig &config);
@@ -90,6 +102,9 @@ private:
     // it will wait for the metadata to arrive via notifyFrameMetadata.
     void handleCompletedCaptureForRequest(const OutputRequest &outputRequest,
             int64_t easelTimestamp);
+
+    // Remove any staled pending output result.
+    void removeTimedoutPendingOutputResult();
 
     // Messenger for transferring the DMA buffer.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
