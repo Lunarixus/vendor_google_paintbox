@@ -51,9 +51,9 @@ private:
     static const int32_t kGcamThreadCounts = 1;
     static const bool kGcamTuningLocked = true;
     static const int32_t kGcamFullMeteringSweepFrames = 7;
-    static const int32_t kGcamMinPayloadFrames = 3;
+    static const int32_t kGcamMinPayloadFrames = 5;
     // TODO(b/35848231): Increase max payload frames to 7 after Easel memory leak fixed.
-    static const int32_t kGcamMaxPayloadFrames = 3;
+    static const int32_t kGcamMaxPayloadFrames = 5;
     static const gcam::PayloadFrameCopyMode kGcamPayloadFrameCopyMode =
             gcam::PayloadFrameCopyMode::kNeverCopy;
     static const int32_t kGcamRawBitsPerPixel = 10;
