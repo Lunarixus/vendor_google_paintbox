@@ -71,16 +71,8 @@ static int getLogLevel() {
   return PRIO_MAP[level];
 }
 
-static bool logToConsole() {
-  std::string log_to_console = getEnv(LOG_CONSOLE_ENV);
-  if (log_to_console == "false") {
-    return false;
-  }
-  return true;
-}
-
 static const int kLogLevel = getLogLevel();
-static const bool kLogToConsole = logToConsole();
+static const bool kLogToConsole = (getEnv(LOG_CONSOLE_ENV) == "true");
 
 static void getTimestamp(char* timestamp, size_t size) {
   struct timeval tv;
@@ -113,14 +105,11 @@ int __android_log_write(int prio, const char* tag, const char *text) {
     getTimestamp(timestamp, TIMESTAMP_BUF_SIZE);
     // Prints to stdout.
     fprintf(stderr, "%s  <%s> %s: %s\n", timestamp, PRIO_LIST[prio].c_str(), tag, text);
+  } else {
+    char buf[LOG_BUF_SIZE];
+    snprintf(buf, LOG_BUF_SIZE, "EASEL: %s", text);
+    EaselControlServer::log(prio, tag, buf);
   }
-
-  char buf[LOG_BUF_SIZE];
-  // TODO(cjluo): Currently easel and AP timestamp syncing is not accurate.
-  // Once the timesyncing is improved, we could remove the easel side
-  // timestamp.
-  snprintf(buf, LOG_BUF_SIZE, "EASEL: %s", text);
-  EaselControlServer::log(prio, tag, buf);
 
   return strlen(text);
 }
