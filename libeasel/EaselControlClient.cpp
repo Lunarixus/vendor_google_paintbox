@@ -113,6 +113,8 @@ int EaselControlClient::activate() {
     ALOGI("%s\n", __FUNCTION__);
 
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
+    if (ret == -EINVAL)
+        ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
         ALOGE("Failed to observe ACTIVE state (%d)\n", ret);
         return ret;
@@ -289,17 +291,6 @@ int EaselControlClient::open() {
     if (ret) {
         ALOGE("failed to initialize EaselStateManager (%d)\n", ret);
         return ret;
-    }
-
-    if (gMode == HDRPLUS) {
-        if (!ret)
-            ret = resume();
-        if (!ret)
-            ret = activate();
-        if (!ret)
-            ret = deactivate();
-        if (!ret)
-            ret = suspend();
     }
 
     if (ret) {
