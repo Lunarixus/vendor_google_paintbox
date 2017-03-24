@@ -20,6 +20,7 @@ public:
       CMD_DEACTIVATE,      // Deactivate Easel
       CMD_SET_TIME,        // Sync AP boottime and time of day clocks
       CMD_LOG,             // Android logging string
+      CMD_SUSPEND,         // Suspend Easel
   };
 
   // All control messages start with this header

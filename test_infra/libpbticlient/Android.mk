@@ -11,7 +11,8 @@ LOCAL_SRC_FILES :=  \
 LOCAL_SHARED_LIBRARIES:= \
     libpbtimessenger \
     liblog \
-    libutils
+    libutils \
+    libcutils
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \

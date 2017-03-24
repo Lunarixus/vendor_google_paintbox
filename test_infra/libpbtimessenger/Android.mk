@@ -15,7 +15,8 @@ LOCAL_SRC_FILES :=  \
 
 LOCAL_SHARED_LIBRARIES:= \
     libutils \
-    liblog
+    liblog \
+    libcutils
 
 ifeq ($(USE_LIB_EASEL), 1)
        LOCAL_STATIC_LIBRARIES := libeasel
