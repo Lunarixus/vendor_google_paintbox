@@ -10,6 +10,8 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
+    hardware/google/paintbox/kernel-headers \
+    vendor/google_paintbox/libeasel/include \
     vendor/google_paintbox/test_infra/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter

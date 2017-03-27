@@ -9,10 +9,11 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 LOCAL_SRC_FILES:= pbserver.cpp
 
 LOCAL_C_INCLUDES += \
-    hardware/google/paintbox/camera/include \
-    hardware/google/paintbox/camera/libhdrplusmessenger/include \
-    vendor/google_paintbox/include \
-    vendor/google_paintbox/camera/services/include
+    hardware/google/paintbox/kernel-headers \
+    vendor/google_paintbox/camera/include \
+    vendor/google_paintbox/camera/services/include \
+    vendor/google_paintbox/camera/libhdrplusmessenger/include \
+    vendor/google_paintbox/libeasel/include
 
 LOCAL_SHARED_LIBRARIES:= libhdrplusservice
 

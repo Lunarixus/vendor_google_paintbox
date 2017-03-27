@@ -28,15 +28,12 @@ else
 endif
 
 LOCAL_C_INCLUDES += \
-    hardware/google/paintbox/include \
-    hardware/google/paintbox/camera/include \
     system/media/camera/include \
-    vendor/google_paintbox/include \
+    vendor/google_paintbox/camera/include \
     vendor/google_paintbox/camera/services/include
 
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
-    hardware/google/paintbox/include \
-    hardware/google/paintbox/kernel-headers
+    vendor/google_paintbox/camera/services/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
