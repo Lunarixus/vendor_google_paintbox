@@ -9,11 +9,69 @@
 
 namespace android {
 
-PbTiClient::PbTiClient() : mEaselActivated(false), mClientListener(nullptr) {
+PbTiClient::PbTiClient() :
+    mEaselControlOpened(false),
+    mEaselActivated(false),
+    mClientListener(nullptr) {
+    mIsEaselPresent = ::isEaselPresent();
+    ALOGI("%s: Easel is %s",
+          __FUNCTION__, mIsEaselPresent ? "present" : "not present");
 }
 
 PbTiClient::~PbTiClient() {
     disconnect();
+    mEaselControl.close();
+    mEaselControlOpened = false;
+}
+
+bool PbTiClient::isEaselPresentOnDevice() const {
+    return mIsEaselPresent;
+}
+
+status_t PbTiClient::powerOnEasel() {
+    Mutex::Autolock l(mEaselControlLock);
+    if (mEaselControlOpened) {
+        return OK;
+    }
+
+    status_t res;
+
+#if !USE_LIB_EASEL
+    // Open Easel control.
+    res = mEaselControl.open(mDefaultServerHost);
+#else
+    res = mEaselControl.open();
+#endif
+    if (res != OK) {
+        ALOGE("%s: Failed to open Easel control: %s (%d).",
+              __FUNCTION__, strerror(errno), -errno);
+        return NO_INIT;
+    }
+
+    mEaselControlOpened = true;
+    return res;
+}
+
+status_t PbTiClient::suspendEasel() {
+    ALOGD("%s: Suspending Easel.", __FUNCTION__);
+    Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+
+    return mEaselControl.suspend();
+}
+
+status_t PbTiClient::resumeEasel() {
+    ALOGD("%s: Resuming Easel.", __FUNCTION__);
+    Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+
+    return mEaselControl.resume();
 }
 
 status_t PbTiClient::connect(PbTiClientListener *listener) {
@@ -57,30 +115,21 @@ void PbTiClient::disconnect() {
 
 status_t PbTiClient::activateEasel() {
     Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+
     if (mEaselActivated) {
         ALOGE("%s: Easel is already activated.", __FUNCTION__);
         return ALREADY_EXISTS;
     }
 
-    status_t res;
-    // Open Easel control.
-#if !USE_LIB_EASEL
-    res = mEaselControl.open(mDefaultServerHost);
-#else
-    res = mEaselControl.open();
-#endif
-    if (res != OK) {
-        ALOGE("%s: Failed to open Easel control: %s (%d).",
-              __FUNCTION__, strerror(errno), -errno);
-        return NO_INIT;
-    }
-
     // Activate Easel.
-    res = mEaselControl.activate();
+    status_t res = mEaselControl.activate();
     if (res != OK) {
         ALOGE("%s: Failed to activate Easel: %s (%d).",
               __FUNCTION__, strerror(errno), -errno);
-        mEaselControl.close();
         return NO_INIT;
     }
     mEaselActivated = true;
@@ -97,7 +146,6 @@ void PbTiClient::deactivateEasel() {
     }
 
     mEaselControl.deactivate();
-    mEaselControl.close();
     mEaselActivated = false;
 }
 
