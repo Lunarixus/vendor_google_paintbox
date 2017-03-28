@@ -146,6 +146,15 @@ void initializeServer() {
     easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
 #endif
     easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+
+#ifndef MOCKEASEL
+    int ret = easel_conn.initialHandshake();
+    if (ret) {
+        fprintf(stderr, "easelcontrol: Failed to handshake with client\n");
+        return;
+    }
+#endif
+
     spawnIncomingMsgThread();
     gServerInitialized = true;
     return;
