@@ -57,5 +57,6 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_MODULE:= libhdrplusclient
 LOCAL_PROPRIETARY_MODULE := true
+LOCAL_MODULE_OWNER := google
 
 include $(BUILD_SHARED_LIBRARY)
