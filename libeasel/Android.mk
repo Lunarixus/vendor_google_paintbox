@@ -3,7 +3,7 @@
 LOCAL_PATH:= $(call my-dir)
 PB_INCLUDES := \
     $(LOCAL_PATH)/include \
-    hardware/google/paintbox/kernel-headers
+    $(LOCAL_PATH)/kernel-headers
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libeasel

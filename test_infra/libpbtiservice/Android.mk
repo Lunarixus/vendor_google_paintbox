@@ -14,13 +14,17 @@ LOCAL_SHARED_LIBRARIES:= \
 
 ifeq ($(USE_LIB_EASEL), 0)
     LOCAL_STATIC_LIBRARIES := libmockeasel
+    LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libmockeasel
 else
     LOCAL_STATIC_LIBRARIES := libeasel
+    LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libeasel
 endif
 
-LOCAL_C_INCLUDES += \
-    vendor/google_paintbox/libeasel/include \
-    vendor/google_paintbox/test_infra/libpbtiservice/include
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/include
+
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libpbtimessenger
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 

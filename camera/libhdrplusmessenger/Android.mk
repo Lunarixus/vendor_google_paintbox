@@ -33,19 +33,21 @@ LOCAL_SHARED_LIBRARIES:= \
 
 ifeq ($(USE_LIB_EASEL), 0)
        LOCAL_STATIC_LIBRARIES := libmockeasel
+       LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libmockeasel
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
 else
        LOCAL_STATIC_LIBRARIES := libeasel
+       LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libeasel
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
 endif
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
-    hardware/google/paintbox/kernel-headers \
-    vendor/google_paintbox/camera/include \
-    vendor/google_paintbox/libeasel/include
+    vendor/google_paintbox/camera/include
 
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+	$(LOCAL_PATH)/include \
+	vendor/google_paintbox/camera/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 

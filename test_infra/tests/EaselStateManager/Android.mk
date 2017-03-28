@@ -1,9 +1,7 @@
 LOCAL_PATH:= $(call my-dir)
 
 PB_AOSP_INCLUDES += \
-    $(LOCAL_PATH)/include \
-    hardware/google/paintbox/include \
-    hardware/google/paintbox/kernel-headers
+    $(LOCAL_PATH)/include
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := EaselStateManagerTest

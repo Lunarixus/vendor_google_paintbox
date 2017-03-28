@@ -35,6 +35,8 @@ LOCAL_C_INCLUDES += \
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     vendor/google_paintbox/camera/services/include
 
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libhdrplusmessenger
+
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 # These are needed to ignore warnings from third_party/halide/halide/src/runtime/HalideBuffer.h
