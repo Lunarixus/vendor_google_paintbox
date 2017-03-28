@@ -697,6 +697,8 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
     initParams.final_image_callback = mGcamFinalImageCallback.get();
     initParams.final_image_pixel_format = kGcamFinalImageFormat;
+    initParams.correct_blacklevel = kGcamCorrectBlackLevel;
+    initParams.detect_flare = kGcamDetectFlare;
 
     // The following callbacks are not used.
     initParams.memory_callback = nullptr;

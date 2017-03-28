@@ -59,6 +59,8 @@ private:
     static const int32_t kGcamRawBitsPerPixel = 10;
     static const uint32_t kGcamDebugSaveBitmask = 0;
     static constexpr float kPostRawSensitivityBoostUnity = 100.0f;
+    static const bool kGcamCorrectBlackLevel = false;
+    static const bool kGcamDetectFlare = false;
 
     // Camera metadata related constants.
     static constexpr float kMaxFaceScore = 100.f;
