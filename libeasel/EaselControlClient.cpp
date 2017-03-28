@@ -190,9 +190,11 @@ int EaselControlClient::deactivate() {
 
 int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int rate)
 {
+    enum EaselStateManager::State state;
     struct EaselStateManager::EaselMipiConfig config = {
         .rxRate = rate, .txRate = rate,
     };
+    int ret;
 
     ALOGI("%s: camera %d, rate %d\n", __FUNCTION__, camera, rate);
 
@@ -205,6 +207,24 @@ int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int ra
     } else {
         config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_1;
         config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_1;
+    }
+
+    ret = stateMgr.getState(&state);
+    if (ret) {
+        ALOGE("Could not read the current state of Easel (%d)\n", ret);
+        return ret;
+    }
+
+    if ((state != EaselStateManager::ESM_STATE_PENDING) &&
+        (state != EaselStateManager::ESM_STATE_ACTIVE)) {
+        if (gMode == HDRPLUS)
+            ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
+        else
+            ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_PENDING);
+        if (ret) {
+            ALOGE("Could not start MIPI because Easel is not powered (%d)\n", ret);
+            return ret;
+        }
     }
 
     return stateMgr.startMipi(&config);
@@ -246,18 +266,14 @@ int EaselControlClient::resume() {
         return 0;
     }
 
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_PENDING);
-    if (ret) {
-        ALOGE("Failed to set Easel to PENDING state (%d)\n", ret);
-        return ret;
-    }
-
-    if (gMode == HDRPLUS) {
+    if (gMode == HDRPLUS)
         ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false /* blocking */);
-        if (ret) {
-            ALOGE("Failed to set Easel to ACTIVE state (%d)\n", ret);
-            return ret;
-        }
+    else
+        ret = stateMgr.setState(EaselStateManager::ESM_STATE_PENDING, false /* blocking */);
+
+    if (ret) {
+        ALOGE("Failed to resume Easel (%d)\n", ret);
+        return ret;
     }
 
     return 0;
