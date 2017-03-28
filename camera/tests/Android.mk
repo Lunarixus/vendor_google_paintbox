@@ -39,6 +39,7 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror
 LOCAL_CFLAGS += -Wno-unused-parameter
 
 LOCAL_MODULE:= hdrplus_client_tests
+LOCAL_MODULE_OWNER := google
 LOCAL_MODULE_TAGS := tests
 
 include $(BUILD_NATIVE_TEST)

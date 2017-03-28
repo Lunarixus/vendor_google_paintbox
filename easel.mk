@@ -37,8 +37,8 @@ PRODUCT_PACKAGES += \
     libhdrplusmessenger
 
 # Add ezlsh in userdebug and eng builds
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
     ezlsh \
-    hdrplus_client_tests
+
 endif
