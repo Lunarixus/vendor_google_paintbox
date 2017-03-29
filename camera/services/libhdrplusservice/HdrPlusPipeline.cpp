@@ -505,12 +505,38 @@ void HdrPlusPipeline::outputDone(PipelineBlock::OutputResult outputResult) {
     }
 }
 
+void HdrPlusPipeline::abortBlockIoData(PipelineBlock::BlockIoData *data) {
+    if (data == nullptr) {
+        ALOGE("%s: data is nullptr.", __FUNCTION__);
+        return;
+    }
+
+    // If the pipeline is running and the data route is circular, queue the data to the first block.
+    // Otherwise, return the buffers to streams.
+    if (mState == STATE_RUNNING && data->route.isCircular) {
+        data->route.resetCurrentBlock();
+        // We don't need to hold mApiLock here because when pipeline state is running, the pipeline
+        // is guaranteed to be valid.
+        std::shared_ptr<PipelineBlock> block = getNextBlockLocked(*data);
+        status_t res = block->queueOutputRequest(data);
+        if (res != 0) {
+            ALOGE("%s: Queueing an output request to %s failed: %s (%d). Returning buffers to "
+                "streams", __FUNCTION__, block->getName(), strerror(-res), res);
+            returnBufferToStream(data->buffers);
+        }
+    } else {
+        returnBufferToStream(data->buffers);
+    }
+
+    return;
+}
+
 void HdrPlusPipeline::inputAbort(PipelineBlock::Input input) {
-    returnBufferToStream(input.buffers);
+    abortBlockIoData(&input);
 }
 
 void HdrPlusPipeline::outputRequestAbort(PipelineBlock::OutputRequest outputRequest) {
-    returnBufferToStream(outputRequest.buffers);
+    abortBlockIoData(&outputRequest);
 }
 
 } // pbcamera
