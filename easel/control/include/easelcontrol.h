@@ -111,7 +111,8 @@ public:
      *
      * Returns zero for success or error code for failure.
      */
-    static int startMipi(enum Camera camera, int rate);
+    static int startMipi(enum Camera camera, int rate,
+                         bool enableIpu = false);
     /*
      * Stop one of the MIPI RX and TX channels.
      *
