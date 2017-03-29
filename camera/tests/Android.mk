@@ -29,9 +29,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog
 
 LOCAL_C_INCLUDES += \
-    hardware/google/paintbox/kernel-headers \
-    system/media/camera/include \
-    vendor/google_paintbox/libeasel/include
+    system/media/camera/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 

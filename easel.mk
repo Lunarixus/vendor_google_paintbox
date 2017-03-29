@@ -29,10 +29,7 @@ PRODUCT_PACKAGES += \
     libmipimux \
     pbserver \
     libhdrplusservice \
-    libeasellog
-
-# hardware/google/paintbox
-PRODUCT_PACKAGES += \
+    libeasellog \
     libhdrplusclient \
     libhdrplusmessenger
 
