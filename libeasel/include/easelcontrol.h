@@ -64,38 +64,39 @@ public:
     /*
      * Activate Easel to HDR+ mode.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int activate();
     /*
      * Deactivate Easel when not in HDR+ mode.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int deactivate();
     /*
-     * Start and/or configure one of the MIPI TX channels.
+     * Start and/or configure one of the MIPI TX channels. This function will
+     * block until Easel is powered.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int startMipi(enum Camera camera, int rate);
     /*
      * Stop one of the MIPI RX and TX channels.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int stopMipi(enum Camera camera);
     /*
-     * Resume Easel, as when the camera app is started.  If Easel is
-     * suspended then this will resume it.
+     * Resume Easel, as when the camera app is started.  If Easel is suspended
+     * then this will resume it. This function is non-blocking.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int resume();
     /*
      * Suspend Easel, as when the camera app is closed.
      *
-     * Returns zero for success or -1 for failure.
+     * Returns zero for success or error code for failure.
      */
     static int suspend();
 };
