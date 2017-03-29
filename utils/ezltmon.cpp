@@ -108,7 +108,7 @@ int close_tz_files()
 
 int log_init(char *filename)
 {
-    int fid = open(filename, O_CREAT | O_TRUNC | O_RDWR);
+    int fid = open(filename, O_CREAT | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP);
 
     if (fid < 0) {
         printf("Failed to open file \"%s\" for logging (%d)\n", filename, fid);
