@@ -310,13 +310,18 @@ ImxError ImxGetDefaultDeviceWithOptions(ImxDeviceHandle *device_handle_ptr,
 ImxError ImxGetDeviceWithAllMipiAndCoreResources(
     ImxDeviceHandle *device_handle_ptr);
 
-/* Create device with resources as specified in device_descr */
-ImxError ImxGetDevice(ImxDeviceDescription device_descr,
-                      ImxDeviceHandle *device_handle_ptr);
-ImxError ImxGetDeviceWithOptions(ImxDeviceDescription device_descr,
-                                 int num_simulator_options,
-                                 char **simulator_options,
-                                 ImxDeviceHandle *device_handle_ptr);
+/* Create device with resources as specified in device_descr
+ * device_descr device description, including resource required for this device.
+ *   device_descr is mutable and could be modified in this function.
+ * device_handle_ptr the returned handle pointer for the device created.
+ */
+ImxError ImxGetDevice(ImxDeviceDescription *device_descr  /* in, modified */,
+                      ImxDeviceHandle *device_handle_ptr  /* out */);
+ImxError ImxGetDeviceWithOptions(
+    ImxDeviceDescription *device_descr  /* in, modified */,
+    int num_simulator_options  /* in */,
+    char **simulator_options  /* in */,
+    ImxDeviceHandle *device_handle_ptr  /* out */);
 
 typedef void (*ImxDumpCallback)(const char *);
 
@@ -449,14 +454,28 @@ typedef struct ImxLateBufferConfig {
 /* Use this function to create graph with a program to be executed on
  * IPU. If the graph does not contain any kernels, set visa_string to NULL
  * (or nullptr, if using this file as C++ header)
+ * The specified graph_name will be used as a string id for the graph, used for
+ * hashing and while dumping logging information. Specifying a unique name is
+ * desired but not required. If graph_name is NULL, a default unique name will
+ * be created by Runtime.
  */
-/* TODO(billmark): Switch to desired definition of ImxCreateGraph and
- * get rid of this "Hack" routine
+/* TODO(billmark): Switch to desired definition of ImxCreateGraph
  */
+ImxError ImxCreateGraph(
+    const char *graph_name,
+    const char *visa_string,
+    ImxNodeHandle *transfer_nodes, /* Input - Array of nodes */
+    /* Input - Parameter name for each xfer node */
+    const char **transfer_node_names,
+    int transfer_node_count,  /* Size of previous two arrays */
+    ImxGraphHandle *graph_handle_ptr /* Output */);
+
+/* DEPRECATED; use ImxCreateGraphFromVisaString instead */
 ImxError ImxCreateGraphHack(
     const char *visa_string,
     ImxNodeHandle *transfer_nodes, /* Input - Array of nodes */
-    const char **transfer_node_names, /* Input - Parameter name for each xfer node */
+    /* Input - Parameter name for each xfer node */
+    const char **transfer_node_names,
     int transfer_node_count,  /* Size of previous two arrays */
     ImxGraphHandle *graph_handle_ptr /* Output */);
 
@@ -534,7 +553,7 @@ ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
 ImxError ImxSaveCompiledGraph(
     const char *save_dir_path,
     const char *file_name,
-    ImxCompiledGraphHandle compiled_graph  /* in */);
+    ImxCompiledGraphHandle compiled_graph  /* const */);
 
 /* Save the given compiled_graph into a unique sub-directory within
  * save_dir_base_path, with file name "file_name".
@@ -544,7 +563,7 @@ ImxError ImxSaveCompiledGraph(
 ImxError ImxSaveAsUniqueCompiledGraph(
     const char *save_dir_base_path,
     const char *file_name,
-    ImxCompiledGraphHandle compiled_graph  /* in */);
+    ImxCompiledGraphHandle compiled_graph  /* const */);
 
 /* Load a precompiled graph configuration (and related files) to create an
  * ImxCompiledGraph object. The prcompiled graph configuration file should be
@@ -761,9 +780,25 @@ ImxError ImxCreateDeviceBufferSimple(
     int flags,
     ImxDeviceBufferHandle *buffer_handle_ptr);
 
+// Set default alignment (in bytes) based on LPDDR4 burst length
+#define kImxDefaultDeviceBufferAlignment 64
+
+// Use the default heap created for the underlying system. Currently, the
+// default heap for ION is DMA heap.
+#define kImxDefaultDeviceBufferHeap 0
+
 /* Create a device buffer using preferred allocation strategy of the specified
  * memory allocator. Currently, the only zero-copy memory allocator supported
  * is ION.
+ *
+ * align_bytes: Specify the minimum required alignment. This value must be a
+ * power of 2. Use kImxDefaultDeviceBufferAlignment for default alignment.
+ *
+ * heap_type: Specific to the Memory Allocator used. heap_type = 0 is reserved
+ * for the "default" heap. To specify default heap, please use the constant
+ * kImxDefaultDeviceBufferHeap defined above.
+ * For ION heaps, kImxDefaultDeviceBufferHeap and heap_id_masks in <uapi/ion.h>
+ * are the valid values for heap_type.
  *
  * flags: Memory-allocator (and target system) specific options that will be
  * passed to the allocator when allocating memory space to the buffer.
@@ -777,6 +812,8 @@ ImxError ImxCreateDeviceBufferSimple(
 ImxError ImxCreateDeviceBufferManaged(
     ImxMemoryAllocatorHandle memory_allocator,
     uint64_t size_bytes,
+    uint32_t align_bytes,
+    int heap_type,
     int flags,
     ImxDeviceBufferHandle *buffer_handle_ptr);
 
