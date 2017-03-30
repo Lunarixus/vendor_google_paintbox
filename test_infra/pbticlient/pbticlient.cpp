@@ -13,6 +13,8 @@ PbTiClientRunner::PbTiClientRunner() : mConnected(false) {
 PbTiClientRunner::~PbTiClientRunner() {
     if (mConnected) {
         mClient.disconnect();
+        mClient.suspendEasel();
+        mConnected = false;
     }
 }
 
@@ -28,7 +30,19 @@ void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
 }
 
 android::status_t PbTiClientRunner::connectClient() {
-    int res = mClient.connect(this);
+    int res = mClient.powerOnEasel();
+    if (res != 0) {
+        ALOGE("%s: Powering on Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    res = mClient.resumeEasel();
+    if (res != 0) {
+        ALOGE("%s: Resuming Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    res = mClient.connect(this);
     if (res != 0) {
         ALOGE("%s: Connecting client failed: %s (%d).",
               __FUNCTION__, strerror(-res), res);

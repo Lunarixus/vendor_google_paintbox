@@ -25,6 +25,34 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     virtual ~PbTiClient();
 
     /*
+     * Return if Easel is present on the device.
+     *
+     * If Easel is not present, all other calls to PbTiClient are invalid.
+     */
+    bool isEaselPresentOnDevice() const;
+
+    /*
+     * Power on Easel.
+     *
+     * Must be called before other following methods.
+     */
+    status_t powerOnEasel();
+
+    /*
+     * Suspend Easel.
+     *
+     * Put Easel on suspend mode.
+     */
+    status_t suspendEasel();
+
+    /*
+     * Resume Easel.
+     *
+     * Resume Easel from suspend mode.
+     */
+    status_t resumeEasel();
+
+    /*
      * Connect to paintbox test service.
      *
      * listener is the listener to receive callbacks from paintbox test client.
@@ -68,7 +96,9 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     void deactivateEasel();
 
     // Easel control
+    bool mIsEaselPresent;
     EaselControlClient mEaselControl;
+    bool mEaselControlOpened;
     bool mEaselActivated;
     Mutex mEaselControlLock;  // Protecting Easel control variables above.
 
