@@ -33,9 +33,14 @@ PRODUCT_PACKAGES += \
     libhdrplusclient \
     libhdrplusmessenger
 
-# Add ezlsh in userdebug and eng builds
+# Add ezlsh and pbti utils in userdebug and eng builds
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
     ezlsh \
+    libpbtimessenger \
+    libpbticlient \
+    libpbtiservice \
+    pbticlient \
+    pbtiserver
 
 endif
