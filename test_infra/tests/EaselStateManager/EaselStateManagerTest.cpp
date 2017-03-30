@@ -64,15 +64,6 @@ TEST(EaselStateManagerTest, StateTransitions) {
     ALOGI("mgr.stopMipi(front_cam) = %d\n", ret);
     EXPECT_EQ(ret, 0);
 
-    ret = mgr.setState(EaselStateManager::ESM_STATE_SUSPEND);
-    ALOGI("mgr.setState(SUSPEND) = %d\n", ret);
-    EXPECT_EQ(ret, 0);
-
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    EXPECT_EQ(ret, 0);
-    EXPECT_EQ(state, EaselStateManager::ESM_STATE_SUSPEND);
-
     ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
     ALOGI("mgr.setState(PENDING) = %d\n", ret);
     EXPECT_EQ(ret, 0);
