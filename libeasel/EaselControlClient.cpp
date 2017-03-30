@@ -249,22 +249,9 @@ int EaselControlClient::stopMipi(enum EaselControlClient::Camera camera)
 
 // Called when the camera app is opened
 int EaselControlClient::resume() {
-    enum EaselStateManager::State state;
     int ret;
 
     ALOGI("%s\n", __FUNCTION__);
-
-    ret = stateMgr.getState(&state);
-    if (ret) {
-        ALOGE("Could not read the current state of Easel (%d)\n", ret);
-        return ret;
-    }
-
-    if ((state == EaselStateManager::ESM_STATE_PENDING) ||
-        (state == EaselStateManager::ESM_STATE_ACTIVE)) {
-        ALOGI("Easel is already powered, no need to resume it\n");
-        return 0;
-    }
 
     if (gMode == HDRPLUS)
         ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false /* blocking */);
