@@ -15,6 +15,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -130,6 +131,44 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
 
     return 0;
 }
+
+static const size_t kHandshakeSignalLen = 10;
+static const int kHandshakeSeqNum = 3;
+const char *handshakeSeq[kHandshakeSeqNum] = {
+    "SYN",
+    "SYN-ACK",
+    "ACK",
+};
+
+static int composeHandshake(EaselComm::EaselMessage *msg, int seq) {
+    assert(msg != nullptr);
+    assert((seq >= 0) && (seq < kHandshakeSeqNum));
+
+    msg->message_buf = (void *)handshakeSeq[seq];
+    msg->message_buf_size = kHandshakeSignalLen;
+    msg->dma_buf = nullptr;
+    return 0;
+}
+
+static int verifyHandshake(EaselComm::EaselMessage *msg, int seq) {
+    int ret = 0;
+
+    assert(msg != nullptr);
+    assert((seq >= 0) && (seq < kHandshakeSeqNum));
+
+    if (msg->message_buf_size < kHandshakeSignalLen) {
+        free(msg->message_buf);
+        return -EINVAL;
+    }
+
+    if (strcmp((const char *)msg->message_buf, handshakeSeq[seq]) != 0) {
+        ret = -EINVAL;
+    }
+
+    free(msg->message_buf);
+    return ret;
+}
+
 }  // anonymous namespace
 
 
@@ -381,4 +420,61 @@ void EaselComm::close() {
 // Flush connection.
 void EaselComm::flush() {
     ioctl(mEaselCommFd, EASELCOMM_IOC_FLUSH);
+}
+
+// Client side handshaking.
+// Send, receive, send.
+int EaselCommClient::initialHandshake() {
+    EaselMessage msg;
+    int ret = 0;
+
+    fprintf(stderr, "%s: A\n", __FUNCTION__);
+
+    composeHandshake(&msg, 0);
+    ret = sendMessage(&msg);
+    if (ret) {
+        return ret;
+    }
+
+    ret = receiveMessage(&msg);
+    if (ret) {
+        return ret;
+    }
+    ret = verifyHandshake(&msg, 1);
+    if (ret) {
+        return ret;
+    }
+
+    composeHandshake(&msg, 2);
+    ret = sendMessage(&msg);
+    return ret;
+}
+
+// Server side handshaking.
+// Receive, send, receive
+int EaselCommServer::initialHandshake() {
+
+    EaselMessage msg;
+    int ret = 0;
+
+    ret = receiveMessage(&msg);
+    if (ret) {
+        return ret;
+    }
+    ret = verifyHandshake(&msg, 0);
+    if (ret) {
+        return ret;
+    }
+
+    composeHandshake(&msg, 1);
+    ret = sendMessage(&msg);
+    if (ret) {
+        return ret;
+    }
+
+    ret = receiveMessage(&msg);
+    if (ret) {
+        return ret;
+    }
+    return verifyHandshake(&msg, 2);
 }

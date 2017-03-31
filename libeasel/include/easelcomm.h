@@ -194,12 +194,30 @@ class EaselCommClient : public EaselComm {
 public:
     virtual int open(int service_id,
                      long timeout_ms = DEFAULT_OPEN_TIMEOUT_MS) override;
+
+    /*
+     * Client side handshaking to confirm service layer connection.
+     * This is a synchronization barrier that should only be run, if necessary,
+     * at the beginning of communication on both sides.
+     * Returns 0 when handshaking is established
+     *         -errno for failure.
+     */
+    virtual int initialHandshake();
 };
 
 class EaselCommServer : public EaselComm {
 public:
     virtual int open(int service_id, __unused long timeout_ms
                                      = DEFAULT_OPEN_TIMEOUT_MS) override;
+
+    /*
+     * Server side handshaking to confirm service layer connection.
+     * This is a synchronization barrier that should only be run, if necessary,
+     * at the beginning of communication on both sides.
+     * Returns 0 when handshaking is established
+     *         -errno for failure.
+     */
+    virtual int initialHandshake();
 };
 
 #endif // GOOGLE_PAINTBOX_EASELCOMM_H

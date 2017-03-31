@@ -123,9 +123,20 @@ int EaselControlClient::activate() {
     // Open easelcomm connection
     ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     if (ret) {
-        ALOGE("%s: Failed to open easelcomm connection", __FUNCTION__);
+        ALOGE("%s: Failed to open easelcomm connection (%d)",
+              __FUNCTION__, ret);
         return ret;
     }
+
+#ifndef MOCKEASEL
+    ALOGI("%s: waiting for handshake\n", __FUNCTION__);
+    ret = easel_conn.initialHandshake();
+    if (ret) {
+        ALOGE("%s: Failed to handshake with server", __FUNCTION__);
+        return ret;
+    }
+    ALOGI("%s: handshake done\n", __FUNCTION__);
+#endif
 
     // start thread for handling easelcomm messages
     msg_handler_thread = new std::thread(msgHandlerThread);
