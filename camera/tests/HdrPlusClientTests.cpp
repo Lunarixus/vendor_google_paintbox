@@ -159,8 +159,7 @@ protected:
             return ret;
         }
 
-        return hdrp_test_utils::runCommand(
-                "CAMERA_SERVER=`pidof cameraserver`; kill $CAMERA_SERVER; sleep 1;");
+        return hdrp_test_utils::runCommand("killall cameraserver; sleep 1;");
     }
 
     // Connect to client.

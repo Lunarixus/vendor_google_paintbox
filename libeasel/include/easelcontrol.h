@@ -22,7 +22,12 @@
 #ifndef ANDROID_EASELCONTROL_H
 #define ANDROID_EASELCONTROL_H
 
+#include <functional>
 #include <stdint.h>
+
+#ifndef DISALLOW_COPY_AND_ASSIGN
+#include "android-base/macros.h"
+#endif  // DISALLOW_COPY_AND_ASSIGN
 
 #ifndef ANDROID
 // Supply the Android priority enum values for non-Android build
@@ -38,6 +43,42 @@ typedef enum android_LogPriority {
     ANDROID_LOG_SILENT,     /* only for SetMinPriority(); must be last */
 } android_LogPriority;
 #endif
+
+// Payload wrapper for a request or response with anonymous type.
+struct ControlData {
+    void const *body;  // body of the object.
+    uint64_t size;  // size of the object.
+
+    ControlData(void *body, size_t size) {
+        this->body = body;
+        this->size = size;
+    }
+
+    // Builds ControlData from an object.
+    template<typename T>
+    ControlData(const T &object) {
+        this->body = (void *)&object;
+        this->size = sizeof(T);
+    }
+
+    // Gets the object out of the ControlData as immutable constant.
+    // returns null if sizeof(T) does not match size of payload.
+    template<typename T>
+    const T *getImmutable() const {
+        if (size != sizeof(T)) {
+            return nullptr;
+        }
+        return (T *)body;
+    }
+
+    // Gets the object out of the ControlData as mmutable constant.
+    // size of the object will be modified.
+    template<typename T>
+    T *getMutable() {
+        size = sizeof(T);
+        return (T *)body;
+    }
+};
 
 class EaselControlClient {
 public:
@@ -99,6 +140,58 @@ public:
      * Returns zero for success or error code for failure.
      */
     static int suspend();
+
+    /*
+     * Sends a request to server.
+     *
+     * handlerId id of the handler on server side to handle this request.
+     * rpcId id of the RPC to match the service of the handler.
+     * request request to be sent.
+     *
+     * Returns zero for success or error code for failure.
+     */
+    static int sendRequest(int handlerId, int rpcId, const ControlData &request);
+
+    /*
+     * Sends a request to server with callback for returned response.
+     *
+     * handlerId id of the handler on server side to handle this request.
+     * rpcId id of the RPC to match the service of the handler.
+     * request request to be sent.
+     * callback callback function to handle returned response from server.
+     *
+     * Returns zero for success or error code for failure.
+     */
+    static int sendRequestWithCallback(
+            int handlerId,
+            int rpcId,
+            const ControlData &request,
+            std::function<void(const ControlData &response)> callback);
+};
+
+// Interface to handle RPC.
+class RequestHandler {
+public:
+    virtual ~RequestHandler() {};
+    /*
+     * Handles a RPC request.
+     *
+     * rpcId Identifies the actual RPC service in this handler.
+     * request request from client to be handled, type is void*,
+     * needs to be dynamically casted.
+     * response response send back to client. If no response is needed,
+     * response is set to nullptr.
+     */
+    virtual void handleRequest(
+            int rpcId,
+            const ControlData &request,
+            ControlData *response) = 0;
+
+protected:
+    RequestHandler() {};
+
+private:
+    DISALLOW_COPY_AND_ASSIGN(RequestHandler);
 };
 
 class EaselControlServer {
@@ -164,6 +257,16 @@ public:
      * text is the string to log.
      */
     static void log(int prio, const char *tag, const char *text);
+
+    /*
+     * Registers a handler to handle CustomMsg with handlerId.
+     * Returns the error code as int.
+     *
+     * handler handler to be registered
+     * handlerId id of the handler. The CustomMsg with handlerId will be routed
+     * to the registered handler.
+     */
+    int registerHandler(RequestHandler *handler, int handlerId);
 };
 
 /* Convenience wrapper for EaselControlServer::log() */

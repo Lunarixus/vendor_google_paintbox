@@ -22,27 +22,10 @@ LOCAL_SRC_FILES := \
 # For logging on libeasel server, please use
 # easelLog directly instead of liblog.
 LOCAL_STATIC_LIBRARIES := liblog
-LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_SHARED_LIBRARIES := libcutils libbase
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbase
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := easelcomm_test_client
-LOCAL_MODULE_TAGS := tests
-LOCAL_MODULE_OWNER := google
-LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
-LOCAL_SRC_FILES := easelcomm_test.cpp
-LOCAL_SHARED_LIBRARIES := libeasel liblog
-include $(BUILD_NATIVE_TEST)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := easelcomm_test_server
-LOCAL_MODULE_TAGS := tests
-LOCAL_MODULE_OWNER := google
-LOCAL_CFLAGS += -UNDEBUG -DEASEL_SERVER
-LOCAL_SRC_FILES := easelcomm_test.cpp
-LOCAL_SHARED_LIBRARIES := libeasel liblog
-include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libmockeasel
@@ -57,6 +40,7 @@ LOCAL_SRC_FILES := \
     EaselStateManager.cpp
 # See explanation in libeasel
 LOCAL_STATIC_LIBRARIES := liblog
-LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_SHARED_LIBRARIES := libcutils libbase
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbase
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
