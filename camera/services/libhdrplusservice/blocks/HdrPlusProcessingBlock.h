@@ -66,6 +66,9 @@ private:
     static constexpr float kMaxFaceScore = 100.f;
     static constexpr float kMinFaceScore = 1.f;
 
+    // The threshold to decide if an input is too old to be used for HDR+.
+    static const int64_t kOldInputTimeThresholdNs = 3000000000; // 3 seconds.
+
     // Callback invoked when Gcam releases an input image.
     class GcamInputImageReleaseCallback : public gcam::ImageReleaseCallback {
     public:
@@ -138,6 +141,9 @@ private:
     // Fill gcam frame metadata in a payload frame.
     status_t fillGcamFrameMetadata(std::shared_ptr<PayloadFrame> frame,
             const std::shared_ptr<FrameMetadata>& metadata);
+
+    // Return an input. Must be called with mQueueLock held.
+    void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
 
     std::mutex mHdrPlusProcessingLock;
 
