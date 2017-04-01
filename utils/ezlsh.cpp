@@ -362,7 +362,11 @@ void shell_client_session() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
 
     ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-    assert(ret == 0);
+    if (ret) {
+        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
+                EaselComm::EASEL_SERVICE_SHELL, ret);
+    }
+
     easel_comm_client.flush();
 
     msg_handler_thread = new std::thread(client_message_handler);
@@ -446,7 +450,10 @@ void client_push_file(char *local_path, char *remote_path) {
     file_xfer_path_local = local_path;
 
     int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-    assert(ret == 0);
+    if (ret) {
+        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
+                EaselComm::EASEL_SERVICE_SHELL, ret);
+    }
     easel_comm_client.flush();
 
     std::thread *msg_handler_thread;
@@ -510,7 +517,11 @@ void client_pull_recursive_file(char *remote_path, char *dest_arg) {
     file_recursive_path_local = local_path_str;
 
     int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-    assert(ret == 0);
+    if (ret) {
+        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
+                EaselComm::EASEL_SERVICE_SHELL, ret);
+    }
+
     easel_comm_client.flush();
 
     std::thread *msg_handler_thread;
@@ -752,7 +763,11 @@ void server_run(bool flush) {
     int ret;
 
     ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
-    assert(ret == 0);
+    if (ret) {
+        fprintf(stderr, "Failed to open server, service=%d, error=%d\n",
+                EaselComm::EASEL_SERVICE_SHELL, ret);
+    }
+
     if (flush) {
         easel_comm_server.flush();
     }
