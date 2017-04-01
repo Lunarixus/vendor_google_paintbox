@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <system/graphics.h>
 
+#include <easelcontrol.h>
+
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
 
 #include "HdrPlusProcessingBlock.h"
@@ -50,6 +52,18 @@ std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProces
     return block;
 }
 
+void HdrPlusProcessingBlock::returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline,
+        Input *input) {
+    if (pipeline == nullptr || input == nullptr) return;
+
+    // Unlock the frame buffer before returning it.
+    for (auto & buffer : input->buffers) {
+        buffer->unlockData();
+    }
+
+    pipeline->inputDone(*input);
+}
+
 bool HdrPlusProcessingBlock::doWorkLocked() {
     ALOGV("%s", __FUNCTION__);
 
@@ -73,23 +87,38 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
             return false;
         }
 
+        int64_t now;
+        status_t res = EaselControlServer::getApSynchronizedClockBoottime(&now);
+        if (res != 0) {
+            ALOGE("%s: Getting AP synchronized clock boot time failed.", __FUNCTION__);
+            return true;
+        }
+
+        // Remove old inputs
+        auto input = mInputQueue.begin();
+        while (input != mInputQueue.end()) {
+            if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
+                ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
+                        input->metadata.frameMetadata->easelTimestamp, now);
+                returnInputLocked(pipeline, &*input);
+                input = mInputQueue.erase(input);
+            } else {
+                input++;
+            }
+        }
+
         // If we have more inputs than we need, remove the oldest ones.
         while (mInputQueue.size() > kGcamMaxPayloadFrames) {
             ALOGV("%s: Input queue is full (%zu). Send the oldest buffer back.", __FUNCTION__,
                     mInputQueue.size());
 
-            // Unlock the frame buffer before returning it.
-            for (auto & buffer : mInputQueue[0].buffers) {
-                buffer->unlockData();
-            }
-
-            pipeline->inputDone(mInputQueue[0]);
+            returnInputLocked(pipeline, &mInputQueue[0]);
             mInputQueue.pop_front();
         }
 
         if (mInputQueue.size() < kGcamMinPayloadFrames) {
             // Nothing to do this time.
-            ALOGV("%s: Not enough inputs (%zu but need %d).", __FUNCTION__, mInputQueue.size(),
+            ALOGW("%s: Not enough inputs (%zu but need %d).", __FUNCTION__, mInputQueue.size(),
                     kGcamMinPayloadFrames);
             return false;
         } else if (mOutputRequestQueue.size() == 0) {
