@@ -21,6 +21,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES :=  \
     ApEaselMetadataManager.cpp \
+    EaselManagerClient.cpp \
     HdrPlusClient.cpp \
     HdrPlusClientUtils.cpp
 

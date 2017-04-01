@@ -24,6 +24,7 @@
 #include <utils/Condition.h>
 #include <vector>
 
+#include "EaselManagerClient.h"
 #include "HdrPlusClient.h"
 #include "HdrPlusClientUtils.h"
 #include "HdrPlusTestBurstInput.h"
@@ -48,6 +49,10 @@ class HdrPlusClientTest : public HdrPlusClientListener,
                           public ::testing::Test {
 
 public:
+    // Not used because HDR+ client will be created synchronously.
+    void onOpened(std::unique_ptr<HdrPlusClient>) override {};
+    void onOpenFailed(status_t) override {};
+
     // Override HdrPlusClientListener::onCaptureResult to receive capture results.
     void onCaptureResult(pbcamera::CaptureResult *result, const camera_metadata_t &resultMetadata)
             override {
@@ -115,7 +120,8 @@ protected:
     std::unique_ptr<HdrPlusClientTestStream> mInputStream;
     std::vector<std::unique_ptr<HdrPlusClientTestStream>> mOutputStreams;
 
-    HdrPlusClient mClient;
+    EaselManagerClient mEaselManagerClient;
+    std::unique_ptr<HdrPlusClient> mClient;
 
     // Flag indicating if the test is connected to HdrPlusClient.
     bool mConnected;
@@ -134,10 +140,7 @@ protected:
 
     // Override ::testing::Test::TearDown() to free test resources.
     virtual void TearDown() override {
-        if (mConnected) {
-            mClient.disconnect();
-        }
-
+        disconnectClient();
         destroyAllStreams();
         configureCameraServer(false);
     }
@@ -162,26 +165,34 @@ protected:
 
     // Connect to client.
     status_t connectClient() {
-        status_t res = mClient.powerOnEasel();
+        status_t res = mEaselManagerClient.open();
         if (res != 0) {
             ALOGE("%s: Powering on Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             return res;
         }
 
-        res = mClient.resumeEasel();
+        res = mEaselManagerClient.resume();
         if (res != 0) {
             ALOGE("%s: Resuming Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+            disconnectClient();
             return res;
         }
 
-        res = mClient.connect(this);
+        res = mEaselManagerClient.openHdrPlusClient(this, &mClient);
         if (res != 0) {
-            ALOGE("%s: Connecting client failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+            ALOGE("%s: Opening HDR+ client failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+            disconnectClient();
             return res;
         }
 
         mConnected = true;
         return 0;
+    }
+
+    void disconnectClient() {
+        mEaselManagerClient.closeHdrPlusClient(std::move(mClient));
+        mEaselManagerClient.suspend();
+        mConnected = false;
     }
 
     void pullCompiledGraph() {
@@ -369,13 +380,13 @@ protected:
         inputConfig.isSensorInput = false;
         inputConfig.streamConfig = mInputStream->config;
 
-        status_t res = mClient.configureStreams(inputConfig, outputConfigs);
+        status_t res = mClient->configureStreams(inputConfig, outputConfigs);
         if (res != OK) {
             ALOGE("%s: Configuring stream failed: %s (%d)", __FUNCTION__, strerror(-res), res);
             return res;
         }
 
-        res = mClient.setZslHdrPlusMode(true);
+        res = mClient->setZslHdrPlusMode(true);
         if (res != 0) {
             ALOGE("%s: Enable HDR+ mode failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             return res;
@@ -489,7 +500,7 @@ protected:
         CameraMetadata staticMetadata;
         ASSERT_EQ(burstInput.loadStaticMetadataFromFile(&staticMetadata), OK);
         const camera_metadata_t* metadata = staticMetadata.getAndLock();
-        ASSERT_EQ(mClient.setStaticMetadata(*metadata), OK);
+        ASSERT_EQ(mClient->setStaticMetadata(*metadata), OK);
         staticMetadata.unlock(metadata);
 
         // Get RAW width and height.
@@ -525,11 +536,11 @@ protected:
             inputBuffer.dmaBufFd = kInvalidFd;
             inputBuffer.data = mInputStream->availableBuffers[0];
             inputBuffer.dataSize = mInputStream->bufferSizeBytes;
-            mClient.notifyInputBuffer(inputBuffer, timestampNs);
+            mClient->notifyInputBuffer(inputBuffer, timestampNs);
 
             // Create and send a CameraMetadata
             const camera_metadata_t* metadata = frameMetadata.getAndLock();
-            mClient.notifyFrameMetadata(numBurstInputs - 1 - i, *metadata);
+            mClient->notifyFrameMetadata(numBurstInputs - 1 - i, *metadata);
             frameMetadata.unlock(metadata);
         }
 
@@ -559,7 +570,7 @@ protected:
             }
 
             // Issue a capture request.
-            ASSERT_EQ(mClient.submitCaptureRequest(&request), OK);
+            ASSERT_EQ(mClient->submitCaptureRequest(&request), OK);
 
             submittedRequests.push_back(request);
         }
@@ -572,16 +583,14 @@ protected:
         // TODO: Verify the content of the output buffers if possible.
         // TODO: Verify other combinations of output buffers.
 
-        mClient.disconnect();
-        mClient.suspendEasel();
-        mConnected = false;
+        disconnectClient();
     }
 };
 
 // Test HDR+ client connection.
 TEST_F(HdrPlusClientTest, Connect) {
     ASSERT_EQ(connectClient(), 0);
-    mClient.disconnect();
+    disconnectClient();
 }
 
 // Test stream configuration.
@@ -601,7 +610,7 @@ TEST_F(HdrPlusClientTest, StreamConfiguration) {
 
     // Set static metadata.
     const camera_metadata_t* metadata = staticMetadata.getAndLock();
-    ASSERT_EQ(mClient.setStaticMetadata(*metadata), OK);
+    ASSERT_EQ(mClient->setStaticMetadata(*metadata), OK);
     staticMetadata.unlock(metadata);
 
     // Configuring stream again after setting static metadata should succeed.
@@ -609,7 +618,7 @@ TEST_F(HdrPlusClientTest, StreamConfiguration) {
 
     // TODO: test more resolutions.
 
-    mClient.disconnect();
+    disconnectClient();
 }
 
 // Test capture requests with NV21 and RAW16 output.

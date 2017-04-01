@@ -25,7 +25,6 @@
 #include <queue>
 
 #include "ApEaselMetadataManager.h"
-#include "easelcontrol.h"
 #include "hardware/camera3.h"
 #include "HdrPlusClientListener.h"
 #include "HdrPlusProfiler.h"
@@ -48,43 +47,16 @@ public:
     virtual ~HdrPlusClient();
 
     /*
-     * Return if Easel is present on the device.
-     *
-     * If Easel is not present, all other calls to HdrPlusClient are invalid.
+     * The recommended way to create an HdrPlusClient instance is via
+     * EaselManagerClient::openHdrPlusClientAsync() or EaselManagerClient::openHdrPlusClientAsync().
+     * EaselManagerClient will make sure Easel is in a valid state to open an HDR+ client. To close
+     * an HdrPlusClient, use EaselManagerClient::closeHdrPlusClient.
      */
-    bool isEaselPresentOnDevice() const;
-
-    /*
-     * Power on Easel.
-     *
-     * Must be called before other following methods.
-     */
-    status_t powerOnEasel();
-
-    /*
-     * Suspend Easel.
-     *
-     * Put Easel on suspend mode.
-     */
-    status_t suspendEasel();
-
-    /*
-     * Resume Easel.
-     *
-     * Resume Easel from suspend mode.
-     */
-    status_t resumeEasel();
-
-    /*
-     * Set Easel bypass MIPI rate
-     *
-     * Can be called when Easel is powered on or resumed, for Easel to start bypassing sensor data
-     * to AP.
-     */
-    status_t setEaselBypassMipiRate(uint32_t cameraId, uint32_t outputPixelClkHz);
 
     /*
      * Connect to HDR+ service.
+     *
+     * If EaselManagerClient is used to create the HdrPlusClient, it is already connected.
      *
      * listener is the listener to receive callbacks from HDR+ client.
      *
@@ -185,33 +157,11 @@ public:
 private:
     static const size_t kMaxNumFrameHistory = 32;
 
-    // TODO: Figure out where this comes from but this ratio converts from QC's op_pixel_clk to
-    // the rate that Easel expects.
-    static constexpr float kApEaselMipiRateConversion = 0.0000025f;
-
-#if !USE_LIB_EASEL
-    // Used to connect Easel control. Only needed for TCP/IP mock.
-    const char *mDefaultServerHost = "localhost";
-#endif
-
     // Callbacks from HDR+ service start here.
     // Override pbcamera::MessengerListenerFromHdrPlusService
     void notifyFrameEaselTimestamp(int64_t easelTimestampNs) override;
     void notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) override;
     // Callbacks from HDR+ service end here.
-
-    // Activate Easel.
-    status_t activateEasel();
-
-    // Deactivate Easel.
-    void deactivateEasel();
-
-    // Easel controls
-    bool mIsEaselPresent;
-    EaselControlClient mEaselControl;
-    bool mEaselControlOpened;
-    bool mEaselActivated;
-    Mutex mEaselControlLock; // Protecting Easel control variables above.
 
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
