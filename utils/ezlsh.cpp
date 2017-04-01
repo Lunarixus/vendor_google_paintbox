@@ -39,6 +39,8 @@ enum Command {
     CMD_PUSH_RESPONSE, // Push file Easel-side response
     CMD_LS_REQUEST,    // Request ls directory in Easel
     CMD_LS_RESPONSE,   // Response ls diretory from Easel
+    CMD_EXEC_REQUEST,  // Request to execute a command
+    CMD_EXEC_RESPONSE, // Response to execute a command
 };
 
 // Common message header for all messages containing the command and data len
@@ -111,6 +113,21 @@ struct FileLsResponse {
     FileLsResponse(): h(CMD_LS_RESPONSE, 0) {};
 };
 
+struct ExecRequest {
+    struct MsgHeader h;
+    char cmd[kMaxTtyDataBufferSize];
+    ExecRequest(): h(CMD_EXEC_REQUEST, 0) {};
+};
+
+struct ExecResponse {
+    struct MsgHeader h;
+    bool done;
+    int exit;
+    char output[kMaxTtyDataBufferSize];
+    ExecResponse(): h(CMD_EXEC_RESPONSE,
+            sizeof(done) + sizeof(exit)), done(false), exit(0) {};
+};
+
 // Local tty/pty file descriptor
 int tty_fd;
 
@@ -138,9 +155,13 @@ std::mutex file_recursive_lock;                // protects following fields
 bool file_recursive_done = false;              // is ls transfer done?
 std::condition_variable file_recursive_cond;   // signals ls done to waiter
 
+std::mutex exec_lock;
+bool exec_done = false;
+std::condition_variable exec_cond;
+
+
 void client_exit(int exitcode) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
-    fprintf(stderr, "\rezlsh exiting\n");
     easel_comm_client.close();
     exit(exitcode);
 }
@@ -148,7 +169,7 @@ void client_exit(int exitcode) {
 void client_xfer_done() {
     // File transfer done, wake up main thread
     {
-        std::lock_guard<std::mutex> xferlock(file_xfer_lock);
+        std::lock_guard<std::mutex> lock(file_xfer_lock);
         file_xfer_done = true;
     }
     file_xfer_cond.notify_one();
@@ -157,10 +178,18 @@ void client_xfer_done() {
 void client_recursive_done() {
     // File transfer done, wake up main thread
     {
-        std::lock_guard<std::mutex> lslock(file_recursive_lock);
+        std::lock_guard<std::mutex> lock(file_recursive_lock);
         file_recursive_done = true;
     }
     file_recursive_cond.notify_one();
+}
+
+void client_exec_done() {
+    {
+        std::lock_guard<std::mutex> lock(exec_lock);
+        exec_done = true;
+    }
+    exec_cond.notify_one();
 }
 
 // Client receives file push response.
@@ -286,6 +315,17 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
     client_recursive_done();
 }
 
+void client_exec_response_handler(EaselComm::EaselMessage *msg) {
+    ExecResponse *resp = (ExecResponse *)msg->message_buf;
+    printf("%s\n", resp->output);
+    if (resp->done) {
+        if (resp->exit != 0) {
+            fprintf(stderr, "exit %d\n", resp->exit);
+        }
+        client_exec_done();
+    }
+}
+
 // Client incoming message handler
 void client_message_handler() {
     bool close_conn = false;
@@ -317,6 +357,7 @@ void client_message_handler() {
 
             case CMD_CLOSE_SHELL:
                 close_conn = true;
+                exec_cond.notify_one();
                 break;
 
             case CMD_PUSH_RESPONSE:
@@ -329,6 +370,10 @@ void client_message_handler() {
 
             case CMD_LS_RESPONSE:
                 client_pull_recursive_response_handler(&msg);
+                break;
+
+            case CMD_EXEC_RESPONSE:
+                client_exec_response_handler(&msg);
                 break;
 
             default:
@@ -399,6 +444,38 @@ void shell_client_session() {
     client_exit(0);
 }
 
+void client_exec_cmd(const char *cmd) {
+    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
+    assert(ret == 0);
+    easel_comm_client.flush();
+
+    std::thread *msg_handler_thread;
+    msg_handler_thread = new std::thread(client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+        client_exit(1);
+    }
+
+    ExecRequest request;
+    size_t size = strlcpy(request.cmd, cmd, kMaxTtyDataBufferSize);
+    if (size == 0 || size >= kMaxTtyDataBufferSize) {
+        fprintf(stderr, "ezlsh: %s invalid command %s\n", __FUNCTION__, cmd);
+        client_exit(1);
+    }
+
+    request.h.datalen = size + 1;
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &request;
+    msg.message_buf_size = sizeof(MsgHeader) + request.h.datalen;
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+
+    std::unique_lock<std::mutex> lk(exec_lock);
+    exec_done = false;
+    easel_comm_client.sendMessage(&msg);
+    exec_cond.wait(lk, [&]{return exec_done;});
+}
+
 // Client file pull command processing. Send pull request and wait for
 // incoming message handler to process the response from server.
 void client_pull_file(char *remote_path, char *dest_arg) {
@@ -422,8 +499,8 @@ void client_pull_file(char *remote_path, char *dest_arg) {
 
     // Send request
     FilePullRequest pull_msg;
-    strlcpy(pull_msg.path, remote_path, PATH_MAX);
-    pull_msg.h.datalen = strlen(pull_msg.path) + 1;
+    size_t size = strlcpy(pull_msg.path, remote_path, PATH_MAX);
+    pull_msg.h.datalen = size + 1;
     EaselComm::EaselMessage msg;
     msg.message_buf = &pull_msg;
     msg.message_buf_size = sizeof(MsgHeader) + pull_msg.h.datalen;
@@ -481,8 +558,8 @@ void client_push_file(char *local_path, char *remote_path) {
 
     // Send request, send file data as DMA buffer
     FilePushRequest push_msg;
-    strlcpy(push_msg.path, remote_path, PATH_MAX);
-    push_msg.h.datalen = strlen(push_msg.path) + 1;
+    size_t size = strlcpy(push_msg.path, remote_path, PATH_MAX);
+    push_msg.h.datalen = size + 1;
     EaselComm::EaselMessage msg;
     msg.message_buf = &push_msg;
     msg.message_buf_size = sizeof(MsgHeader) + push_msg.h.datalen;
@@ -522,8 +599,8 @@ void client_pull_recursive_file(char *remote_path, char *dest_arg) {
 
     // Send request
     FileLsRequest ls_msg;
-    strlcpy(ls_msg.path, remote_path, PATH_MAX);
-    ls_msg.h.datalen = strlen(ls_msg.path) + 1;
+    size_t size = strlcpy(ls_msg.path, remote_path, PATH_MAX);
+    ls_msg.h.datalen = size + 1;
     EaselComm::EaselMessage msg;
     msg.message_buf = &ls_msg;
     msg.message_buf_size = sizeof(MsgHeader) + ls_msg.h.datalen;
@@ -748,6 +825,47 @@ void server_ls_file(FileLsRequest *req) {
     }
 }
 
+static int server_send_exec_response(const char *output, int size, bool done, int exit) {
+    ExecResponse response;
+    size = strlcpy(response.output, output, size);
+    assert(size < kMaxTtyDataBufferSize);
+    response.done = done;
+    response.exit = exit;
+    response.h.datalen += size + 1;
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &response;
+    msg.message_buf_size = sizeof(response);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    int ret = easel_comm_server.sendMessage(&msg);
+    if (ret != 0) {
+        fprintf(stderr, "%s: %s errno %d", "ezlsh", __FUNCTION__, ret);
+    }
+    return ret;
+}
+
+void server_exec_cmd(ExecRequest *request) {
+    auto pipe = popen(request->cmd, "r");
+    int ret = -1;
+    if (!pipe) {
+        fprintf(stderr, "%s: %s could not execute cmd", "ezlsh", __FUNCTION__);
+        return;
+    } else {
+        char output[kMaxTtyDataBufferSize];
+        while ((ret = read(fileno(pipe), output, kMaxTtyDataBufferSize)) > 0) {
+            // read contains null terminator: ret == strlen(output) + 1
+            if (ret > kMaxTtyDataBufferSize) {
+                fprintf(stderr, "%s: %s output too long %d", "ezlsh", __FUNCTION__, ret);
+                ret = kMaxTtyDataBufferSize;
+            }
+            server_send_exec_response(output, ret, false, 0);
+        }
+        ret = pclose(pipe);
+    }
+
+    server_send_exec_response(std::string("").c_str(), 0, true, ret);
+}
+
 void server_run(bool flush) {
     int ret;
 
@@ -771,7 +889,6 @@ void server_run(bool flush) {
 
         if (msg.message_buf_size) {
             MsgHeader *h = (MsgHeader *)msg.message_buf;
-
             switch(h->command) {
             case CMD_OPEN_SHELL:
                 server_kill_shell();
@@ -805,6 +922,10 @@ void server_run(bool flush) {
 
             case CMD_LS_REQUEST:
                 server_ls_file((FileLsRequest *)msg.message_buf);
+                break;
+
+            case CMD_EXEC_REQUEST:
+                server_exec_cmd((ExecRequest *)msg.message_buf);
                 break;
 
             default:
@@ -852,6 +973,7 @@ int main(int argc, char **argv) {
                     "       client: ezlsh\n"
                     "       client: ezlsh pull <remote-path> [<local-path>]\n"
                     "       client: ezlsh push <local-path> <remote-path>\n"
+                    "       cliect: ezlsh exec \"<cmd>\"\n"
                     );
             exit(1);
         }
@@ -894,7 +1016,16 @@ int main(int argc, char **argv) {
                 remote_path = argv[optind];
                 client_push_file(local_path, remote_path);
 
-           } else {
+            } else if (!strcmp(argv[optind], "exec")) {
+                if (++optind >= argc) {
+                    fprintf(stderr,
+                          "ezlsh: exec: cmd missing\n");
+                    exit(1);
+                }
+
+                client_exec_cmd(argv[optind]);
+
+            } else {
                 fprintf(stderr,
                         "ezlsh: unknown command \"%s\"\n", argv[optind]);
                 exit(1);
