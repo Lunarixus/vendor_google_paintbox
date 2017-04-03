@@ -159,7 +159,7 @@ void PipelineBlock::threadLoop() {
         bool gotEvent = true;
         {
             std::unique_lock<std::mutex> eventLock(mEventLock);
-            if (mEventTimeoutMs == NO_EVENT_TIMEOUT) {
+            if (mEventTimeoutMs == NO_EVENT_TIMEOUT || mState == STATE_STOPPED) {
                 mEventCondition.wait(eventLock, [&] { return mEventCounts > 0; });
             } else {
                 gotEvent = mEventCondition.wait_for(eventLock,
