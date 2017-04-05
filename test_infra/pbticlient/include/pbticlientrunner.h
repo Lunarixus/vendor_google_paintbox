@@ -12,6 +12,24 @@ class PbTiClientRunner : public android::PbTiClientListener {
     // Override PbTiClientListener::onPbTiTestResult to receive test results.
     void onPbTiTestResult(const std::string &result) override;
 
+    /*
+     * Activate Easel.
+     *
+     * Returns:
+     *  0:          on success.
+     *  -NO_INIT:   if it's not activated.
+     */
+    android::status_t activate();
+
+    /*
+     * Deactivate Easel.
+     *
+     * Returns:
+     *  0:          on success.
+     *  -NO_INIT:   if it's not deactivated.
+     */
+    android::status_t deactivate();
+
     // Connect to client.
     android::status_t connectClient();
 
@@ -21,6 +39,8 @@ class PbTiClientRunner : public android::PbTiClientListener {
  private:
     android::PbTiClient mClient;
 
+    // Indicate if Easel is activated.
+    bool mEaselActivated;
     // Flag indicating if the test is connected to PbTiClient.
     bool mConnected;
 };
