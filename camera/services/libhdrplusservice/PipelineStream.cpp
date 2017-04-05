@@ -1,6 +1,6 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "PipelineStream"
-#include "Log.h"
+#include <utils/Log.h>
 
 #include <errno.h>
 #include <system/graphics.h>

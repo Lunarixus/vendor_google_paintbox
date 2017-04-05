@@ -19,12 +19,12 @@ LOCAL_SHARED_LIBRARIES:= \
     libcutils
 
 ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_STATIC_LIBRARIES := libmockeasel
-    LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libmockeasel
+    LOCAL_SHARED_LIBRARIES += libmockeasel
+    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeasel
     LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
 else
-    LOCAL_STATIC_LIBRARIES := libeasel
-    LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libeasel
+    LOCAL_SHARED_LIBRARIES += libeasel
+    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeasel
     LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
 endif
 
@@ -32,7 +32,7 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
     vendor/google_paintbox/test_infra/include
 
-LOCAL_EXPORT_C_INCLUDE_DIRS := \
+LOCAL_EXPORT_C_INCLUDE_DIRS += \
     $(LOCAL_PATH)/include \
     vendor/google_paintbox/test_infra/include
 

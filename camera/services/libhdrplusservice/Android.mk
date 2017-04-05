@@ -22,9 +22,9 @@ LOCAL_SHARED_LIBRARIES:= \
     liblog
 
 ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_STATIC_LIBRARIES := libmockeasel
+    LOCAL_SHARED_LIBRARIES += libmockeasel
 else
-    LOCAL_STATIC_LIBRARIES := libeasel
+    LOCAL_SHARED_LIBRARIES += libeasel
 endif
 
 LOCAL_C_INCLUDES += \
@@ -32,10 +32,10 @@ LOCAL_C_INCLUDES += \
     vendor/google_paintbox/camera/include \
     vendor/google_paintbox/camera/services/include
 
-LOCAL_EXPORT_C_INCLUDE_DIRS := \
+LOCAL_EXPORT_C_INCLUDE_DIRS += \
     vendor/google_paintbox/camera/services/include
 
-LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libhdrplusmessenger
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libhdrplusmessenger
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 

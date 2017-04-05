@@ -1,6 +1,6 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusProcessingBlock"
-#include "Log.h"
+#include <utils/Log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
 

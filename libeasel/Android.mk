@@ -16,7 +16,15 @@ LOCAL_SRC_FILES := \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
     EaselStateManager.cpp
-include $(BUILD_STATIC_LIBRARY)
+# To avoid circular dependency between libeasel
+# liblog (libeasellog) on server side, liblog is
+# statically linked in libeasel for client usage.
+# For logging on libeasel server, please use
+# easelLog directly instead of liblog.
+LOCAL_STATIC_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_PROPRIETARY_MODULE := true
+include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := easelcomm_test_client
@@ -24,8 +32,7 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
 LOCAL_CFLAGS += -UNDEBUG -DAP_CLIENT
 LOCAL_SRC_FILES := easelcomm_test.cpp
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_STATIC_LIBRARIES := libeasel liblog
+LOCAL_SHARED_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -34,8 +41,7 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
 LOCAL_CFLAGS += -UNDEBUG -DEASEL_SERVER
 LOCAL_SRC_FILES := easelcomm_test.cpp
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_STATIC_LIBRARIES := libeasel liblog
+LOCAL_SHARED_LIBRARIES := libeasel liblog
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -49,4 +55,8 @@ LOCAL_SRC_FILES := \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
     EaselStateManager.cpp
-include $(BUILD_STATIC_LIBRARY)
+# See explanation in libeasel
+LOCAL_STATIC_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_PROPRIETARY_MODULE := true
+include $(BUILD_SHARED_LIBRARY)

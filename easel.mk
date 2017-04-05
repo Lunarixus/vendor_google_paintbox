@@ -31,7 +31,8 @@ PRODUCT_PACKAGES += \
     libhdrplusservice \
     libeasellog \
     libhdrplusclient \
-    libhdrplusmessenger
+    libhdrplusmessenger \
+    libeasel
 
 # Add ezlsh and pbti utils in userdebug and eng builds
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))

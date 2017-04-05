@@ -6,9 +6,9 @@ LOCAL_SRC_FILES := \
 	log.cpp \
 	log_stub.cpp
 
-LOCAL_STATIC_LIBRARIES := libeasel libdebuggerd libbacktrace libbase
+LOCAL_STATIC_LIBRARIES := libdebuggerd
 
-LOCAL_SHARED_LIBRARIES := libunwind liblzma
+LOCAL_SHARED_LIBRARIES := libunwind liblzma libeasel libbacktrace libbase
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 

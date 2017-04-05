@@ -1,6 +1,6 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SourceCaptureBlock"
-#include "Log.h"
+#include <utils/Log.h>
 
 #include <inttypes.h>
 #include <system/graphics.h>
