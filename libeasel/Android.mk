@@ -12,6 +12,7 @@ LOCAL_C_INCLUDES := $(PB_INCLUDES)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := \
+    EaselClockControl.cpp \
     EaselComm.cpp \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
@@ -51,6 +52,7 @@ LOCAL_C_INCLUDES := $(PB_INCLUDES)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_INCLUDES)
 LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG -DMOCKEASEL
 LOCAL_SRC_FILES := \
+    EaselClockControl.cpp \
     EaselCommNet.cpp \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
