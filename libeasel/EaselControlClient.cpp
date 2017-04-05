@@ -307,11 +307,6 @@ int EaselControlClient::open() {
         return ret;
     }
 
-    if (ret) {
-        ALOGE("%s: failed (%d)", __FUNCTION__, ret);
-        stateMgr.close();
-    }
-
     return ret;
 }
 
@@ -343,4 +338,3 @@ bool isEaselPresent()
 
     return ret;
 }
-

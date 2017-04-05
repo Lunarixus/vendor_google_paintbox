@@ -428,8 +428,6 @@ int EaselCommClient::initialHandshake() {
     EaselMessage msg;
     int ret = 0;
 
-    fprintf(stderr, "%s: A\n", __FUNCTION__);
-
     composeHandshake(&msg, 0);
     ret = sendMessage(&msg);
     if (ret) {
