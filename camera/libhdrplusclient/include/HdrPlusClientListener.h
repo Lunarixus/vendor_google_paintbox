@@ -19,6 +19,9 @@
 
 namespace android {
 
+
+class HdrPlusClient;
+
 /*
  * HdrPlusClientListener defines callbacks that will be invoked by HdrPlusClient for events like
  * returning capture results.
@@ -26,6 +29,21 @@ namespace android {
 class HdrPlusClientListener {
 public:
     virtual ~HdrPlusClientListener() {};
+
+    /*
+     * Invoked when an HDR+ client is opened successfully via
+     * EaselManagerClient::openHdrPlusClientAsync.
+     */
+    virtual void onOpened(std::unique_ptr<HdrPlusClient> client) = 0;
+
+    /*
+     * Invoked when opening an HDR+ client failed via EaselManagerClient::openHdrPlusClientAsync.
+     *
+     * err is
+     *  -EEXIST:    if an HDR+ client is already opened.
+     *  -ENODEV:    if opening an HDR+ failed due to a serious error.
+     */
+    virtual void onOpenFailed(status_t err) = 0;
 
     /*
      * Invoked when a CaptureResult, containing a subset or all output buffers for a CaptureRequest,

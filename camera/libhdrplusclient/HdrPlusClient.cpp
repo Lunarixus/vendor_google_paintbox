@@ -27,13 +27,7 @@
 
 namespace android {
 
-HdrPlusClient::HdrPlusClient() :
-        mEaselControlOpened(false),
-        mEaselActivated(false),
-        mClientListener(nullptr) {
-    mIsEaselPresent = ::isEaselPresent();
-    ALOGI("%s: Easel is %s", __FUNCTION__, mIsEaselPresent ? "present" : "not present");
-
+HdrPlusClient::HdrPlusClient() : mClientListener(nullptr) {
     mNotifyFrameMetadataThread = new NotifyFrameMetadataThread(&mMessengerToService);
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
@@ -42,117 +36,16 @@ HdrPlusClient::HdrPlusClient() :
 
 HdrPlusClient::~HdrPlusClient() {
     disconnect();
-    mEaselControl.close();
-    mEaselControlOpened = false;
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->requestExit();
         mNotifyFrameMetadataThread->join();
     }
 }
 
-bool HdrPlusClient::isEaselPresentOnDevice() const {
-    return mIsEaselPresent;
-}
-
-status_t HdrPlusClient::powerOnEasel() {
-    Mutex::Autolock l(mEaselControlLock);
-    if (mEaselControlOpened) {
-        ALOGW("%s: Easel bypass was already enabled.", __FUNCTION__);
-        return OK;
-    }
-
-    status_t res;
-
-#if !USE_LIB_EASEL
-    // Open Easel control.
-    res = mEaselControl.open(mDefaultServerHost);
-#else
-    SCOPE_PROFILER_TIMER("Open EaselControl");
-    res = mEaselControl.open();
-#endif
-    if (res != OK) {
-        ALOGE("%s: Failed to open Easel control: %s (%d).", __FUNCTION__, strerror(errno), -errno);
-        return NO_INIT;
-    }
-
-    mEaselControlOpened = true;
-    return res;
-}
-
-status_t HdrPlusClient::setEaselBypassMipiRate(uint32_t cameraId, uint32_t outputPixelClkHz) {
-    Mutex::Autolock l(mEaselControlLock);
-
-    if (!mEaselControlOpened) {
-        ALOGE("%s: enableEaselBypass was not called before setting bypass rate.", __FUNCTION__);
-        return NO_INIT;
-    }
-
-    uint32_t rate = outputPixelClkHz * kApEaselMipiRateConversion;
-    enum EaselControlClient::Camera camera;
-
-    switch (cameraId) {
-        case 0:
-            camera = EaselControlClient::MAIN;
-            break;
-        case 1:
-            camera = EaselControlClient::FRONT;
-            break;
-        default:
-            ALOGE("%s: Invalid camera ID %u" , __FUNCTION__, cameraId);
-            return BAD_VALUE;
-    }
-
-    ALOGD("%s: Configuring MIPI rate to %d for camera %u", __FUNCTION__, rate, cameraId);
-
-    SCOPE_PROFILER_TIMER("Config MIPI");
-    status_t res = mEaselControl.startMipi(camera, rate);
-    if (res != OK) {
-        ALOGE("%s: Failed to config mipi: %s (%d).", __FUNCTION__, strerror(errno), -errno);
-        return NO_INIT;
-    }
-
-    return res;
-}
-
-status_t HdrPlusClient::suspendEasel() {
-    ALOGD("%s: Suspending Easel.", __FUNCTION__);
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselControlOpened) {
-        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
-        return NO_INIT;
-    }
-
-    SCOPE_PROFILER_TIMER("Suspend Easel");
-    return mEaselControl.suspend();
-}
-
-status_t HdrPlusClient::resumeEasel() {
-    ALOGD("%s: Resuming Easel.", __FUNCTION__);
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselControlOpened) {
-        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
-        return NO_INIT;
-    }
-
-    SCOPE_PROFILER_TIMER("Resume Easel");
-    return mEaselControl.resume();
-}
-
 status_t HdrPlusClient::connect(HdrPlusClientListener *listener) {
     ALOGV("%s", __FUNCTION__);
-
-    if (listener == nullptr) return BAD_VALUE;
-
-    status_t res = OK;
-
-    res = activateEasel();
-    if (res != OK) {
-        ALOGE("%s: Activating Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        return res;
-    }
-
     // Connect to the messenger for sending messages to HDR+ service.
-    res = mMessengerToService.connect(*this);
+    status_t res = mMessengerToService.connect(*this);
     if (res != OK) {
         ALOGE("%s: Connecting service messenger failed: %s (%d)", __FUNCTION__, strerror(-res),
                 res);
@@ -162,6 +55,7 @@ status_t HdrPlusClient::connect(HdrPlusClientListener *listener) {
 
     Mutex::Autolock l(mClientListenerLock);
     mClientListener = listener;
+
     return OK;
 }
 
@@ -186,40 +80,6 @@ void HdrPlusClient::disconnect() {
 
     mClientListener = nullptr;
     mApEaselMetadataManager.clear();
-    deactivateEasel();
-}
-
-status_t HdrPlusClient::activateEasel() {
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselControlOpened) {
-        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
-        return NO_INIT;
-    }
-
-    if (mEaselActivated) {
-        ALOGE("%s: Easel is already activated.", __FUNCTION__);
-        return ALREADY_EXISTS;
-    }
-
-    SCOPE_PROFILER_TIMER("Activate Easel");
-
-    // Activate Easel.
-    status_t res = mEaselControl.activate();
-    if (res != OK) {
-        ALOGE("%s: Failed to activate Easel: %s (%d).", __FUNCTION__, strerror(errno), -errno);
-        return NO_INIT;
-    }
-    mEaselActivated = true;
-    return OK;
-}
-
-void HdrPlusClient::deactivateEasel() {
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselActivated) return;
-
-    SCOPE_PROFILER_TIMER("Deactivate Easel");
-    mEaselControl.deactivate();
-    mEaselActivated = false;
 }
 
 status_t HdrPlusClient::setStaticMetadata(const camera_metadata_t &staticMetadata) {
