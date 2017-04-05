@@ -15,5 +15,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 
 LOCAL_MODULE:= pbticlient
+LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_EXECUTABLE)

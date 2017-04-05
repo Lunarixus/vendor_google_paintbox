@@ -15,5 +15,7 @@ LOCAL_SHARED_LIBRARIES:= libpbtiservice \
                          liblog
 
 LOCAL_MODULE:= pbtiserver
+LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_EXECUTABLE)

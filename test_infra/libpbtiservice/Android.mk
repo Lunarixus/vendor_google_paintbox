@@ -29,5 +29,7 @@ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libpbtimessenger
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_MODULE:= libpbtiservice
+LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
