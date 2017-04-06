@@ -201,7 +201,6 @@ int EaselControlClient::deactivate() {
 
 int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int rate)
 {
-    enum EaselStateManager::State state;
     struct EaselStateManager::EaselMipiConfig config = {
         .rxRate = rate, .txRate = rate,
     };
@@ -220,22 +219,10 @@ int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int ra
         config.txChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_TX_CHAN_1;
     }
 
-    ret = stateMgr.getState(&state);
+    ret = stateMgr.waitForPower();
     if (ret) {
-        ALOGE("Could not read the current state of Easel (%d)\n", ret);
+        ALOGE("Could not start MIPI because Easel is not powered (%d)\n", ret);
         return ret;
-    }
-
-    if ((state != EaselStateManager::ESM_STATE_PENDING) &&
-        (state != EaselStateManager::ESM_STATE_ACTIVE)) {
-        if (gMode == HDRPLUS)
-            ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
-        else
-            ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_PENDING);
-        if (ret) {
-            ALOGE("Could not start MIPI because Easel is not powered (%d)\n", ret);
-            return ret;
-        }
     }
 
     return stateMgr.startMipi(&config);
@@ -264,11 +251,7 @@ int EaselControlClient::resume() {
 
     ALOGI("%s\n", __FUNCTION__);
 
-    if (gMode == HDRPLUS)
-        ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false /* blocking */);
-    else
-        ret = stateMgr.setState(EaselStateManager::ESM_STATE_PENDING, false /* blocking */);
-
+    ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false /* blocking */);
     if (ret) {
         ALOGE("Failed to resume Easel (%d)\n", ret);
         return ret;

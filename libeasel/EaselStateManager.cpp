@@ -87,6 +87,14 @@ int EaselStateManager::setState(enum EaselStateManager::State state, bool blocki
     return 0;
 }
 
+int EaselStateManager::waitForPower()
+{
+    if (ioctl(mFd, MNH_SM_IOC_WAIT_FOR_POWER) == -1)
+        return -errno;
+
+    return 0;
+}
+
 int EaselStateManager::waitForState(enum State state)
 {
     if (ioctl(mFd, MNH_SM_IOC_WAIT_FOR_STATE, (int)state) == -1)
