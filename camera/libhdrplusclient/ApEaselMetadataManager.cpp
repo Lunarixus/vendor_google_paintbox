@@ -441,13 +441,8 @@ bool ApEaselMetadataManager::tryAddingApEaselMetadataLocked(
     ALOGV("%s: easelStartExpTime %" PRId64 " apTimestamp %" PRId64 " exposureTime %" PRId64,
             __FUNCTION__, easelStartExpTime, apTimestamp, exposureTime);
 
-    // TODO: Enforce timestamp matching when timestamp is accurate. b/35399985
-    bool noTimestampMatching = property_get_bool("persist.camera.hdrplus.notimestampmatching",
-            false);
-
     // Check if they are within the tolerence.
-    if (noTimestampMatching ||
-            llabs(apTimestamp - easelStartExpTime) <= kApEaselTimestampDiffToleranceNs) {
+    if (llabs(apTimestamp - easelStartExpTime) <= kApEaselTimestampDiffToleranceNs) {
         // They match so create an entry in mApTimestampToMetadataMap.
         std::shared_ptr<pbcamera::FrameMetadata> pbFrameMetadata;
         status_t res = convertAndReturnPbFrameMetadata(&pbFrameMetadata, cameraMetadata);
