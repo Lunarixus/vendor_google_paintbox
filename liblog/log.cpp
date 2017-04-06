@@ -103,8 +103,13 @@ int __android_log_write(int prio, const char* tag, const char *text) {
   if (kLogToConsole) {
     char timestamp[TIMESTAMP_BUF_SIZE];
     getTimestamp(timestamp, TIMESTAMP_BUF_SIZE);
-    // Prints to stdout.
-    fprintf(stderr, "%s  <%s> %s: %s\n", timestamp, PRIO_LIST[prio].c_str(), tag, text);
+    if (prio >= ANDROID_LOG_ERROR) {
+      fprintf(stderr, "%s  <%s> %s: %s\n",
+          timestamp, PRIO_LIST[prio].c_str(), tag, text);
+    } else {
+      printf("%s  <%s> %s: %s\n",
+          timestamp, PRIO_LIST[prio].c_str(), tag, text);
+    }
   } else {
     char buf[LOG_BUF_SIZE];
     snprintf(buf, LOG_BUF_SIZE, "EASEL: %s", text);
