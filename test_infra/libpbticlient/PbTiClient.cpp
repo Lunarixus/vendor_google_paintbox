@@ -11,7 +11,6 @@ namespace android {
 
 PbTiClient::PbTiClient() :
     mEaselControlOpened(false),
-    mEaselActivated(false),
     mClientListener(nullptr) {
     mIsEaselPresent = ::isEaselPresent();
     ALOGI("%s: Easel is %s",
@@ -20,7 +19,6 @@ PbTiClient::PbTiClient() :
 
 PbTiClient::~PbTiClient() {
     disconnect();
-    mEaselControl.close();
     mEaselControlOpened = false;
 }
 
@@ -28,7 +26,8 @@ bool PbTiClient::isEaselPresentOnDevice() const {
     return mIsEaselPresent;
 }
 
-status_t PbTiClient::powerOnEasel() {
+status_t PbTiClient::openEasel() {
+    ALOGD("%s: Opening an easelcontrol connection to Easel.", __FUNCTION__);
     Mutex::Autolock l(mEaselControlLock);
     if (mEaselControlOpened) {
         return OK;
@@ -50,6 +49,37 @@ status_t PbTiClient::powerOnEasel() {
 
     mEaselControlOpened = true;
     return res;
+}
+
+void PbTiClient::closeEasel() {
+    ALOGD("%s: Closing easelcontrol connection.", __FUNCTION__);
+    Mutex::Autolock l(mEaselControlLock);
+    if (mEaselControlOpened) {
+        mEaselControl.close();
+        mEaselControlOpened = false;
+    }
+}
+
+status_t PbTiClient::activateEasel() {
+    ALOGD("%s: Activating Easel.", __FUNCTION__);
+    Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+
+    return mEaselControl.activate();
+}
+
+status_t PbTiClient::deactivateEasel() {
+    ALOGD("%s: Deactivating Easel.", __FUNCTION__);
+    Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+
+    return mEaselControl.deactivate();
 }
 
 status_t PbTiClient::suspendEasel() {
@@ -74,6 +104,20 @@ status_t PbTiClient::resumeEasel() {
     return mEaselControl.resume();
 }
 
+// TODO: change system call to ioctl function call when it's ready
+status_t PbTiClient::freezeEaselState() {
+    ALOGD("%s: Freezing Easel state.", __FUNCTION__);
+    system("echo 1 > /sys/bus/platform/drivers/mnh_sm/soc:mnh-sm/freeze_state");
+    return OK;
+}
+
+// TODO: change system call to ioctl function call when it's ready
+status_t PbTiClient::unfreezeEaselState() {
+    ALOGD("%s: Unfreezing Easel state.", __FUNCTION__);
+    system("echo 0 > /sys/bus/platform/drivers/mnh_sm/soc:mnh-sm/freeze_state");
+    return OK;
+}
+
 status_t PbTiClient::connect(PbTiClientListener *listener) {
     ALOGV("%s", __FUNCTION__);
 
@@ -81,17 +125,8 @@ status_t PbTiClient::connect(PbTiClientListener *listener) {
         return BAD_VALUE;
     }
 
-    status_t res = OK;
-
-    res = activateEasel();
-    if (res != OK) {
-        ALOGE("%s: Activating Easel failed: %s (%d).",
-              __FUNCTION__, strerror(-res), res);
-        return res;
-    }
-
     // Connect to the messenger for sending messages to paintbox test service.
-    res = mMessengerToService.connect(*this);
+    status_t res = mMessengerToService.connect(*this);
     if (res != OK) {
         ALOGE("%s: Connecting service messenger failed: %s (%d)",
               __FUNCTION__, strerror(-res), res);
@@ -109,44 +144,9 @@ void PbTiClient::disconnect() {
     ALOGV("%s", __FUNCTION__);
 
     mMessengerToService.disconnect();
+
+    Mutex::Autolock l(mClientListenerLock);
     mClientListener = nullptr;
-    deactivateEasel();
-}
-
-status_t PbTiClient::activateEasel() {
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselControlOpened) {
-        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
-        return NO_INIT;
-    }
-
-    if (mEaselActivated) {
-        ALOGE("%s: Easel is already activated.", __FUNCTION__);
-        return ALREADY_EXISTS;
-    }
-
-    // Activate Easel.
-    status_t res = mEaselControl.activate();
-    if (res != OK) {
-        ALOGE("%s: Failed to activate Easel: %s (%d).",
-              __FUNCTION__, strerror(errno), -errno);
-        return NO_INIT;
-    }
-    mEaselActivated = true;
-
-    return OK;
-}
-
-void PbTiClient::deactivateEasel() {
-    ALOGV("%s: deactivate Easel.", __FUNCTION__);
-
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselActivated) {
-        return;
-    }
-
-    mEaselControl.deactivate();
-    mEaselActivated = false;
 }
 
 status_t PbTiClient::submitPbTiTestRequest(

@@ -7,15 +7,82 @@
 
 #include "pbticlientrunner.h"
 
-PbTiClientRunner::PbTiClientRunner() : mConnected(false) {
+PbTiClientRunner::PbTiClientRunner() : mEaselActivated(false),
+                                       mConnected(false) {
 }
 
 PbTiClientRunner::~PbTiClientRunner() {
     if (mConnected) {
         mClient.disconnect();
-        mClient.suspendEasel();
         mConnected = false;
     }
+}
+
+android::status_t PbTiClientRunner::activate() {
+    ALOGV("%s: activating Easel.", __FUNCTION__);
+
+    if (mEaselActivated) {
+        ALOGE("%s: Easel is already activated.", __FUNCTION__);
+        return android::ALREADY_EXISTS;
+    }
+
+    android::status_t res = mClient.openEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    res = mClient.resumeEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel is not resumed.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    res = mClient.activateEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel is not activated.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    res = mClient.freezeEaselState();
+    if (res != android::OK) {
+        ALOGE("%s: Easel state is not freezed.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    mClient.closeEasel();
+
+    mEaselActivated = true;
+
+    return android::OK;
+}
+
+android::status_t PbTiClientRunner::deactivate() {
+    ALOGV("%s: deactivating Easel.", __FUNCTION__);
+
+    android::status_t res = mClient.openEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    res = mClient.unfreezeEaselState();
+    if (res != android::OK) {
+        ALOGE("%s: Easel state is not unfreezed.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    res = mClient.suspendEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel is not suspended.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
+    mClient.closeEasel();
+
+    mEaselActivated = false;
+
+    return android::OK;
 }
 
 void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
@@ -30,19 +97,7 @@ void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
 }
 
 android::status_t PbTiClientRunner::connectClient() {
-    int res = mClient.powerOnEasel();
-    if (res != 0) {
-        ALOGE("%s: Powering on Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        return res;
-    }
-
-    res = mClient.resumeEasel();
-    if (res != 0) {
-        ALOGE("%s: Resuming Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        return res;
-    }
-
-    res = mClient.connect(this);
+    int res = mClient.connect(this);
     if (res != 0) {
         ALOGE("%s: Connecting client failed: %s (%d).",
               __FUNCTION__, strerror(-res), res);
@@ -61,8 +116,11 @@ android::status_t PbTiClientRunner::submitPbTiTestRequest(
 
 void usage() {
     std::string usage = std::string("Usage: ") +
-        "pbticlient [-c TEST_COMMAND] [-l LOG_PATH] [-t TIMEOUT_SECONDS]\n" +
+        "pbticlient [-a ACTIVATE] [-d DEACTIVATE] [-c TEST_COMMAND] "
+        "[-l LOG_PATH] [-t TIMEOUT_SECONDS]\n" +
         "Arguments: \n" +
+        "  -a, --activate          activate easel \n" +
+        "  -d, --deactivate        deactivate easel \n" +
         "  -c, --command           command line to run tests on easel \n" +
         "  -l, --test_path         test log path on Easel \n" +
         "  -t, --timeout_seconds   timeout seconds \n";
@@ -70,9 +128,12 @@ void usage() {
     ALOGE("%s", usage.c_str());
 }
 
-int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
+int parse_args(int argc, const char **argv, bool *activate, bool *deactivate,
+               pbti::PbTiTestRequest *request) {
     const struct option long_options[] = {
         { "help",              no_argument,       0, 'h' },
+        { "activate",          no_argument,       0, 'a' },
+        { "deactivate",        no_argument,       0, 'd' },
         { "command",           required_argument, 0, 'c' },
         { "log_path",          required_argument, 0, 'l' },
         { "timeout_seconds",   required_argument, 0, 't' },
@@ -83,7 +144,7 @@ int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
         // getopt_long stores the option index here.
         int option_index = 0;
         int option_val = getopt_long(argc, (char * const *)(argv),
-                                     "hc:l:t:", long_options, &option_index);
+                                     "hadc:l:t:", long_options, &option_index);
 
         // Detect the end of the options.
         if (option_val == -1) {
@@ -102,14 +163,20 @@ int parse_args(int argc, const char **argv, pbti::PbTiTestRequest &request) {
         case 'h':
             usage();
             exit(0);
+        case 'a':
+            *activate = true;
+            break;
+        case 'd':
+            *deactivate = true;
+            break;
         case 'c':
-            request.command = optarg;
+            (*request).command = optarg;
             break;
         case 'l':
-            request.log_path = optarg;
+            (*request).log_path = optarg;
             break;
         case 't':
-            request.timeout_seconds = atoi(optarg);
+            (*request).timeout_seconds = atoi(optarg);
             break;
         case '?':
             // getopt_long already printed an error message.
@@ -137,30 +204,41 @@ int main(int argc, const char *argv[]) {
     const uint DEFAULT_TIMEOUT_SECONDS = 3;
 
     pbti::PbTiTestRequest request;
-    int ret = parse_args(argc, argv, request);
-    if (ret != 0 || request.command.empty()) {
+    bool activate = false, deactivate = false;
+    int ret = parse_args(argc, argv, &activate, &deactivate, &request);
+    if (ret != 0) {
         usage();
         exit(-1);
     }
 
-    if (request.timeout_seconds == 0) {
-        request.timeout_seconds = DEFAULT_TIMEOUT_SECONDS;
-    }
-
-    ALOGD("Command: %s", request.command.c_str());
-    if (!request.log_path.empty()) {
-        ALOGD("Log path: %s", request.log_path.c_str());
-    }
-    ALOGD("Timeout seconds: %d", request.timeout_seconds);
-
     std::unique_ptr<PbTiClientRunner> client_runner =
             std::make_unique<PbTiClientRunner>();
 
-    int res =client_runner->connectClient();
-    if (res != 0) {
-        return res;
-    }
-    res = client_runner->submitPbTiTestRequest(request);
+    if (activate) {
+        ret = client_runner->activate();
+    } else if (deactivate) {
+        ret = client_runner->deactivate();
+    } else {
+        if (request.command.empty()) {
+            usage();
+            exit(-1);
+        }
+        if (request.timeout_seconds == 0) {
+            request.timeout_seconds = DEFAULT_TIMEOUT_SECONDS;
+        }
 
-    return res;
+        ALOGD("Command: %s", request.command.c_str());
+        if (!request.log_path.empty()) {
+            ALOGD("Log path: %s", request.log_path.c_str());
+        }
+        ALOGD("Timeout seconds: %d", request.timeout_seconds);
+
+        ret = client_runner->connectClient();
+        if (ret != 0) {
+            return ret;
+        }
+        ret = client_runner->submitPbTiTestRequest(request);
+    }
+
+    return ret;
 }

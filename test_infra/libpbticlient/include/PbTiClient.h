@@ -32,11 +32,30 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     bool isEaselPresentOnDevice() const;
 
     /*
-     * Power on Easel.
+     * Open an easelcontrol connection to Easel.
      *
      * Must be called before other following methods.
      */
-    status_t powerOnEasel();
+    status_t openEasel();
+
+    /*
+     * Resume Easel.
+     *
+     * Resume Easel from suspend mode.
+     */
+    status_t resumeEasel();
+
+    /*
+     * Activate Easel.
+     *
+     * Put Easel to active mode
+     */
+    status_t activateEasel();
+
+    /*
+     * Deactivate Easel.
+     */
+    status_t deactivateEasel();
 
     /*
      * Suspend Easel.
@@ -46,11 +65,19 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     status_t suspendEasel();
 
     /*
-     * Resume Easel.
+     * Freeze Easel state.
      *
-     * Resume Easel from suspend mode.
      */
-    status_t resumeEasel();
+    status_t freezeEaselState();
+
+    /*
+     * Unfreeze Easel state.
+     *
+     */
+    status_t unfreezeEaselState();
+
+    // Close the easelcontrol connection.
+    void closeEasel();
 
     /*
      * Connect to paintbox test service.
@@ -89,17 +116,10 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     void notifyPbTiTestResult(const std::string &result) override;
     // Callbacks from paintbox test service end here.
 
-    // Activate Easel.
-    status_t activateEasel();
-
-    // Deactivate Easel.
-    void deactivateEasel();
-
     // Easel control
     bool mIsEaselPresent;
     EaselControlClient mEaselControl;
     bool mEaselControlOpened;
-    bool mEaselActivated;
     Mutex mEaselControlLock;  // Protecting Easel control variables above.
 
     // EaselMessenger to send messages to paintbox test service.
