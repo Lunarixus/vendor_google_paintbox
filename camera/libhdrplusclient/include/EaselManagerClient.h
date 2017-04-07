@@ -55,7 +55,8 @@ public:
      * cameraId is the camera ID to start MIPI for.
      * outputPixelClkHz is the output pixel rate.
      */
-    status_t startMipi(uint32_t cameraId, uint32_t outputPixelClkHz);
+    status_t startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
+                       bool enableIpu);
 
     /*
      * Stop MIPI for a camera.

@@ -119,7 +119,8 @@ status_t EaselManagerClient::convertCameraId(uint32_t cameraId,
     return OK;
 }
 
-status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz) {
+status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
+        bool enableIpu) {
     Mutex::Autolock l(mEaselControlLock);
     if (!mEaselControlOpened) {
         ALOGE("%s: Easel control is not opened.", __FUNCTION__);
@@ -135,10 +136,11 @@ status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelCl
         return res;
     }
 
-    ALOGD("%s: Start MIPI rate %d for camera %u", __FUNCTION__, rate, cameraId);
+    ALOGD("%s: Start MIPI rate %d for camera %u enableIpu %d", __FUNCTION__, rate,
+            cameraId, enableIpu);
 
     SCOPE_PROFILER_TIMER("Start MIPI");
-    res = mEaselControl.startMipi(easelCameraId, rate);
+    res = mEaselControl.startMipi(easelCameraId, rate, enableIpu);
     if (res != OK) {
         ALOGE("%s: Failed to config mipi: %s (%d).", __FUNCTION__, strerror(errno), -errno);
         return NO_INIT;
