@@ -148,6 +148,8 @@ public:
     void signalExit();
 
 private:
+    const static int64_t kNsPerMs = 1000000;
+
     SourceCaptureBlock* mParent;
 
     // Protecting mPendingCaptureRequests and mExiting.
@@ -157,6 +159,7 @@ private:
 
     std::unique_ptr<std::thread> mDequeueRequestThread;
     std::condition_variable mEventCondition;
+    bool mFirstCaptureDone;
 };
 
 } // namespace pbcamera

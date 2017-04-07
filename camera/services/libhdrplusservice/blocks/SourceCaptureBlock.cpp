@@ -393,7 +393,7 @@ void SourceCaptureBlock::notifyFrameMetadata(const FrameMetadata &metadata) {
 }
 
 DequeueRequestThread::DequeueRequestThread(
-        SourceCaptureBlock* parent) : mParent(parent), mExiting(false) {
+        SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false) {
     mDequeueRequestThread = std::make_unique<std::thread>(dequeueRequestThread, parent);
 }
 
@@ -489,6 +489,18 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                 // Abort the request.
                 mParent->abortOutputRequest(request);
                 continue;
+            }
+
+            if (!mFirstCaptureDone) {
+                int64_t now;
+                status_t res = EaselControlServer::getApSynchronizedClockBoottime(&now);
+                if (res != 0) {
+                    ALOGE("%s: Getting AP synchronized clock boot time failed.", __FUNCTION__);
+                }
+
+                ALOGI("[EASEL_STARTUP_LATENCY] %s: First RAW capture done at %" PRId64 " ms",
+                        __FUNCTION__, now / kNsPerMs);
+                mFirstCaptureDone = true;
             }
 
             int64_t syncedEaselTimeNs = 0;
