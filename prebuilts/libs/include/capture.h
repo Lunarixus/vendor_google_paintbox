@@ -65,7 +65,7 @@ enum class CaptureError {
 };
 
 // Returns the error description of the error.
-const std::string GetCaptureErrorDesc(CaptureError error);
+const char *GetCaptureErrorDesc(CaptureError error);
 
 // Status of a frame buffer.
 enum class CaptureStatus {

@@ -320,7 +320,7 @@ status_t PipelineCaptureFrameBuffer::lockData() {
     CaptureError err = mCaptureFrameBuffer->LockFrameData(dataTypes[0], &mLockedData);
     if (err != CaptureError::SUCCESS) {
         ALOGE("%s: Locking frame data failed: %s (%d)", __FUNCTION__,
-                GetCaptureErrorDesc(err).data(),  err);
+                GetCaptureErrorDesc(err),  err);
         mLockedData = nullptr;
     }
 

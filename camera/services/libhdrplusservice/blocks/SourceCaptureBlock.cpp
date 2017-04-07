@@ -47,7 +47,7 @@ status_t SourceCaptureBlock::createCaptureService() {
     CaptureError err = mCaptureService->Initialize();
     if (err != CaptureError::SUCCESS) {
         ALOGE("%s: Initializing capture service failed: %s (%d)", __FUNCTION__,
-                GetCaptureErrorDesc(err).data(), err);
+                GetCaptureErrorDesc(err), err);
         mCaptureService = nullptr;
         return -ENODEV;
     }
@@ -481,9 +481,11 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             }
 
             CaptureError err = frameBuffer->GetError();
+            ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
+                    GetCaptureErrorDesc(err), err);
             if (err != CaptureError::SUCCESS) {
                 ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
-                        GetCaptureErrorDesc(err).c_str(), err);
+                        GetCaptureErrorDesc(err), err);
                 // Abort the request.
                 mParent->abortOutputRequest(request);
                 continue;
