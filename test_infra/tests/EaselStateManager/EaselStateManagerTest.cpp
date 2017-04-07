@@ -30,14 +30,14 @@ TEST(EaselStateManagerTest, StateTransitions) {
     ALOGI("mgr.open() = %d\n", ret);
     ASSERT_EQ(ret, 0);
 
-    ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
+    ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
     ALOGI("mgr.setState(PENDING) = %d\n", ret);
     EXPECT_EQ(ret, 0);
 
     ret = mgr.getState(&state);
     ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
     EXPECT_EQ(ret, 0);
-    EXPECT_EQ(state, EaselStateManager::ESM_STATE_PENDING);
+    EXPECT_EQ(state, EaselStateManager::ESM_STATE_ACTIVE);
 
     ret = mgr.startMipi(&mainCamConfig);
     ALOGI("mgr.startMipi(main_cam) = %d\n", ret);
@@ -47,15 +47,6 @@ TEST(EaselStateManagerTest, StateTransitions) {
     ALOGI("mgr.startMipi(front_cam) = %d\n", ret);
     EXPECT_EQ(ret, 0);
 
-    ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
-    ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
-    EXPECT_EQ(ret, 0);
-
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    EXPECT_EQ(ret, 0);
-    EXPECT_EQ(state, EaselStateManager::ESM_STATE_ACTIVE);
-
     ret = mgr.stopMipi(&mainCamConfig);
     ALOGI("mgr.stopMipi(main_cam) = %d\n", ret);
     EXPECT_EQ(ret, 0);
@@ -63,24 +54,6 @@ TEST(EaselStateManagerTest, StateTransitions) {
     ret = mgr.stopMipi(&frontCamConfig);
     ALOGI("mgr.stopMipi(front_cam) = %d\n", ret);
     EXPECT_EQ(ret, 0);
-
-    ret = mgr.setState(EaselStateManager::ESM_STATE_PENDING);
-    ALOGI("mgr.setState(PENDING) = %d\n", ret);
-    EXPECT_EQ(ret, 0);
-
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    EXPECT_EQ(ret, 0);
-    EXPECT_EQ(state, EaselStateManager::ESM_STATE_PENDING);
-
-    ret = mgr.setState(EaselStateManager::ESM_STATE_ACTIVE);
-    ALOGI("mgr.setState(ACTIVE) = %d\n", ret);
-    EXPECT_EQ(ret, 0);
-
-    ret = mgr.getState(&state);
-    ALOGI("mgr.getState() = %d (ret %d)\n", state, ret);
-    EXPECT_EQ(ret, 0);
-    EXPECT_EQ(state, EaselStateManager::ESM_STATE_ACTIVE);
 
     ret = mgr.setState(EaselStateManager::ESM_STATE_OFF);
     ALOGI("mgr.setState(OFF) = %d\n", ret);
