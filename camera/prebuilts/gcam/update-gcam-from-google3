@@ -41,7 +41,8 @@ fi
 GOOGLE3_PATH="$1"
 CHECKIN="$2"
 
-GOOGLE3_TOP="hardware"
+GOOGLE3_HARDWARE="hardware"
+GOOGLE3_GOOGLEX="googlex"
 GOOGLE3_GCAM_PATH="hardware/gchips/paintbox/googlex/gcam/hdrplus"
 
 GOOGLE3_GCAM_OUT="blaze-bin/${GOOGLE3_GCAM_PATH}"
@@ -139,7 +140,8 @@ echo -e "\e[1;34m** Copying build results to Android tree\e[00m"
 mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}/"
 rm -rf "${ANDROID_GCAM_INC_FULL_PATH}/"
 mkdir -p "${ANDROID_GCAM_INC_FULL_PATH}"
-mv -vf "${gcam_tmp_lib}/${GOOGLE3_TOP}" "${ANDROID_GCAM_INC_FULL_PATH}/"
+mv -vf "${gcam_tmp_lib}/${GOOGLE3_HARDWARE}" "${ANDROID_GCAM_INC_FULL_PATH}/"
+mv -vf "${gcam_tmp_lib}/${GOOGLE3_GOOGLEX}" "${ANDROID_GCAM_INC_FULL_PATH}/"
 
 [[ -f "$gcam_tmp_lib" ]] && rm -f "$gcam_tmp_lib"
 
