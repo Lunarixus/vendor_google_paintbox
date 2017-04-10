@@ -34,8 +34,6 @@ EaselStateManager stateMgr;
 // Incoming message handler thread
 std::thread *msg_handler_thread;
 
-enum Mode { BYPASS, HDRPLUS } gMode;
-
 /*
  * Handle CMD_LOG Android logging control message received from server.
  */
@@ -107,9 +105,6 @@ void msgHandlerThread() {
 int EaselControlClient::activate() {
     int ret;
 
-    if (gMode != HDRPLUS)
-        return 0;
-
     ALOGI("%s\n", __FUNCTION__);
 
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
@@ -168,9 +163,6 @@ int EaselControlClient::activate() {
 int EaselControlClient::deactivate() {
     EaselControlImpl::DeactivateMsg ctrl_msg;
     int ret;
-
-    if (gMode != HDRPLUS)
-        return 0;
 
     ALOGI("%s\n", __FUNCTION__);
 
@@ -279,10 +271,6 @@ int EaselControlClient::open() {
     int ret = 0;
 
     ALOGI("%s\n", __FUNCTION__);
-
-#ifdef ANDROID
-    gMode = (enum Mode)property_get_int32("persist.camera.hdrplus.enable", 0);
-#endif
 
     ret = stateMgr.open();
     if (ret) {
