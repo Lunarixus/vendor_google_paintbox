@@ -11,12 +11,12 @@
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/init_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tuning.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/yuv.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_io/image_saver.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/frame_metadata.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/spatial_gain_map.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/static_metadata.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_raw/raw.h"
+#include "googlex/gcam/image/yuv.h"
+#include "googlex/gcam/image_io/image_saver.h"
+#include "googlex/gcam/image_metadata/frame_metadata.h"
+#include "googlex/gcam/image_metadata/spatial_gain_map.h"
+#include "googlex/gcam/image_metadata/static_metadata.h"
+#include "googlex/gcam/image_raw/raw.h"
 
 // Note: Do not #include anything else here; keep client-side
 // #includes to a minimum.

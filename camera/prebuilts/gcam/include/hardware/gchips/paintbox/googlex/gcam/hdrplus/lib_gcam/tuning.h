@@ -12,16 +12,16 @@
 #include <string>
 #include <vector>
 
-#include "hardware/gchips/paintbox/googlex/gcam/ae/ae_type.h"
-#include "hardware/gchips/paintbox/googlex/gcam/base/pixel_rect.h"
+#include "googlex/gcam/ae/ae_type.h"
+#include "googlex/gcam/base/pixel_rect.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tet_model.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/t_image.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/bayer_pattern.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/frame_metadata.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/spatial_gain_map.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_proc/color_saturation.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_raw/raw.h"
-#include "hardware/gchips/paintbox/googlex/gcam/tonemap/tonemap_yuv.h"
+#include "googlex/gcam/image/t_image.h"
+#include "googlex/gcam/image_metadata/bayer_pattern.h"
+#include "googlex/gcam/image_metadata/frame_metadata.h"
+#include "googlex/gcam/image_metadata/spatial_gain_map.h"
+#include "googlex/gcam/image_proc/color_saturation.h"
+#include "googlex/gcam/image_raw/raw.h"
+#include "googlex/gcam/tonemap/tonemap_yuv.h"
 
 namespace gcam {
 

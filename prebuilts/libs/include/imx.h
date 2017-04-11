@@ -110,6 +110,10 @@ struct ImxMemoryAllocator;
 typedef struct ImxMemoryAllocator ImxMemoryAllocator;
 typedef ImxMemoryAllocator* ImxMemoryAllocatorHandle;
 
+struct ImxPrecompiledGraphs;
+typedef struct ImxPrecompiledGraphs ImxPrecompiledGraphs;
+typedef ImxPrecompiledGraphs* ImxPrecompiledGraphsHandle;
+
 struct ImxCompiledGraph;
 typedef struct ImxCompiledGraph ImxCompiledGraph;
 typedef ImxCompiledGraph* ImxCompiledGraphHandle;
@@ -310,7 +314,7 @@ ImxError ImxGetDefaultDeviceWithOptions(ImxDeviceHandle *device_handle_ptr,
 ImxError ImxGetDeviceWithAllMipiAndCoreResources(
     ImxDeviceHandle *device_handle_ptr);
 
-/* Create device with resources as specified in device_descr
+/* Creates device with resources as specified in device_descr
  * device_descr device description, including resource required for this device.
  *   device_descr is mutable and could be modified in this function.
  * device_handle_ptr the returned handle pointer for the device created.
@@ -430,7 +434,7 @@ typedef enum {
 } ImxBufferType;
 
 // TODO(dfinchel) make sure this is checked wherever we iterate over planes
-enum { IMX_kMaxPlanes = 64 };
+enum { IMX_kMaxPlanes = 512 };
 typedef struct ImxLateBufferConfig {
   ImxBufferType buffer_type;
   ImxDeviceBufferHandle buffer;
@@ -491,6 +495,7 @@ typedef enum {
   IMX_OPTION_SIMULATOR_ENABLE_JIT = 2,
   IMX_OPTION_SIMULATOR_ENABLE_BINARY_PISA = 3,
   IMX_OPTION_SIMULATOR_HW_CONFIG_FILE = 4, // not used for graph compile
+  IMX_OPTION_HISA = 5,
   IMX_kMaxCompileGraphOption  /* Internal use only */
 } ImxCompileGraphOption;
 
@@ -601,6 +606,41 @@ ImxError ImxLoadMatchingPrecompiledGraph(
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
+/* Preloads all precompiled graph configs that match the given file name and
+ * returns them in lexicographical order of their base paths.
+ * Expects the following directory hierarchy:
+ *
+ *        <pcg root>
+ *        /        \
+ *   <base1>  ...  <baseN>
+ *      |             |
+ * [<pcg_xxx>]   [<pcg_xxx>]
+ *      |             |
+ * <file name>   <file name>
+ *
+ * Returns IMX_SUCCESS if no errors occured.
+ */
+ImxError ImxPreloadPrecompiledGraphs(
+    const char *load_dir_root_path,  /* in */
+    const char *file_name,  /* in */
+    ImxPrecompiledGraphsHandle *precompiled_graphs_handle_ptr  /* out */);
+
+/* Finds the precompiled graph by base name and creates a compiled graph from it
+ * and the passed parameters.
+ */
+ImxError ImxCreateCompiledGraph(
+    ImxPrecompiledGraphsHandle precompiled_graphs_handle,  /* in */
+    const char *base_name,  /* in */
+    ImxNodeHandle *transfer_nodes,  /* in - array of nodes */
+    /* in - parameter name for each xfer node */
+    const char **transfer_node_names,
+    int transfer_node_count,  /* size of previous two arrays */
+    const ImxCompileGraphInfo *info,
+    ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* out */);
+
+void ImxDeletePrecompiledGraphs(
+    ImxPrecompiledGraphsHandle precompiled_graphs_handle  /* in */);
+
 ImxError ImxDeleteGraph(ImxGraphHandle graph_handle);
 
 typedef enum {
@@ -656,6 +696,10 @@ typedef struct ImxCreateTransferNodeInfo {
   ImxConversion conversion;
   ImxBorder border;  /* Only used for MEMORY_READ */
   ImxMipiStreamIdentifier mipi_stream_id;  /* Only used for MIPI transfer */
+  /* If stripe_width > 0 is specified, the IPU runtime will vertically split
+   * the image into multiple stripes and execute one stripe at a time. This is
+   * useful for reducing line buffer size requirement. */
+  int stripe_width;  /* 0 means no striping */
 } ImxCreateTransferNodeInfo;
 
 ImxError ImxCreateTransferNode(
@@ -883,6 +927,18 @@ ImxError ImxImportDeviceBuffer(
     uint64_t size_bytes,
     ImxDeviceBufferHandle *buffer_handle);
 
+/* Reverse mapping from a mapped virtual address to buffer handle.
+ * If vaddr is a valid address in range of any previously created (and mmapped)
+ * DeviceBuffer, place the buffer handle in buffer_handle_ptr. Also, compute
+ * the offset from start of buffer address and place it in offset
+ *
+ * Not thread-safe; see general note on thread-safety above.
+ */
+ImxError ImxGetDeviceBufferFromAddress(
+    const void *vaddr,  /* in */
+    ImxDeviceBufferHandle *buffer_handle_ptr,  /* modified */
+    uint64_t *offset  /* modified */);
+
 typedef struct ImxFinalizeBufferInfo {
   ImxNodeHandle node;
   ImxLateBufferConfig config;
@@ -898,6 +954,11 @@ ImxError ImxFinalizeBuffers(
  * "default" value for the timeout.
  */
 
+/* Blocking call to execute the input job. This function will load IPU device
+ * configuration, start the execution and wait for completion of the job.
+ * All late-bound configuration information (such as DRAM buffers for DMA
+ * transfers) must already be provided before invoking this function.
+ */
 ImxError ImxExecuteJob(
     ImxJobHandle job /* modified */);
 
@@ -906,11 +967,90 @@ ImxError ImxExecuteJob(
  * IMX_TIMEOUT is returned.
  */
 ImxError ImxExecuteJobWithUserSpecifiedTimeout(
-    ImxJobHandle job /* modified */,
+    ImxJobHandle job,  /* modified */
     int64_t timeout_ns);
 
 ImxError ImxJobSetStpPcHistogramEnable(ImxJobHandle job, /* modified */
                                        uint64_t stp_pc_histogram_mask);
+
+/* The Job APIs below can be used to implement a Queueing model for job
+ * configuration and execution. The basic structure is:
+ * One time, at start of job queue:
+ *   ImxLoadDeviceConfig : Load device with the required configuration.
+ * During actual execution:
+ *   ImxEnqueueJob : Non-blocking call to queue up an iteration of the job.
+ *   ImxWaitForCompletion: Blocking call to wait for an iteration of the job
+ *   to complete (successfully or with error).
+ *   Note: Calls to EnqueueJob and WaitForCompletion can be in any order, as
+ *   long as the number of WaitForCompletion calls do not exceed the calls to
+ *   EnqueueJob.
+ * One time, at end of job queue:
+ *   ImxUnloadDeviceConfig: Release device for a different job (or shutdown).
+ *
+ * The current job queue model requires the application/user to keep track of
+ * output buffers. E.g., copying output buffers to host address if required
+ * (not required if using ION buffers in host-device unified memory space).
+ *
+ * TODO(ahalambi): Currently, the queue model is only supported for jobs that
+ * do not require STP configuration. E.g. MPI->DRAM or DRAM->MPO transfer.
+ * Extend the implementation to support jobs with STP configuration.
+ * TODO(ahalambi): The APIs below require that the same job handle be used for
+ * the duration of queue. It is preferable to have job represent one execution
+ * (i.e. producing one output frame), and have another data-structure
+ * (DeviceConfig) represent the persistent device state (e.g. resource bindings)
+ * required to execute the job.
+ */
+
+/* Load all the required IPU configuration to execute this job. This may involve
+ * loading STPs with programs, configuring DMA channels, etc.
+ * Note: Some configuration is late-bound and is only done at actual job
+ * execution. E.g. DRAM buffers for DMA transfers.
+ *
+ * It is an error to call this API function when there is already a loaded
+ * device configuration (for any job associated with the device).
+ *
+ * NOTE: Jobs with STP programs are currently not supported!
+ * Please use ImxExecuteJob for such jobs.
+ */
+ImxError ImxLoadDeviceConfig(
+    ImxJobHandle job  /* modified */);
+
+/* Unload previously loaded IPU configuration.
+ *
+ * It is an error to call this API function with a job that is not the
+ * currently loaded job.
+ *
+ * NOTE: Jobs with STP programs are currently not supported!
+ * Please use ImxExecuteJob for such jobs.
+ */
+ImxError ImxUnloadDeviceConfig(
+    ImxJobHandle job  /* modified */);
+
+/* Enqueue job for (eventual) execution. All late-bound parameters must be
+ * finalized before calling this API. This function does not block.
+ *
+ * NOTE: Jobs with STP programs are currently not supported!
+ * Please use ImxExecuteJob for such jobs.
+ */
+ImxError ImxEnqueueJob(
+    ImxJobHandle job  /* modified */);
+
+/* Blocking call to wait for completion of the currently executing enqueued job.
+ *
+ * NOTE: Jobs with STP programs are currently not supported!
+ * Please use ImxExecuteJob for such jobs.
+ */
+ImxError ImxWaitForCompletion(
+    ImxJobHandle job  /* modified */);
+
+/* Blocking call to wait for completion of the currently executing enqueued job.
+ *
+ * NOTE: Jobs with STP programs are currently not supported!
+ * Please use ImxExecuteJob for such jobs.
+ */
+ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
+    ImxJobHandle job,  /* modified */
+    int64_t timeout_ns);
 
 #ifdef __cplusplus
 } /* extern "C" */

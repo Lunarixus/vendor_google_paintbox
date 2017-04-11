@@ -4,7 +4,7 @@
 // This header is part of the public Gcam API; try not to include any headers
 // unnecessarily, since any included headers also become part of the API.
 
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/awb_info.h"
+#include "googlex/gcam/image_metadata/awb_info.h"
 
 namespace gcam {
 

@@ -7,8 +7,8 @@
 #include <cstdint>
 
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_log_data.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/pixel_format.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/t_image.h"
+#include "googlex/gcam/image/pixel_format.h"
+#include "googlex/gcam/image/t_image.h"
 
 namespace gcam {
 

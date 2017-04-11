@@ -6,11 +6,11 @@
 
 #include <string>
 
-#include "hardware/gchips/paintbox/googlex/gcam/base/log_level.h"
+#include "googlex/gcam/base/log_level.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_callbacks.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_types.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/allocator.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image/pixel_format.h"
+#include "googlex/gcam/image/allocator.h"
+#include "googlex/gcam/image/pixel_format.h"
 
 namespace gcam {
 

@@ -73,6 +73,8 @@ enum class CaptureStatus {
   CREATED,
   // Frame buffer enqueued for capturing, not available to user.
   ENQUEUED,
+  // Frame buffer under capturing, not available to user.
+  RUNNING,
   // Frame buffer capturing completed, available to user.
   COMPLETED,
 };
