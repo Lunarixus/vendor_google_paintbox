@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <unordered_map>
 
+#include <utils/Log.h>
+#include "EaselClockControl.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
@@ -24,6 +26,11 @@
 // sysfs file to initiate kernel suspend
 #define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
 #define KERNEL_SUSPEND_STRING      "mem"
+
+
+#define LOGE(fmt, ...) do { \
+    easelLog(ANDROID_LOG_ERROR, LOG_TAG, fmt, ##__VA_ARGS__); \
+  } while(0);
 
 namespace {
 // Our EaselComm server object.  Mock uses the the network version.
@@ -101,6 +108,32 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
     }
 }
 
+void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
+{
+    // Save the AP's boottime clock at approx. now
+    timesync_ap_boottime = boottime;
+
+    // Save our current boottime time to compute deltas later
+    struct timespec ts;
+    if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
+      timesync_local_boottime =
+          (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+    } else {
+      assert(0);
+        timesync_local_boottime = 0;
+    }
+#ifndef MOCKEASEL    // System clock should not be modified when using libmockeasel
+    uint64_t timesync_ap_realtime = realtime;
+    ts.tv_sec = timesync_ap_realtime / NSEC_PER_SEC;
+    ts.tv_nsec = timesync_ap_realtime - ts.tv_sec * NSEC_PER_SEC;
+    if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
+      assert(0);
+    }
+#else
+    (void)realtime;
+#endif
+}
+
 // Handle incoming messages from EaselControlClient.
 void *msgHandlerThread() {
     while (true) {
@@ -124,39 +157,34 @@ void *msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
+        LOGE("Received command %d\n", h->command);
+
         switch(h->command) {
-        case EaselControlImpl::CMD_SET_TIME:
-            {
-                EaselControlImpl::SetTimeMsg *tmsg =
-                    (EaselControlImpl::SetTimeMsg *)msg.message_buf;
+        case EaselControlImpl::CMD_ACTIVATE: {
+            EaselControlImpl::ActivateMsg *tmsg =
+                (EaselControlImpl::ActivateMsg *)msg.message_buf;
 
-                // Save the AP's boottime clock at approx. now
-                timesync_ap_boottime = tmsg->boottime;
+            LOGE("Turning the clocks up for active mode\n");
+            EaselClockControl::setFrequency(EaselClockControl::Subsystem::CPU, 950);
+            EaselClockControl::setFrequency(EaselClockControl::Subsystem::IPU, 425);
+            EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 2400);
 
-                // Save our current boottime time to compute deltas later
-                struct timespec ts;
-                if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
-                  timesync_local_boottime =
-                      (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
-                } else {
-                  assert(0);
-                    timesync_local_boottime = 0;
-                }
-#ifndef MOCKEASEL    // System clock should not be modified when using libmockeasel
-                uint64_t timesync_ap_realtime = tmsg->realtime;
-                ts.tv_sec = timesync_ap_realtime / NSEC_PER_SEC;
-                ts.tv_nsec = timesync_ap_realtime - ts.tv_sec * NSEC_PER_SEC;
-                if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
-                  assert(0);
-                }
-#endif
-            }
+            setTimeFromMsg(tmsg->boottime, tmsg->realtime);
             break;
+        }
 
         case EaselControlImpl::CMD_DEACTIVATE: {
             // Invalidate current timesync value
             timesync_ap_boottime = 0;
 
+            LOGE("Turning the clocks down for bypass mode\n");
+            EaselClockControl::setSys200Mode(true);
+            EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 132);
+
+            break;
+        }
+
+        case EaselControlImpl::CMD_SUSPEND: {
             // Send command to suspend the kernel
             int fd = open(KERNEL_SUSPEND_SYS_FILE, O_WRONLY);
             char buf[] = KERNEL_SUSPEND_STRING;
@@ -169,6 +197,14 @@ void *msgHandlerThread() {
                         "easelcontrol: could not open power management sysfs file\n");
             }
 
+            break;
+        }
+
+        case EaselControlImpl::CMD_SET_TIME: {
+            EaselControlImpl::SetTimeMsg *tmsg =
+                (EaselControlImpl::SetTimeMsg *)msg.message_buf;
+
+            setTimeFromMsg(tmsg->boottime, tmsg->realtime);
             break;
         }
 
@@ -223,7 +259,12 @@ void initializeServer() {
 } // anonymous namespace
 
 int EaselControlServer::open() {
+    LOGE("Turning the clocks down for bypass mode\n");
+    EaselClockControl::setSys200Mode(true);
+    EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 132);
+
     initializeServer();
+
     return 0;
 }
 

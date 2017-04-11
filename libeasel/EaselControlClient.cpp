@@ -41,6 +41,11 @@ std::mutex gCallbackMapMutex;
 // Map from callbackId to callback functions.
 std::unordered_map<int, std::function<void(const ControlData &)>> gCallbackMap;
 
+// Mutex and condition to synchronize easel_conn
+std::mutex easel_conn_mutex;
+std::condition_variable easel_conn_cond;
+bool easel_conn_ready;
+
 /*
  * Handle CMD_LOG Android logging control message received from server.
  */
@@ -59,6 +64,33 @@ void handleLog(const EaselControlImpl::LogMsg *msg) {
  * Handle incoming messages from EaselControlServer.
  */
 void msgHandlerThread() {
+    int ret;
+
+    // Grab the lock while we are trying to initialize easel_conn
+    std::unique_lock<std::mutex> lk(easel_conn_mutex);
+
+    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    if (ret) {
+        ALOGE("%s: Failed to open easelcomm connection (%d)",
+              __FUNCTION__, ret);
+        return;
+    }
+
+#ifndef MOCKEASEL
+    ALOGI("%s: waiting for handshake\n", __FUNCTION__);
+    ret = easel_conn.initialHandshake();
+    if (ret) {
+        ALOGE("%s: Failed to handshake with server", __FUNCTION__);
+        return;
+    }
+    ALOGI("%s: handshake done\n", __FUNCTION__);
+#endif
+
+    // Notify the other thread that easel_conn is ready to send/receive messages
+    easel_conn_ready = true;
+    lk.unlock();
+    easel_conn_cond.notify_one();
+
     while (true) {
         EaselComm::EaselMessage msg;
         int ret = easel_conn.receiveMessage(&msg);
@@ -151,30 +183,13 @@ int EaselControlClient::activate() {
         return ret;
     }
 
-    // Open easelcomm connection
-    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
-    if (ret) {
-        ALOGE("%s: Failed to open easelcomm connection (%d)",
-              __FUNCTION__, ret);
-        return ret;
-    }
+    // Wait until easel_conn is ready
+    std::unique_lock<std::mutex> lk(easel_conn_mutex);
+    easel_conn_cond.wait(lk, []{return easel_conn_ready;});
 
-#ifndef MOCKEASEL
-    ALOGI("%s: waiting for handshake\n", __FUNCTION__);
-    ret = easel_conn.initialHandshake();
-    if (ret) {
-        ALOGE("%s: Failed to handshake with server", __FUNCTION__);
-        return ret;
-    }
-    ALOGI("%s: handshake done\n", __FUNCTION__);
-#endif
-
-    // start thread for handling easelcomm messages
-    msg_handler_thread = new std::thread(msgHandlerThread);
-
-    // Send a message with the new boottime base and time of day clock
-    EaselControlImpl::SetTimeMsg ctrl_msg;
-    ctrl_msg.h.command = EaselControlImpl::CMD_SET_TIME;
+    // Send an active message with the new boottime base and time of day clock
+    EaselControlImpl::ActivateMsg ctrl_msg;
+    ctrl_msg.h.command = EaselControlImpl::CMD_ACTIVATE;
     struct timespec ts ;
     clock_gettime(CLOCK_BOOTTIME, &ts);
     ctrl_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
@@ -210,18 +225,8 @@ int EaselControlClient::deactivate() {
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
     ret = easel_conn.sendMessage(&msg);
-    ALOG_ASSERT(ret == 0);
-
-    // disable easelcomm polling thread
-    msg_handler_thread->detach();
-    delete msg_handler_thread;
-
-    easel_conn.close();
-
-    ret = stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
     if (ret) {
-        ALOGE("Could not deactivate Easel (%d)\n", ret);
-        return ret;
+        ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
     }
 
     return ret;
@@ -360,14 +365,41 @@ int EaselControlClient::resume() {
         return ret;
     }
 
+    // start thread for opening easel_conn channel and handling easelcomm messages
+    msg_handler_thread = new std::thread(msgHandlerThread);
+
     return 0;
 }
 
 // Called when the camera app is closed
 int EaselControlClient::suspend() {
+    EaselControlImpl::DeactivateMsg ctrl_msg;
     int ret;
 
     ALOGI("%s\n", __FUNCTION__);
+
+    ctrl_msg.h.command = EaselControlImpl::CMD_SUSPEND;
+
+    if (easel_conn_ready) {
+        EaselComm::EaselMessage msg;
+        msg.message_buf = &ctrl_msg;
+        msg.message_buf_size = sizeof(ctrl_msg);
+        msg.dma_buf = 0;
+        msg.dma_buf_size = 0;
+        ret = easel_conn.sendMessage(&msg);
+        if (ret) {
+            ALOGE("%s: failed to send suspend command to Easel (%d)\n", __FUNCTION__, ret);
+        }
+
+        // disable easelcomm polling thread
+        if (msg_handler_thread) {
+            msg_handler_thread->detach();
+            delete msg_handler_thread;
+            msg_handler_thread = NULL;
+        }
+
+        easel_conn.close();
+    }
 
     ret = stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
     if (ret) {
