@@ -6,7 +6,10 @@
  */
 
 #include <stdint.h>
+#include <string>
 #include <sys/time.h>
+
+#include "easelcomm.h"
 
 class EaselControlImpl {
 public:
@@ -21,6 +24,7 @@ public:
       CMD_SET_TIME,        // Sync AP boottime and time of day clocks
       CMD_LOG,             // Android logging string
       CMD_SUSPEND,         // Suspend Easel
+      CMD_RPC,             // RPC message, wrapping request and response
   };
 
   // All control messages start with this header
@@ -49,5 +53,37 @@ public:
       struct MsgHeader h;   // common header
   };
 
+  static const int kMaxPayloadSize = 4096;
+
+  // CMD_RPC message, struct RpcMsg only specifies msg head.
+  // Body will be sent through DMA.
+  struct RpcMsg {
+      struct MsgHeader h;
+      int handlerId;       // Identifies the right handler,
+                            // suggest to use CRC32 of the handler name.
+      int rpcId;           // RPC Id used for handler to distinguish difference
+                            // services within this handler.
+      uint64_t callbackId; // Unique id of the callback registered,
+                            // 0 if callback not registered.
+
+      uint64_t payloadSize;
+      char payloadBody[kMaxPayloadSize];
+      RpcMsg() : h({CMD_RPC}) {};
+
+      RpcMsg(const RpcMsg &msg) {
+          this->h = msg.h;
+          this->handlerId = msg.handlerId;
+          this->rpcId = msg.rpcId;
+          this->callbackId = msg.callbackId;
+          this->payloadSize = 0;
+      }
+
+      void getEaselMessage(EaselComm::EaselMessage *msg) {
+          msg->message_buf = this;
+          msg->message_buf_size = sizeof(RpcMsg) - kMaxPayloadSize + payloadSize;
+          msg->dma_buf = nullptr;
+          msg->dma_buf_size = 0;
+      }
+  };
 };
 #endif // ANDROID_EASELCONTROL_IMPL_H
