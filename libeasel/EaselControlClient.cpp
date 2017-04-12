@@ -11,8 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unordered_map>
-
 #ifdef ANDROID
 #include <android/log.h>
 #include <cutils/properties.h>
@@ -35,11 +33,6 @@ EaselStateManager stateMgr;
 
 // Incoming message handler thread
 std::thread *msg_handler_thread;
-
-// Lock to guard gCallbackMap
-std::mutex gCallbackMapMutex;
-// Map from callbackId to callback functions.
-std::unordered_map<int, std::function<void(const ControlData &)>> gCallbackMap;
 
 /*
  * Handle CMD_LOG Android logging control message received from server.
@@ -83,35 +76,6 @@ void msgHandlerThread() {
         case EaselControlImpl::CMD_LOG:
             handleLog((EaselControlImpl::LogMsg *)msg.message_buf);
             break;
-        case EaselControlImpl::CMD_RPC: {
-            EaselControlImpl::RpcMsg *rpcMsg =
-                    (EaselControlImpl::RpcMsg *)msg.message_buf;
-            {
-                std::lock_guard<std::mutex> lock(gCallbackMapMutex);
-
-                if (rpcMsg->callbackId == 0) {
-                    ALOGE("Callback id is empty from server RpcMsg");
-                    break;
-                }
-
-                if (gCallbackMap.count(rpcMsg->callbackId) > 0) {
-                    ALOGE("callback id %" PRIu64 " not found.", rpcMsg->callbackId);
-                    break;
-                }
-
-                ControlData response(rpcMsg->payloadBody, rpcMsg->payloadSize);
-
-                // Response size should have been checked on server side
-                if(response.size > EaselControlImpl::kMaxPayloadSize) {
-                    ALOGE("Response size out of boundary %" PRIu64, response.size);
-                    break;
-                }
-
-                gCallbackMap[rpcMsg->callbackId](response);
-                gCallbackMap.erase(rpcMsg->callbackId);
-            }
-            break;
-        }
         default:
 #ifdef ANDROID
             ALOGE("easelcontrol: unknown command code %d received\n",
@@ -227,81 +191,6 @@ int EaselControlClient::deactivate() {
     return ret;
 }
 
-void getRpcMsg(
-        int handlerId,
-        int rpcId,
-        bool callback,
-        const ControlData &payload,
-        EaselControlImpl::RpcMsg *msg) {
-    static uint64_t callbackId = 0;
-
-    msg->handlerId = handlerId;
-    msg->rpcId = rpcId;
-    if (callback) {
-        callbackId++;
-        msg->callbackId = callbackId;
-    } else {
-        msg->callbackId = 0;
-    }
-    msg->payloadSize = payload.size;
-    memcpy(msg->payloadBody, payload.body, payload.size);
-}
-
-int EaselControlClient::sendRequest(
-        int handlerId,
-        int rpcId,
-        const ControlData &request) {
-    if (request.size > EaselControlImpl::kMaxPayloadSize) {
-        ALOGE("Request size out of boundary %" PRIu64, request.size);
-        return -EINVAL;
-    }
-
-    EaselControlImpl::RpcMsg rpcMsg;
-    getRpcMsg(handlerId, rpcId, false, request, &rpcMsg);
-
-    EaselComm::EaselMessage msg;
-    rpcMsg.getEaselMessage(&msg);
-
-    int ret = easel_conn.sendMessage(&msg);
-    if (ret) {
-        ALOGE("%s: Failed to send request to Easel (%d)", __FUNCTION__, ret);
-    }
-    return ret;
-}
-
-int EaselControlClient::sendRequestWithCallback(
-        int handlerId,
-        int rpcId,
-        const ControlData &request,
-        std::function<void(const ControlData &response)> callback) {
-    if (request.size > EaselControlImpl::kMaxPayloadSize) {
-        ALOGE("Request size out of boundary %" PRIu64, request.size);
-        return -EINVAL;
-    }
-
-    EaselControlImpl::RpcMsg rpcMsg;
-    getRpcMsg(handlerId, rpcId, true, request, &rpcMsg);
-
-    {
-        std::lock_guard<std::mutex> lock(gCallbackMapMutex);
-        ALOG_ASSERT(gCallbackMap.count(rpcMsg.callbackId) == 0);
-        gCallbackMap[rpcMsg.callbackId] = callback;
-    }
-
-    EaselComm::EaselMessage msg;
-    rpcMsg.getEaselMessage(&msg);
-
-    int ret = easel_conn.sendMessage(&msg);
-    if (ret) {
-        {
-            std::lock_guard<std::mutex> lock(gCallbackMapMutex);
-            gCallbackMap.erase(rpcMsg.callbackId);
-        }
-        ALOGE("%s: Failed to send request to Easel (%d)\n", __FUNCTION__, ret);
-    }
-    return ret;
-}
-
 int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int rate)
 {
     struct EaselStateManager::EaselMipiConfig config = {
@@ -382,8 +271,6 @@ int EaselControlClient::open() {
     int ret = 0;
 
     ALOGI("%s\n", __FUNCTION__);
-
-    gCallbackMap.clear();
 
     ret = stateMgr.open();
     if (ret) {
