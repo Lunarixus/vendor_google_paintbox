@@ -33,6 +33,7 @@ PRODUCT_PACKAGES += \
 # be extracted from target files.
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
+    easel_boot_test \
     ezlsh \
     libcapture \
     libeaselcontrolservice \
