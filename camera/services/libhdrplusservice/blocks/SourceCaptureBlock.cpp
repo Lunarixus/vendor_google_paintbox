@@ -481,8 +481,6 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             }
 
             CaptureError err = frameBuffer->GetError();
-            ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
-                    GetCaptureErrorDesc(err), err);
             if (err != CaptureError::SUCCESS) {
                 ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
                         GetCaptureErrorDesc(err), err);
