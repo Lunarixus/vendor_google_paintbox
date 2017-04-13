@@ -20,16 +20,34 @@ public:
 
   // Control commands for the EaseControlImpl layer
   enum Command {
+      CMD_ACTIVATE,        // Activate Easel
       CMD_DEACTIVATE,      // Deactivate Easel
+      CMD_SUSPEND,         // Suspend Easel
       CMD_SET_TIME,        // Sync AP boottime and time of day clocks
       CMD_LOG,             // Android logging string
-      CMD_SUSPEND,         // Suspend Easel
       CMD_RPC,             // RPC message, wrapping request and response
   };
 
   // All control messages start with this header
   struct MsgHeader {
       uint32_t command;    // an enum Command code
+  };
+
+  // CMD_ACTIVATE message, includes timestamp info from SetTimeMsg
+  struct ActivateMsg {
+      struct MsgHeader h;   // common header
+      uint64_t boottime;    // AP boottime clock
+      uint64_t realtime;    // AP realtime time of day clock
+  };
+
+  // CMD_DEACTIVATE message, no further info beyond command
+  struct DeactivateMsg {
+      struct MsgHeader h;   // common header
+  };
+
+  // CMD_SUSPEND message, no further info beyond command
+  struct SuspendMsg {
+      struct MsgHeader h;   // common header
   };
 
   // CMD_SET_TIME message, from client to server
@@ -46,11 +64,6 @@ public:
       uint32_t tag_len;     // length of tag including terminator (bytes)
       // followed by null-terminated tag string
       // followed by null-terminated text string
-  };
-
-  // CMD_DEACTIVATE message, no further info beyond command
-  struct DeactivateMsg {
-      struct MsgHeader h;   // common header
   };
 
   static const int kMaxPayloadSize = 4096;
