@@ -155,10 +155,10 @@ private:
 
     // Default number of buffers in input stream.
     // TODO(b/35848231): Increase this back to 10 after Easel memory leak is fixed.
-    const int kDefaultNumInputBuffers = 6;
+    const int kDefaultNumInputBuffers = 7;
 
     // Default number of buffers in output streams.
-    const int kDefaultNumOutputBuffers = 3;
+    const int kDefaultNumOutputBuffers = 1;
 
     // Time to wait when getting a buffer from a stream.
     const uint32_t kGetBufferTimeoutMs = 5000;

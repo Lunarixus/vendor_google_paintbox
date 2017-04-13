@@ -7,11 +7,11 @@
 #include <string>
 #include <vector>
 
-#include "hardware/gchips/paintbox/googlex/gcam/ae/ae_shot_params.h"  // Just for HdrMode.
-#include "hardware/gchips/paintbox/googlex/gcam/base/log_level.h"
+#include "googlex/gcam/ae/ae_shot_params.h"  // Just for HdrMode.
+#include "googlex/gcam/base/log_level.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/frame_request.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_types.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/awb_info.h"
+#include "googlex/gcam/image_metadata/awb_info.h"
 
 namespace gcam {
 

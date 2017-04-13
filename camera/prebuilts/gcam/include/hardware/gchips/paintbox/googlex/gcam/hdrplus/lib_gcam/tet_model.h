@@ -3,8 +3,8 @@
 
 #include <string>
 
-#include "hardware/gchips/paintbox/googlex/gcam/base/log_level.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/frame_metadata.h"
+#include "googlex/gcam/base/log_level.h"
+#include "googlex/gcam/image_metadata/frame_metadata.h"
 
 namespace gcam {
 

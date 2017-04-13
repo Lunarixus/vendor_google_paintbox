@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "hardware/gchips/paintbox/googlex/gcam/base/log_level.h"
+#include "googlex/gcam/base/log_level.h"
 
 namespace gcam {
 

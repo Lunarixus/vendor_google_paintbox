@@ -7,14 +7,14 @@
 #include <string>
 #include <vector>
 
-#include "hardware/gchips/paintbox/googlex/gcam/ae/ae_shot_params.h"
-#include "hardware/gchips/paintbox/googlex/gcam/base/log_level.h"
-#include "hardware/gchips/paintbox/googlex/gcam/base/pixel_rect.h"
+#include "googlex/gcam/ae/ae_shot_params.h"
+#include "googlex/gcam/base/log_level.h"
+#include "googlex/gcam/base/pixel_rect.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/init_params.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/awb_info.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/flash.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/image_rotation.h"
-#include "hardware/gchips/paintbox/googlex/gcam/image_metadata/static_metadata.h"
+#include "googlex/gcam/image_metadata/awb_info.h"
+#include "googlex/gcam/image_metadata/flash.h"
+#include "googlex/gcam/image_metadata/image_rotation.h"
+#include "googlex/gcam/image_metadata/static_metadata.h"
 
 namespace gcam {
 
