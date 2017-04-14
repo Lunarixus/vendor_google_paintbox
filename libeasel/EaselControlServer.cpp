@@ -231,11 +231,12 @@ void spawnIncomingMsgThread() {
 }
 
 /* Open our EaselCommServer object if not already. */
-void initializeServer() {
+int initializeServer() {
+    int ret = 0;
     std::lock_guard<std::mutex> lk(gServerLock);
 
     if (gServerInitialized)
-        return;
+        return ret;
 
     gHandlerMap.clear();
 #ifdef MOCKEASEL
@@ -244,28 +245,22 @@ void initializeServer() {
     easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
 
 #ifndef MOCKEASEL
-    int ret = easel_conn.initialHandshake();
+    ret = easel_conn.initialHandshake();
     if (ret) {
         fprintf(stderr, "easelcontrol: Failed to handshake with client\n");
-        return;
+        return ret;
     }
 #endif
 
     spawnIncomingMsgThread();
     gServerInitialized = true;
-    return;
+    return ret;
 }
 
 } // anonymous namespace
 
 int EaselControlServer::open() {
-    LOGE("Turning the clocks down for bypass mode\n");
-    EaselClockControl::setSys200Mode(true);
-    EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 132);
-
-    initializeServer();
-
-    return 0;
+    return initializeServer();
 }
 
 void EaselControlServer::close() {

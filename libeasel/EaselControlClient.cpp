@@ -91,6 +91,24 @@ void msgHandlerThread() {
     lk.unlock();
     easel_conn_cond.notify_one();
 
+#ifdef ANDROID
+    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+        EaselControlImpl::DeactivateMsg ctrl_msg;
+
+        ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
+
+        EaselComm::EaselMessage msg;
+        msg.message_buf = &ctrl_msg;
+        msg.message_buf_size = sizeof(ctrl_msg);
+        msg.dma_buf = 0;
+        msg.dma_buf_size = 0;
+        ret = easel_conn.sendMessage(&msg);
+        if (ret) {
+            ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
+        }
+    }
+#endif
+
     while (true) {
         EaselComm::EaselMessage msg;
         int ret = easel_conn.receiveMessage(&msg);
