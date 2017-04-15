@@ -10,12 +10,15 @@
 
 #include <easelcontrol.h>
 
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/imx_runtime_apis.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
 
 #include "HdrPlusProcessingBlock.h"
 #include "HdrPlusPipeline.h"
 
 namespace pbcamera {
+
+std::once_flag loadPcgOnce;
 
 HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) :
         PipelineBlock("HdrPlusProcessingBlock"),
@@ -66,6 +69,8 @@ void HdrPlusProcessingBlock::returnInputLocked(const std::shared_ptr<HdrPlusPipe
 
 bool HdrPlusProcessingBlock::doWorkLocked() {
     ALOGV("%s", __FUNCTION__);
+
+    std::call_once(loadPcgOnce, [](){ gcam::LoadPrecompiledGraphs(); });
 
     std::vector<Input> inputs;
     OutputRequest outputRequest = {};

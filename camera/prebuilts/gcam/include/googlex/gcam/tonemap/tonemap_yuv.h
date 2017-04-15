@@ -1,5 +1,5 @@
-#ifndef HARDWARE_GCHIPS_PAINTBOX_GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_
-#define HARDWARE_GCHIPS_PAINTBOX_GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_
+#ifndef GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_
+#define GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_
 
 // Tonemapping curves for the legacy YUV pipeline.
 
@@ -42,8 +42,8 @@ static const uint16_t kRevTonemapMaxValue = 1023;
 // Lookup table mapping linear 10-bit input to tonemapped 8-bit output.
 // Output values are in the range [0..kTonemapMaxValue].
 struct Tonemap {
-  Tonemap() { MakeInvalid(); }
-  void MakeInvalid() { values[1023] = 0; }  // Lightweight "clear".
+  Tonemap() { Invalidate(); }
+  void Invalidate() { values[1023] = 0; }  // Lightweight "clear".
   void Clear() { memset(this, 0, sizeof(Tonemap)); }
   bool Check() const;
   void SerializeToString(std::string* str) const;
@@ -56,8 +56,8 @@ struct Tonemap {
 // Lookup table mapping tonemapped 8-bit input BACK to linear 10-bit output.
 // Output values are in the range [0..kRevTonemapMaxValue].
 struct RevTonemap {
-  RevTonemap() { MakeInvalid(); }
-  void MakeInvalid() { values[255] = 0; }  // Lightweight "clear".
+  RevTonemap() { Invalidate(); }
+  void Invalidate() { values[255] = 0; }  // Lightweight "clear".
   void Clear() { memset(this, 0, sizeof(RevTonemap)); }
   bool Check() const;
 
@@ -118,4 +118,4 @@ Tonemap GenStockGalaxyNexusTonemap();
 
 }  // namespace gcam
 
-#endif  // HARDWARE_GCHIPS_PAINTBOX_GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_
+#endif  // GOOGLEX_GCAM_TONEMAP_TONEMAP_YUV_H_

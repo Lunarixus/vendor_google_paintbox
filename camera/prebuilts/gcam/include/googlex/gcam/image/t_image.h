@@ -508,6 +508,13 @@ class TImage : public ReadWriteTImageView<T, layout> {
          TImageInit init = kInitUndefined, size_t row_padding = 0,
          TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
+  // Constructor with an existing base pointer. It takes ownership of the
+  // base_pointer. The base_pointer will be released in the destructor using the
+  // allocator.
+  TImage(int width, int height, int num_channels, size_t row_padding,
+         SampleType *base_pointer,
+         TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
+
   // Deep copy constructor - creates a new image by copying an existing
   // image, including its samples.  Any padding present in the original
   // image is copied, too.
@@ -601,7 +608,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   T* AllocateMemory(size_t num_samples) const;
   void ReleaseMemory();
 
-  SampleType* memory_ = nullptr;
+  SampleType* memory_ = nullptr;  // Owned
 };
 
 // An iterator for looping over the samples in an image view in the most
@@ -1326,6 +1333,20 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
   if (init == kInitZero) {
     memset(base_pointer_, 0, strides_.num_samples * sizeof(SampleType));
   }
+}
+
+template <typename T, TImageLayout layout>
+TImage<T, layout>::TImage(int width, int height, int num_channels,
+                          size_t row_padding, SampleType* base_pointer,
+                          TImageSampleAllocator* allocator)
+    : ReadWriteView(
+          TImageStrides<layout>(width, height, num_channels, row_padding),
+          base_pointer) {
+  allocator_ = allocator;
+  assert(strides_.width >= 0);
+  assert(strides_.height >= 0);
+  assert(strides_.num_channels >= 1);
+  memory_ = base_pointer_;
 }
 
 template <typename T, TImageLayout layout>
