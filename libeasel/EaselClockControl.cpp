@@ -185,12 +185,14 @@ int EaselClockControl::setSys200Mode()
     int ret;
 
     ret = writeSysFile((char*)SYS200_SYS_FILE, buf, 32);
-    if (ret)
+    if (ret) {
         return ret;
+    }
 
     ret = setLpddrFrequency(LPDDR_MIN_FREQ);
-    if (ret)
+    if (ret) {
         return ret;
+    }
 
     return writeSysFile((char*)LPDDR_SYS200_SYS_FILE, buf, 32);
 }
