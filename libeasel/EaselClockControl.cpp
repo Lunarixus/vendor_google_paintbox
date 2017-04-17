@@ -16,11 +16,14 @@
 #include "easelcontrol.h"
 #include "EaselClockControl.h"
 
-#define LPDDR_SYS_FILE        "/sys/kernel/mnh_freq_cool/lpddr_freq"
-#define CPU_SYS_FILE          "/sys/kernel/mnh_freq_cool/cpu_freq"
-#define IPU_SYS_FILE          "/sys/kernel/mnh_freq_cool/ipu_freq"
-#define IPU_CLK_SRC_SYS_FILE  "/sys/kernel/mnh_freq_cool/ipu_clk_src"
-#define SYS200_SYS_FILE       "/sys/kernel/mnh_freq_cool/sys200"
+#define LPDDR_SYS_FILE         "/sys/kernel/mnh_freq_cool/lpddr_freq"
+#define CPU_SYS_FILE           "/sys/kernel/mnh_freq_cool/cpu_freq"
+#define IPU_SYS_FILE           "/sys/kernel/mnh_freq_cool/ipu_freq"
+#define IPU_CLK_SRC_SYS_FILE   "/sys/kernel/mnh_freq_cool/ipu_clk_src"
+#define SYS200_SYS_FILE        "/sys/kernel/mnh_freq_cool/sys200"
+#define LPDDR_SYS200_SYS_FILE  "/sys/kernel/mnh_freq_cool/lpddr_sys200"
+
+#define LPDDR_MIN_FREQ 132
 
 #define LOGE(fmt, ...) do { \
     easelLog(ANDROID_LOG_ERROR, LOG_TAG, fmt, ##__VA_ARGS__); \
@@ -176,13 +179,20 @@ int EaselClockControl::getSys200Mode(bool *enable)
     return 0;
 }
 
-int EaselClockControl::setSys200Mode(bool enable)
+int EaselClockControl::setSys200Mode()
 {
-    char buf[32];
+    char buf[32] = "1";
+    int ret;
 
-    snprintf(buf, 32, "%d", enable);
+    ret = writeSysFile((char*)SYS200_SYS_FILE, buf, 32);
+    if (ret)
+        return ret;
 
-    return writeSysFile((char*)SYS200_SYS_FILE, buf, 32);
+    ret = setLpddrFrequency(LPDDR_MIN_FREQ);
+    if (ret)
+        return ret;
+
+    return writeSysFile((char*)LPDDR_SYS200_SYS_FILE, buf, 32);
 }
 
 int EaselClockControl::openSysFile(char *file)

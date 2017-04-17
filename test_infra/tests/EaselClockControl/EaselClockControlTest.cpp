@@ -14,7 +14,7 @@ TEST(EaselClockControlTest, Sys200Apis) {
     bool enable;
 
     // Test sys200 mode
-    ret = EaselClockControl::setSys200Mode(true);
+    ret = EaselClockControl::setSys200Mode();
     ASSERT_EQ(ret, 0);
 
     ret = EaselClockControl::getSys200Mode(&enable);

@@ -178,8 +178,7 @@ void *msgHandlerThread() {
             timesync_ap_boottime = 0;
 
             LOGE("Turning the clocks down for bypass mode\n");
-            EaselClockControl::setSys200Mode(true);
-            EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 132);
+            EaselClockControl::setSys200Mode();
 
             break;
         }

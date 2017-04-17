@@ -61,7 +61,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    static int setSys200Mode(bool enable);
+    static int setSys200Mode();
 
 private:
     static int openSysFile(char *file);
