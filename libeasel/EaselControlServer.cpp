@@ -165,6 +165,7 @@ void *msgHandlerThread() {
                 (EaselControlImpl::ActivateMsg *)msg.message_buf;
 
             LOGE("Turning the clocks up for active mode\n");
+            EaselClockControl::setBypassMode(false);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::CPU, 950);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::IPU, 425);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 2400);
@@ -179,6 +180,7 @@ void *msgHandlerThread() {
 
             LOGE("Turning the clocks down for bypass mode\n");
             EaselClockControl::setSys200Mode();
+            EaselClockControl::setBypassMode(true);
 
             break;
         }
