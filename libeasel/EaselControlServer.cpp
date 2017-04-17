@@ -161,11 +161,7 @@ void *msgHandlerThread() {
 
         switch(h->command) {
         case EaselControlImpl::CMD_ACTIVATE: {
-            LOGI("Turning the clocks up for active mode\n");
-            EaselClockControl::setBypassMode(false);
-            EaselClockControl::setFrequency(EaselClockControl::Subsystem::CPU, 950);
-            EaselClockControl::setFrequency(EaselClockControl::Subsystem::IPU, 425);
-            EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 2400);
+          EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
 
             // Server will not set realtime on receiving CMD_ACTIVATE
             // Instead, we assume client will send another CMD_SET_TIME after
@@ -178,12 +174,7 @@ void *msgHandlerThread() {
             // Invalidate current timesync value
             timesync_ap_boottime = 0;
 
-            LOGI("Turning the clocks down for bypass mode\n");
-            EaselClockControl::setSys200Mode();
-            // TODO(trevorbunker): Only clock gate IPU after reset is handled
-            //   by app (b/37690165)
-            // EaselClockControl::setBypassMode(true);
-
+            EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
             break;
         }
 
@@ -388,6 +379,16 @@ int EaselControlServer::registerHandler(
 
     LOGI("handlerId %d registered", handlerId);
     return 0;
+}
+
+int EaselControlServer::setClockMode(ClockMode mode)
+{
+    return EaselClockControl::setMode((EaselClockControl::Mode)mode);
+}
+
+EaselControlServer::ClockMode EaselControlServer::getClockMode()
+{
+    return (EaselControlServer::ClockMode)EaselClockControl::getMode();
 }
 
 /* Convenience wrapper for EaselControlServer::log() */

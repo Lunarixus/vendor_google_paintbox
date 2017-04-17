@@ -161,6 +161,8 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         sourceCaptureBlock->pause();
     }
 
+    EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
+
     // Start a HDR+ shot.
     status_t res = IssueShotCapture(shotCapture, inputs);
     if (res != 0) {

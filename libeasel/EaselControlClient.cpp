@@ -35,13 +35,16 @@ EaselCommClient easel_conn;
 // EaselStateManager instances
 EaselStateManager stateMgr;
 
-// Incoming message handler thread
-std::thread *msg_handler_thread;
-
 // Lock to guard gCallbackMap
 std::mutex gCallbackMapMutex;
 // Map from callbackId to callback functions.
 std::unordered_map<int, std::function<void(const ControlData &)>> gCallbackMap;
+
+// Mutex to protect EaselComm thread
+std::thread *conn_thread = NULL;
+std::mutex conn_mutex;
+std::condition_variable conn_cond;
+bool conn_ready = false;
 
 // Mutex to protect the current state of EaselControlClient
 std::mutex state_mutex;
@@ -67,7 +70,7 @@ void handleLog(const EaselControlImpl::LogMsg *msg) {
 /*
  * Handle incoming messages from EaselControlServer.
  */
-void msgHandlerThread() {
+void handleMessages() {
     while (true) {
         EaselComm::EaselMessage msg;
         int ret = easel_conn.receiveMessage(&msg);
@@ -261,21 +264,17 @@ int sendDeactivateCommand()
     return ret;
 }
 
-// This functions opens an EaselCommClient channel and performs a handshake
-int setupEaselConn()
+void easelConnThread()
 {
-    int ret = 0;
-
-    if (msg_handler_thread) {
-        return 0;
-    }
+    int ret;
+    std::unique_lock<std::mutex> conn_lock(conn_mutex);
 
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
     ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
-        return ret;
+        return;
     }
 
 #ifndef MOCKEASEL
@@ -283,30 +282,76 @@ int setupEaselConn()
     ret = easel_conn.initialHandshake();
     if (ret) {
         ALOGE("%s: Failed to handshake with server", __FUNCTION__);
-        return ret;
+        return;
     }
     ALOGI("%s: handshake done\n", __FUNCTION__);
 #endif
 
-    msg_handler_thread = new std::thread(msgHandlerThread);
+#ifdef ANDROID
+    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+        EaselControlImpl::DeactivateMsg ctrl_msg;
+
+        ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
+
+        EaselComm::EaselMessage msg;
+        msg.message_buf = &ctrl_msg;
+        msg.message_buf_size = sizeof(ctrl_msg);
+        msg.dma_buf = 0;
+        msg.dma_buf_size = 0;
+        ret = easel_conn.sendMessage(&msg);
+        if (ret) {
+            ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
+        }
+    }
+#endif
+
+    conn_ready = true;
+    conn_lock.unlock();
+    conn_cond.notify_one();
+
+    handleMessages();
+}
+
+int setupEaselConn()
+{
+    std::unique_lock<std::mutex> conn_lock(conn_mutex);
+
+    if (conn_ready) {
+        return 0;
+    }
+
+    if (conn_thread == NULL) {
+        conn_thread = new std::thread(easelConnThread);
+        if (conn_thread == NULL) {
+            return -ENOMEM;
+        }
+        return 0;
+    }
+
+    conn_cond.wait(conn_lock, []{return conn_ready;});
 
     return 0;
 }
 
 int teardownEaselConn()
 {
-    if (!msg_handler_thread) {
+    std::unique_lock<std::mutex> conn_lock(conn_mutex);
+
+    if (!conn_thread) {
         return 0;
     }
 
     easel_conn.close();
 
-    // disable easelcomm polling thread
-    if (msg_handler_thread) {
-        msg_handler_thread->join();
-        delete msg_handler_thread;
-        msg_handler_thread = NULL;
+    if (conn_ready) {
+        conn_thread->join();
+    } else {
+        conn_thread->detach();
     }
+
+    delete conn_thread;
+    conn_thread = NULL;
+    conn_ready = false;
 
     return 0;
 }
@@ -315,7 +360,7 @@ int switchState(enum ControlState nextState)
 {
     int ret = 0;
 
-    std::unique_lock<std::mutex> lk(state_mutex);
+    std::unique_lock<std::mutex> conn_lock(state_mutex);
 
     if (state == nextState) {
         return 0;
@@ -346,6 +391,9 @@ int switchState(enum ControlState nextState)
             switch (state) {
                 case ControlState::SUSPENDED:
                     ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
+                    if (!ret) {
+                        ret = setupEaselConn();
+                    }
                     break;
                 case ControlState::ACTIVATED:
                     ret = sendDeactivateCommand();
