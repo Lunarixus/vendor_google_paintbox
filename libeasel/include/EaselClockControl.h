@@ -63,6 +63,12 @@ public:
      */
     static int setSys200Mode();
 
+    /* Sets the state of bypass clock gating.
+     *
+     * Returns zero for success of -1 for failure.
+     */
+    static int setBypassMode(bool enable);
+
 private:
     static int openSysFile(char *file);
     static int closeSysFile(int fd);

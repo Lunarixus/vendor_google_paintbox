@@ -22,6 +22,7 @@
 #define IPU_CLK_SRC_SYS_FILE   "/sys/kernel/mnh_freq_cool/ipu_clk_src"
 #define SYS200_SYS_FILE        "/sys/kernel/mnh_freq_cool/sys200"
 #define LPDDR_SYS200_SYS_FILE  "/sys/kernel/mnh_freq_cool/lpddr_sys200"
+#define BYPASS_SYS_FILE        "/sys/kernel/mnh_freq_cool/clock_gating"
 
 #define LPDDR_MIN_FREQ 132
 
@@ -195,6 +196,14 @@ int EaselClockControl::setSys200Mode()
     }
 
     return writeSysFile((char*)LPDDR_SYS200_SYS_FILE, buf, 32);
+}
+
+int EaselClockControl::setBypassMode(bool enable)
+{
+    char buf[32];
+
+    snprintf(buf, 32, "%d", enable);
+    return writeSysFile((char*)BYPASS_SYS_FILE, buf, 32);
 }
 
 int EaselClockControl::openSysFile(char *file)
