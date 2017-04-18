@@ -144,7 +144,7 @@ void msgHandlerThread() {
                     break;
                 }
 
-                if (gCallbackMap.count(rpcMsg->callbackId) > 0) {
+                if (gCallbackMap.count(rpcMsg->callbackId) == 0) {
                     ALOGE("callback id %" PRIu64 " not found.", rpcMsg->callbackId);
                     break;
                 }
