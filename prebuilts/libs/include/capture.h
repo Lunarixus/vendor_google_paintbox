@@ -180,6 +180,7 @@ class CaptureService {
   // This call could be called multiple times on the same frame_buffer.
   // frame_buffer frame buffer to store the to-be-captured frame.
   // Once frame_buffer is enqueued, the buffer is automatically unlocked.
+  // To start capture, at least 2 frames needs to be enqueued.
   virtual void EnqueueRequest(CaptureFrameBuffer* frame_buffer) = 0;
 
   // Dequeues a completed capture frame.

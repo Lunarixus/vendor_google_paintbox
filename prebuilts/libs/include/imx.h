@@ -307,24 +307,27 @@ ImxError ImxGetDefaultDeviceWithOptions(ImxDeviceHandle *device_handle_ptr,
                                         int num_simulator_options,
                                         char **simulator_options);
 
-/* Create device with all available core and mipi resources. Note that resources
- * that are shared between mipi and core use (such as some DMA channels,
- * interrupts) will be assigned to mipi use only (until b/30854077 is fixed).
+/* Creates a device with all available core and mipi resources. Note that
+ * resources that are shared between mipi and core use (such as some DMA
+ * channels, interrupts) will be assigned to mipi use only (until b/30854077
+ * is fixed).
  */
 ImxError ImxGetDeviceWithAllMipiAndCoreResources(
     ImxDeviceHandle *device_handle_ptr);
 
-/* Creates device with resources as specified in device_descr
- * device_descr device description, including resource required for this device.
- *   device_descr is mutable and could be modified in this function.
+/* Creates a device with resources as specified in device_descr
+ * device_descr device description, includes resource required for this device.
+ * device_descr is not modified in this function; however, the resource
+ * allocation specified by device_descr could be overridden by options in
+ * simulator_options or command-line flags.
  * device_handle_ptr the returned handle pointer for the device created.
  */
-ImxError ImxGetDevice(ImxDeviceDescription *device_descr  /* in, modified */,
+ImxError ImxGetDevice(ImxDeviceDescription *device_descr  /* in */,
                       ImxDeviceHandle *device_handle_ptr  /* out */);
 ImxError ImxGetDeviceWithOptions(
-    ImxDeviceDescription *device_descr  /* in, modified */,
-    int num_simulator_options  /* in */,
-    char **simulator_options  /* in */,
+    ImxDeviceDescription *device_descr  /* in */,
+    int num_simulator_options,
+    char **simulator_options,  /* modified */
     ImxDeviceHandle *device_handle_ptr  /* out */);
 
 typedef void (*ImxDumpCallback)(const char *);
@@ -338,12 +341,12 @@ typedef void (*ImxDumpCallback)(const char *);
 ImxError ImxDeviceSetDumpCallback(ImxDeviceHandle device,
                                   ImxDumpCallback dump_callback);
 
-/* Delete the device, releasing all its resources. Note: Dereferencing
+/* Deletes the device, releasing all its resources. Note: Dereferencing
  * device_handle after deletion of device may result in unspecified behavior.
  */
 ImxError ImxDeleteDevice(ImxDeviceHandle device_handle);
 
-/* If |trace_dir| is a non-empty string, a compile renames file is written to
+/* If |trace_dir| is a non-empty string, writes a compile renames file is to
  * |trace_dir| every time a job is executed.
  */
 ImxError ImxDeviceSetTraceDir(ImxDeviceHandle device_handle,
@@ -434,7 +437,7 @@ typedef enum {
 } ImxBufferType;
 
 // TODO(dfinchel) make sure this is checked wherever we iterate over planes
-enum { IMX_kMaxPlanes = 512 };
+enum { kImxMaxPlanes = 512 };
 typedef struct ImxLateBufferConfig {
   ImxBufferType buffer_type;
   ImxDeviceBufferHandle buffer;
@@ -452,11 +455,11 @@ typedef struct ImxLateBufferConfig {
      * currently only stride[1] is allowed to be non-zero
      */
     uint64_t stride[IMX_DIM_MAX];
-  } plane[IMX_kMaxPlanes]; // TODO(dfinchel) do we use planes other than 0?
+  } plane[kImxMaxPlanes]; // TODO(dfinchel) do we use planes other than 0?
 } ImxLateBufferConfig;
 
-/* Use this function to create graph with a program to be executed on
- * IPU. If the graph does not contain any kernels, set visa_string to NULL
+/* Creates graph with a program to be executed on IPU.
+ * If the graph does not contain any kernels, set visa_string to NULL
  * (or nullptr, if using this file as C++ header)
  * The specified graph_name will be used as a string id for the graph, used for
  * hashing and while dumping logging information. Specifying a unique name is
@@ -496,6 +499,7 @@ typedef enum {
   IMX_OPTION_SIMULATOR_ENABLE_BINARY_PISA = 3,
   IMX_OPTION_SIMULATOR_HW_CONFIG_FILE = 4, // not used for graph compile
   IMX_OPTION_HISA = 5,
+  IMX_OPTION_ENABLE_STRIPING = 6,
   IMX_kMaxCompileGraphOption  /* Internal use only */
 } ImxCompileGraphOption;
 
@@ -547,7 +551,7 @@ ImxError ImxCompileGraph(
 
 ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
 
-/* Save a copy of compiled_graph (and related structures) to file(s) in the
+/* Saves a copy of compiled_graph (and related structures) to file(s) in the
  * directory save_dir_path. Currently, multiple files are saved: the
  * precompiled graph configuration (save_dir_path/file_name and binary pISA
  * files (*.bpisa in save_dir_path) for the stencil-processor program kernels.
@@ -560,7 +564,7 @@ ImxError ImxSaveCompiledGraph(
     const char *file_name,
     ImxCompiledGraphHandle compiled_graph  /* const */);
 
-/* Save the given compiled_graph into a unique sub-directory within
+/* Saves the given compiled_graph into a unique sub-directory within
  * save_dir_base_path, with file name "file_name".
  * Note: This API function is typically used in conjunction with
  * ImxLoadMatchingPrecompiledGraph
@@ -570,7 +574,7 @@ ImxError ImxSaveAsUniqueCompiledGraph(
     const char *file_name,
     ImxCompiledGraphHandle compiled_graph  /* const */);
 
-/* Load a precompiled graph configuration (and related files) to create an
+/* Loads a precompiled graph configuration (and related files) to create an
  * ImxCompiledGraph object. The prcompiled graph configuration file should be
  * in the load_dir_path directory and should be named <file_name>.
  * The supplied transfer_nodes, transfer_node_names, and info input arguments
@@ -587,7 +591,7 @@ ImxError ImxLoadPrecompiledGraph(
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
-/* Find a precompiled graph configuration that matches the given input (
+/* Finds a precompiled graph configuration that matches the given input (
  * transfer_nodes, parameter settings, etc) by searching within
  * load_dir_base_path (and sub-directories one level down) and file named
  * "file_name".
@@ -652,7 +656,7 @@ typedef enum {
   /* others will be added later */
 } ImxConversion;
 
-/* Specify what to return for an out-of-bounds access to an input image */
+/* Specifies what to return for an out-of-bounds access to an input image */
 typedef enum {
   IMX_BORDER_ZERO = 0,     /* zero */
   IMX_BORDER_CONSTANT,     /* constant value, as specified in 'border_value' */
@@ -739,7 +743,7 @@ typedef struct ImxTransferEventStatus {
   } event_data;
 } ImxTransferEventStatus;
 
-/* Collect status information (such as timestamp, error code, etc) during
+/* Collects status information (such as timestamp, error code, etc) during
  * an actual transfer for the given node. The actual transfer (called a
  * transfer event) may be the transfer of an image frame via MIPI Input, a
  * DeviceBuffer transferred via DMA, etc. For the specified transfer node,
@@ -791,7 +795,7 @@ ImxError ImxGetMemoryAllocator(
     ImxMemoryAllocatorType allocator_type,
     ImxMemoryAllocatorHandle *memory_allocator_handle_ptr);
 
-/* Get an ION Memory Allocator initialized with a file-descriptor (ion_fd) that
+/* Gets an ION Memory Allocator initialized with a file-descriptor (ion_fd) that
  * was already created with a call to ion_open().
  *
  * Not thread-safe; see general note on thread-safety above.
@@ -804,7 +808,7 @@ ImxError ImxGetIonMemoryAllocator(
 ImxError ImxDeleteMemoryAllocator(
     ImxMemoryAllocatorHandle memory_allocator_handle_ptr);
 
-/* Create a device buffer using dynamic memory allocation (i.e. malloc).
+/* Creates a device buffer using dynamic memory allocation (i.e. malloc).
  * We assume that malloc is available on all systems. Using malloc'd buffers
  * will result in data copy when the buffer is transferred between CPU and IPU.
  * TODO(ahalambi): Deprecate this API in favor of always using a
@@ -824,18 +828,18 @@ ImxError ImxCreateDeviceBufferSimple(
     int flags,
     ImxDeviceBufferHandle *buffer_handle_ptr);
 
-// Set default alignment (in bytes) based on LPDDR4 burst length
+// Sets the default alignment (in bytes) based on LPDDR4 burst length
 #define kImxDefaultDeviceBufferAlignment 64
 
-// Use the default heap created for the underlying system. Currently, the
-// default heap for ION is DMA heap.
+// Specifies to use default heap created for the underlying system.
+// Currently, the default heap for ION is CARVEOUT heap.
 #define kImxDefaultDeviceBufferHeap 0
 
-/* Create a device buffer using preferred allocation strategy of the specified
+/* Creates a device buffer using preferred allocation strategy of the specified
  * memory allocator. Currently, the only zero-copy memory allocator supported
  * is ION.
  *
- * align_bytes: Specify the minimum required alignment. This value must be a
+ * align_bytes: Specifies the minimum required alignment. This value must be a
  * power of 2. Use kImxDefaultDeviceBufferAlignment for default alignment.
  *
  * heap_type: Specific to the Memory Allocator used. heap_type = 0 is reserved
@@ -869,7 +873,7 @@ ImxError ImxCreateDeviceBufferManaged(
 ImxError ImxDeleteDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle);
 
-/* Lock: Make the buffer ready for use by CPU user-space process.
+/* Lock: Makes the buffer ready for use by CPU user-space process.
  * *(vaddr) will hold the mapped virtual address of the buffer.
  * May result in a mmap operation to map a kernel buffer to user-space.
  * Will reuse a previous mapping if it is still valid.
@@ -891,12 +895,12 @@ ImxError ImxLockDeviceBuffer(
 ImxError ImxUnlockDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle);
 
-/* Share: Make the buffer ready to be shared with other user-space processes
+/* Share: Makes the buffer ready to be shared with other user-space processes
  * and/or kernel. Note: This API is typically for sharing across processes;
  * among threads within the same process, share the buffer_handle instead.
  * (*fd) will hold the file-descriptor that can be passed to the other processes
  * to facilitate importing of the shared buffer.
- * Return IMX_FAILURE if it is not possible to share this buffer (for example,
+ * Returns IMX_FAILURE if it is not possible to share this buffer (for example,
  * if it is a malloc'd buffer).
  *
  * Note: The shared fd must be passed to other processes using sendmsg, pipe,
@@ -910,7 +914,7 @@ ImxError ImxShareDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle,
     int *fd);
 
-/* Import: Create a buffer handle for an imported buffer (which was shared by
+/* Import: Creates a buffer handle for an imported buffer (which was shared by
  * another process). This API will create a new device buffer
  * with access to the shared content (without copying to another location).
  * fd is the file-descriptor that was shared by another process. This fd is
@@ -927,7 +931,7 @@ ImxError ImxImportDeviceBuffer(
     uint64_t size_bytes,
     ImxDeviceBufferHandle *buffer_handle);
 
-/* Reverse mapping from a mapped virtual address to buffer handle.
+/* Reverses mapping from a mapped virtual address to buffer handle.
  * If vaddr is a valid address in range of any previously created (and mmapped)
  * DeviceBuffer, place the buffer handle in buffer_handle_ptr. Also, compute
  * the offset from start of buffer address and place it in offset
@@ -954,8 +958,8 @@ ImxError ImxFinalizeBuffers(
  * "default" value for the timeout.
  */
 
-/* Blocking call to execute the input job. This function will load IPU device
- * configuration, start the execution and wait for completion of the job.
+/* Blocking call to execute the input job. This function loads IPU device
+ * configuration, starts the execution and waits for completion of the job.
  * All late-bound configuration information (such as DRAM buffers for DMA
  * transfers) must already be provided before invoking this function.
  */
@@ -1001,8 +1005,8 @@ ImxError ImxJobSetStpPcHistogramEnable(ImxJobHandle job, /* modified */
  * required to execute the job.
  */
 
-/* Load all the required IPU configuration to execute this job. This may involve
- * loading STPs with programs, configuring DMA channels, etc.
+/* Loads all the required IPU configuration to execute this job. This may
+ * involve loading STPs with programs, configuring DMA channels, etc.
  * Note: Some configuration is late-bound and is only done at actual job
  * execution. E.g. DRAM buffers for DMA transfers.
  *
@@ -1015,7 +1019,7 @@ ImxError ImxJobSetStpPcHistogramEnable(ImxJobHandle job, /* modified */
 ImxError ImxLoadDeviceConfig(
     ImxJobHandle job  /* modified */);
 
-/* Unload previously loaded IPU configuration.
+/* Unloads previously loaded IPU configuration.
  *
  * It is an error to call this API function with a job that is not the
  * currently loaded job.
@@ -1026,7 +1030,7 @@ ImxError ImxLoadDeviceConfig(
 ImxError ImxUnloadDeviceConfig(
     ImxJobHandle job  /* modified */);
 
-/* Enqueue job for (eventual) execution. All late-bound parameters must be
+/* Enqueues job for (eventual) execution. All late-bound parameters must be
  * finalized before calling this API. This function does not block.
  *
  * NOTE: Jobs with STP programs are currently not supported!
@@ -1035,7 +1039,7 @@ ImxError ImxUnloadDeviceConfig(
 ImxError ImxEnqueueJob(
     ImxJobHandle job  /* modified */);
 
-/* Blocking call to wait for completion of the currently executing enqueued job.
+/* Waits for completion of the currently executing enqueued job. Blocking call!
  *
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
@@ -1043,7 +1047,7 @@ ImxError ImxEnqueueJob(
 ImxError ImxWaitForCompletion(
     ImxJobHandle job  /* modified */);
 
-/* Blocking call to wait for completion of the currently executing enqueued job.
+/* Waits for completion of the currently executing enqueued job. Blocking call!
  *
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
