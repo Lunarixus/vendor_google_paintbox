@@ -201,7 +201,7 @@ void client_push_response_handler(EaselComm::EaselMessage *msg) {
     FilePushResponse *resp = (FilePushResponse *)msg->message_buf;
 
     if (resp->response_code) {
-        fprintf(stderr, "ezlsh: %s: %s\n", file_xfer_path_remote,
+        fprintf(stderr, "ERROR: ezlsh push: %s: %s\n", file_xfer_path_remote,
                 strerror(resp->response_code));
     }
 
@@ -572,18 +572,11 @@ int is_regular_file(const char *path) {
     return S_ISREG(path_stat.st_mode);
 }
 
-void client_push_file_helper(char *local_path, char *remote_path) {
+void client_push_file_worker(char *local_path, char *remote_path) {
     file_xfer_path_remote = remote_path;
     file_xfer_path_local = local_path;
 
     easel_comm_client.flush();
-
-    std::thread *msg_handler_thread;
-    msg_handler_thread = new std::thread(client_message_handler);
-    if (msg_handler_thread == nullptr) {
-        fprintf(stderr, "failed to allocate thread for message handler\n");
-        client_exit(1);
-    }
 
     int fd = open(local_path, O_RDONLY);
     if (fd < 0) {
@@ -635,8 +628,15 @@ void client_push_file(char *local_path, char *remote_path) {
                 EaselComm::EASEL_SERVICE_SHELL, ret);
     }
 
+    std::thread *msg_handler_thread;
+    msg_handler_thread = new std::thread(client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+        client_exit(1);
+    }
+
     if (is_regular_file(local_path)) {
-        client_push_file_helper(local_path, remote_path);
+        client_push_file_worker(local_path, remote_path);
     } else {
         std::stringstream files;
         list_dir_recursive(std::string(local_path), "", files);
@@ -644,7 +644,7 @@ void client_push_file(char *local_path, char *remote_path) {
         while (std::getline(files, file, '\n')) {
             std::string local = std::string(local_path) + kFileSeparator + file;
             std::string remote = std::string(remote_path) + kFileSeparator + local;
-            client_push_file_helper(const_cast<char*>(local.c_str()),
+            client_push_file_worker(const_cast<char*>(local.c_str()),
                                     const_cast<char*>(remote.c_str()));
         }
     }
