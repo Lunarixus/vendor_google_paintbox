@@ -81,6 +81,7 @@ struct FilePullRequest {
 struct FilePullResponse {
     struct MsgHeader h;
     int response_code;
+    mode_t st_mode;
     FilePullResponse(int respcode):
         h(CMD_PULL_RESPONSE, sizeof(response_code)), response_code(respcode)
         {};
@@ -89,6 +90,7 @@ struct FilePullResponse {
 // File push request from client to server contains server file path
 struct FilePushRequest {
     struct MsgHeader h;
+    mode_t st_mode;
     char path[PATH_MAX];
     FilePushRequest(): h(CMD_PUSH_REQUEST, 0) {};
 };
@@ -238,7 +240,7 @@ void client_save_pulled_file(EaselComm::EaselMessage *msg) {
         }
     }
 
-    int fd = creat(file_xfer_path_local, S_IRUSR | S_IWUSR);
+    int fd = creat(file_xfer_path_local, resp->st_mode);
     if (fd < 0) {
         perror(file_xfer_path_local);
     } else if (msg->dma_buf_size) {
@@ -610,9 +612,10 @@ void client_push_file_helper(char *local_path, char *remote_path) {
     FilePushRequest push_msg;
     size_t size = strlcpy(push_msg.path, remote_path, PATH_MAX);
     push_msg.h.datalen = size + 1;
+    push_msg.st_mode = stat_buf.st_mode;
     EaselComm::EaselMessage msg;
     msg.message_buf = &push_msg;
-    msg.message_buf_size = sizeof(MsgHeader) + push_msg.h.datalen;
+    msg.message_buf_size = sizeof(MsgHeader) + sizeof(mode_t) + push_msg.h.datalen;
     msg.dma_buf = file_data;
     msg.dma_buf_size = data_len;
 
@@ -782,7 +785,7 @@ int server_recv_push_file(EaselComm::EaselMessage *msg) {
         return ret;
     }
 
-    int fd = creat(req->path, S_IRUSR | S_IWUSR);
+    int fd = creat(req->path, req->st_mode);
     if (fd < 0) {
         ret = errno;
         perror(req->path);
@@ -827,6 +830,7 @@ void server_pull_file(FilePullRequest *req) {
     if (file_size < 0) {
         // Send errno as response code
         FilePullResponse pull_resp(errno);
+        pull_resp.st_mode = stat_buf.st_mode;
         EaselComm::EaselMessage msg;
         msg.message_buf = &pull_resp;
         msg.message_buf_size = sizeof(FilePullResponse);
