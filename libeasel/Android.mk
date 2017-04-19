@@ -5,6 +5,8 @@ PB_INCLUDES := \
     $(LOCAL_PATH)/include \
     $(LOCAL_PATH)/kernel-headers
 
+# Client side libeasel, it contains server side code
+# for build requirement.
 include $(CLEAR_VARS)
 LOCAL_MODULE := libeasel
 LOCAL_MODULE_OWNER := google
@@ -17,13 +19,22 @@ LOCAL_SRC_FILES := \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
     EaselStateManager.cpp
-# To avoid circular dependency between libeasel
-# liblog (libeasellog) on server side, liblog is
-# statically linked in libeasel for client usage.
-# For logging on libeasel server, please use
-# easelLog directly instead of liblog.
-LOCAL_STATIC_LIBRARIES := liblog
-LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_SHARED_LIBRARIES := libcutils liblog
+LOCAL_PROPRIETARY_MODULE := true
+include $(BUILD_SHARED_LIBRARY)
+
+# Server side libeasel, will be rename to libeasel
+# and installed on server side.
+include $(CLEAR_VARS)
+LOCAL_MODULE := libeaselservice
+LOCAL_MODULE_OWNER := google
+LOCAL_C_INCLUDES := $(PB_INCLUDES)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(PB_INCLUDES)
+LOCAL_CPPFLAGS += -Wall -Werror -UNDEBUG
+LOCAL_SRC_FILES := \
+    EaselClockControl.cpp \
+    EaselComm.cpp \
+    EaselControlServer.cpp
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
 
@@ -39,8 +50,6 @@ LOCAL_SRC_FILES := \
     EaselControlClient.cpp \
     EaselControlServer.cpp \
     EaselStateManager.cpp
-# See explanation in libeasel
-LOCAL_STATIC_LIBRARIES := liblog
-LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_SHARED_LIBRARIES := liblog libcutils
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
