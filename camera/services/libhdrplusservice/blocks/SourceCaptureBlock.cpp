@@ -42,7 +42,7 @@ status_t SourceCaptureBlock::createCaptureService() {
     if (mCaptureService != nullptr) {
         return -EEXIST;
     }
-
+    ALOGI("%s: Creating new catpure service", __FUNCTION__);
     mCaptureService = CaptureService::CreateInstance(mCaptureConfig);
     CaptureError err = mCaptureService->Initialize();
     if (err != CaptureError::SUCCESS) {
