@@ -159,6 +159,8 @@ std::mutex exec_lock;
 bool exec_done = false;
 std::condition_variable exec_cond;
 
+void server_exec_cmd(ExecRequest *request);
+int server_exec_cmd(std::string &cmd);
 
 void client_exit(int exitcode) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
@@ -520,17 +522,58 @@ void client_pull_file(char *remote_path, char *dest_arg) {
     free(local_path_str);
 }
 
-// Client file push command processing. Send push request and wait for
-// incoming message handler to process the response from server.
-void client_push_file(char *local_path, char *remote_path) {
+int server_exec_cmd(std::string &cmd) {
+    auto pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        fprintf(stderr, "%s: %s could not execute %s", "ezlsh", __FUNCTION__, cmd.c_str());
+        return -1;
+    }
+    if (pclose(pipe) == -1) {
+        fprintf(stderr, "%s: %s pclose returns an error after executing %s",
+                "ezlsh", __FUNCTION__, cmd.c_str());
+        return -1;
+    }
+    return 0;
+}
+
+static void list_dir_recursive(
+        const std::string &root_path,
+        const std::string &dir_path,
+        std::stringstream &files) {
+    DIR *dir;
+    struct dirent *entry;
+    dir = opendir((root_path + dir_path).c_str());
+    if (dir == NULL) {
+        return;
+    } else {
+        while ((entry = readdir(dir)) != NULL) {
+            std::string entry_name(entry->d_name);
+            if (entry_name != "." && entry_name != "..") {
+                if (entry->d_type == DT_DIR) {
+                    list_dir_recursive(root_path, dir_path + kFileSeparator + entry_name, files);
+                } else if (entry->d_type == DT_REG) {
+                    if (dir_path.empty()) {
+                        files << entry_name + "\n";
+                    } else {
+                        files << dir_path + kFileSeparator + entry_name + "\n";
+                    }
+                }
+            }
+        }
+    }
+    closedir(dir);
+}
+
+int is_regular_file(const char *path) {
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISREG(path_stat.st_mode);
+}
+
+void client_push_file_helper(char *local_path, char *remote_path) {
     file_xfer_path_remote = remote_path;
     file_xfer_path_local = local_path;
 
-    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
-    if (ret) {
-        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
-                EaselComm::EASEL_SERVICE_SHELL, ret);
-    }
     easel_comm_client.flush();
 
     std::thread *msg_handler_thread;
@@ -578,6 +621,30 @@ void client_push_file(char *local_path, char *remote_path) {
     file_xfer_done = false;
     easel_comm_client.sendMessage(&msg);
     file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
+}
+
+// Client file push command processing. Send push request and wait for
+// incoming message handler to process the response from server.
+void client_push_file(char *local_path, char *remote_path) {
+    int ret = easel_comm_client.open(EaselComm::EASEL_SERVICE_SHELL);
+    if (ret) {
+        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
+                EaselComm::EASEL_SERVICE_SHELL, ret);
+    }
+
+    if (is_regular_file(local_path)) {
+        client_push_file_helper(local_path, remote_path);
+    } else {
+        std::stringstream files;
+        list_dir_recursive(std::string(local_path), "", files);
+        std::string file;
+        while (std::getline(files, file, '\n')) {
+            std::string local = std::string(local_path) + kFileSeparator + file;
+            std::string remote = std::string(remote_path) + kFileSeparator + local;
+            client_push_file_helper(const_cast<char*>(local.c_str()),
+                                    const_cast<char*>(remote.c_str()));
+        }
+    }
 }
 
 // Client file ls command processing. Send ls request and wait for
@@ -708,6 +775,13 @@ int server_recv_push_file(EaselComm::EaselMessage *msg) {
         }
     }
 
+    // Create directory if not exist
+    std::string mkdir = "mkdir -p " + std::string(dirname(req->path));
+    ret = server_exec_cmd(mkdir);
+    if (ret) {
+        return ret;
+    }
+
     int fd = creat(req->path, S_IRUSR | S_IWUSR);
     if (fd < 0) {
         ret = errno;
@@ -787,34 +861,6 @@ void server_pull_file(FilePullRequest *req) {
 
     free(file_data);
     close(fd);
-}
-
-static void list_dir_recursive(
-        const std::string &root_path,
-        const std::string &dir_path,
-        std::stringstream &files) {
-    DIR *dir;
-    struct dirent *entry;
-    dir = opendir((root_path + dir_path).c_str());
-    if (dir == NULL) {
-        return;
-    } else {
-        while ((entry = readdir(dir)) != NULL) {
-            std::string entry_name(entry->d_name);
-            if (entry_name != "." && entry_name != "..") {
-                if (entry->d_type == DT_DIR) {
-                    list_dir_recursive(root_path, dir_path + kFileSeparator + entry_name, files);
-                } else if (entry->d_type == DT_REG) {
-                    if (dir_path.empty()) {
-                        files << entry_name + "\n";
-                    } else {
-                        files << dir_path + kFileSeparator + entry_name + "\n";
-                    }
-                }
-            }
-        }
-    }
-    closedir(dir);
 }
 
 // Server receives file ls request, send file list back.
