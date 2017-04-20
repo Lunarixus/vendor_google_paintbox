@@ -309,7 +309,9 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
     std::string file;
     while (std::getline(ss, file, '\n')) {
         std::string remote = std::string(file_recursive_path_remote) + kFileSeparator + file;
-        std::string local = std::string(file_recursive_path_local) + kFileSeparator + file;
+        std::string local = std::string(file_recursive_path_local) + kFileSeparator +
+                            std::string(basename(file_recursive_path_remote)) +
+                            kFileSeparator + file;
         fprintf(stderr, "Pulling %s as %s\n", file.c_str(), local.c_str());
         std::string mkdir = "mkdir -p " + std::string(dirname(local.c_str()));
         system(mkdir.c_str());
@@ -642,7 +644,7 @@ void client_push_file(char *local_path, char *remote_path) {
         list_dir_recursive(std::string(local_path), "", files);
         std::string file;
         while (std::getline(files, file, '\n')) {
-            std::string local = std::string(local_path) + kFileSeparator + file;
+            std::string local = std::string(basename(local_path)) + kFileSeparator + file;
             std::string remote = std::string(remote_path) + kFileSeparator + local;
             client_push_file_worker(const_cast<char*>(local.c_str()),
                                     const_cast<char*>(remote.c_str()));
