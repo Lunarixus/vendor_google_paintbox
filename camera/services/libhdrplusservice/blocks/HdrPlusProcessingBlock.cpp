@@ -375,9 +375,6 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
     // Copy HDR+ processed final image to block output buffers. This won't be needed for PB
     // version.
     for (auto outputBuffer : outputResult.buffers) {
-        // Clear the buffer first because GCAM's final image resolution may be smaller.
-        // This won't be needed for PB version.
-        outputBuffer->clear();
         uint8_t *lumaDst = outputBuffer->getPlaneData(0);
 
         // The following assumes format is NV21.
