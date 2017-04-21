@@ -137,7 +137,8 @@ public:
 
 private:
     // Raw data of the image.
-    std::vector<uint8_t> mData;
+    uint8_t *mData;
+    uint32_t mDataSize;
 
     // Free the memory of the buffer.
 };
