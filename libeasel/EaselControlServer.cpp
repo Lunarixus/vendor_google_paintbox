@@ -15,8 +15,8 @@
 #include <unistd.h>
 #include <unordered_map>
 
-#include <utils/Log.h>
 #include "EaselClockControl.h"
+#include "EaselLog.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
@@ -26,11 +26,6 @@
 // sysfs file to initiate kernel suspend
 #define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
 #define KERNEL_SUSPEND_STRING      "mem"
-
-
-#define LOGE(fmt, ...) do { \
-    easelLog(ANDROID_LOG_ERROR, LOG_TAG, fmt, ##__VA_ARGS__); \
-  } while(0);
 
 namespace {
 // Our EaselComm server object.  Mock uses the the network version.
@@ -71,8 +66,7 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
 
     // Request should have been verfied on client side.
     if(request.size > EaselControlImpl::kMaxPayloadSize) {
-        easelLog(ANDROID_LOG_ERROR, LOG_TAG,
-                "%s: Request size out of boundary %" PRIu64, request.size);
+        LOGE("%s: Request size out of boundary %" PRIu64, request.size);
         return;
     }
 
@@ -85,8 +79,7 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
             replyMsg.payloadSize = response.size;
 
             if (response.size > EaselControlImpl::kMaxPayloadSize) {
-                easelLog(ANDROID_LOG_ERROR, LOG_TAG,
-                        "%s: Response size out of boundary %" PRIu64,
+                LOGE("%s: Response size out of boundary %" PRIu64,
                         __FUNCTION__, response.size);
                 return;
             }
@@ -96,15 +89,14 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
 
             int ret = easel_conn.sendMessage(&msg);
             if (ret) {
-                easelLog(ANDROID_LOG_ERROR, LOG_TAG,
-                        "%s: Failed to send RPC message to AP (%d)",
+                LOGE("%s: Failed to send RPC message to AP (%d)",
                         __FUNCTION__, ret);
             }
         } else {
             gHandlerMap[rpcMsg.handlerId]->handleRequest(rpcMsg.rpcId, request, nullptr);
         }
     } else {
-        easelLog(ANDROID_LOG_ERROR, LOG_TAG, "No handler registered for %d", rpcMsg.handlerId);
+        LOGE("No handler registered for %d", rpcMsg.handlerId);
     }
 }
 
@@ -157,14 +149,14 @@ void *msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
-        LOGE("Received command %d\n", h->command);
+        LOGI("Received command %d\n", h->command);
 
         switch(h->command) {
         case EaselControlImpl::CMD_ACTIVATE: {
             EaselControlImpl::ActivateMsg *tmsg =
                 (EaselControlImpl::ActivateMsg *)msg.message_buf;
 
-            LOGE("Turning the clocks up for active mode\n");
+            LOGI("Turning the clocks up for active mode\n");
             EaselClockControl::setBypassMode(false);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::CPU, 950);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::IPU, 425);
@@ -178,7 +170,7 @@ void *msgHandlerThread() {
             // Invalidate current timesync value
             timesync_ap_boottime = 0;
 
-            LOGE("Turning the clocks down for bypass mode\n");
+            LOGI("Turning the clocks down for bypass mode\n");
             EaselClockControl::setSys200Mode();
             EaselClockControl::setBypassMode(true);
 
@@ -355,22 +347,19 @@ void EaselControlServer::log(int prio, const char *tag, const char *text) {
 int EaselControlServer::registerHandler(
         RequestHandler *handler, int handlerId) {
     if (handler == nullptr) {
-        easelLog(ANDROID_LOG_ERROR, LOG_TAG,
-                "ERROR: handler is null");
+        LOGE("ERROR: handler is null");
         return -EFAULT;
     }
 
     std::unique_lock<std::mutex> lock(gHandlerMapMutex);
     if (gHandlerMap.count(handlerId) > 0) {
-        easelLog(ANDROID_LOG_ERROR, LOG_TAG,
-                "ERROR: handler id %d already registered", handlerId);
+        LOGE("ERROR: handler id %d already registered", handlerId);
         return -EEXIST;
     }
 
     gHandlerMap[handlerId] = handler;
 
-    easelLog(ANDROID_LOG_INFO, LOG_TAG,
-            "handlerId %d registered", handlerId);
+    LOGI("handlerId %d registered", handlerId);
     return 0;
 }
 

@@ -12,8 +12,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 
-#include <utils/Log.h>
 #include "easelcontrol.h"
+#include "EaselLog.h"
 #include "EaselClockControl.h"
 
 #define LPDDR_SYS_FILE         "/sys/kernel/mnh_freq_cool/lpddr_freq"
@@ -25,11 +25,6 @@
 #define BYPASS_SYS_FILE        "/sys/kernel/mnh_freq_cool/clock_gating"
 
 #define LPDDR_MIN_FREQ 132
-
-#define LOGE(fmt, ...) do { \
-    easelLog(ANDROID_LOG_ERROR, LOG_TAG, fmt, ##__VA_ARGS__); \
-  } while(0);
-
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 
