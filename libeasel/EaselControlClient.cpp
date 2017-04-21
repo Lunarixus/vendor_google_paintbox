@@ -409,14 +409,16 @@ int EaselControlClient::suspend() {
             ALOGE("%s: failed to send suspend command to Easel (%d)\n", __FUNCTION__, ret);
         }
 
+        easel_conn.close();
+
         // disable easelcomm polling thread
         if (msg_handler_thread) {
-            msg_handler_thread->detach();
+            msg_handler_thread->join();
             delete msg_handler_thread;
             msg_handler_thread = NULL;
         }
 
-        easel_conn.close();
+        easel_conn_ready = false;
     }
 
     ret = stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
@@ -456,6 +458,19 @@ int EaselControlClient::open(const char *easelhost) {
 #endif
 
 void EaselControlClient::close() {
+    if (easel_conn_ready) {
+        easel_conn.close();
+
+        // disable easelcomm polling thread
+        if (msg_handler_thread) {
+            msg_handler_thread->join();
+            delete msg_handler_thread;
+            msg_handler_thread = NULL;
+        }
+
+        easel_conn_ready = false;
+    }
+
     stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
     stateMgr.close();
 }
