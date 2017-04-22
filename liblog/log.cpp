@@ -18,7 +18,7 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <private/android_logger.h>
+#include <log/log_properties.h>
 #include <tombstone.h>
 
 #include "easelcontrol.h"
