@@ -75,8 +75,18 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     std::vector<Input> inputs;
     OutputRequest outputRequest = {};
 
-    // Check if there is a pending Gcam shot capture.
     std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
+
+    // Initialize Gcam if not yet.
+    if (mGcam == nullptr) {
+        status_t res = initGcam();
+        if (res != 0) {
+            ALOGE("%s: Initializing Gcam failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+            return false;
+        }
+    }
+
+    // Check if there is a pending Gcam shot capture.
     if (mPendingShotCapture != nullptr) {
         // Only support 1 active processing.
         return false;
@@ -375,9 +385,6 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
     // Copy HDR+ processed final image to block output buffers. This won't be needed for PB
     // version.
     for (auto outputBuffer : outputResult.buffers) {
-        // Clear the buffer first because GCAM's final image resolution may be smaller.
-        // This won't be needed for PB version.
-        outputBuffer->clear();
         uint8_t *lumaDst = outputBuffer->getPlaneData(0);
 
         // The following assumes format is NV21.
@@ -710,6 +717,11 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
 }
 
 status_t HdrPlusProcessingBlock::initGcam() {
+    if (mGcamStaticMetadata == nullptr) {
+        ALOGE("%s: mGcamStaticMetadata is nullptr.", __FUNCTION__);
+        return -ENODEV;
+    }
+
     // Create gcam callbacks.
     mGcamInputImageReleaseCallback =
             std::make_unique<GcamInputImageReleaseCallback>(shared_from_this());
@@ -789,14 +801,6 @@ status_t HdrPlusProcessingBlock::setStaticMetadata(std::shared_ptr<StaticMetadat
         ALOGE("%s: Converting to GCAM static metadata failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);
         return res;
-    }
-
-    // Initialize Gcam with the static metadata.
-    res = initGcam();
-    if (res != 0) {
-        ALOGE("%s: Initializing Gcam failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        mGcamStaticMetadata = nullptr;
-        return -ENODEV;
     }
 
     mStaticMetadata = metadata;

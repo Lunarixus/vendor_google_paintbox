@@ -173,15 +173,22 @@ status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
  ********************************************/
 PipelineHeapBuffer::PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
         const StreamConfiguration &config) :
-    PipelineBuffer(stream, config) {
+    PipelineBuffer(stream, config),
+    mData(nullptr),
+    mDataSize(0) {
 }
 
 PipelineHeapBuffer::~PipelineHeapBuffer() {
+    if (mData != nullptr) {
+        free(mData);
+        mData = nullptr;
+        mDataSize = 0;
+    }
 }
 
 status_t PipelineHeapBuffer::allocate() {
     // Check if buffer is already allocated.
-    if (mData.size() != 0) return -EEXIST;
+    if (mData != nullptr) return -EEXIST;
 
     status_t res = validateConfig(mRequestedConfig);
     if (res != 0) {
@@ -196,13 +203,19 @@ status_t PipelineHeapBuffer::allocate() {
         numBytes += plane.stride * plane.scanline;
     }
 
-    mData.resize(numBytes, 0);
+    mData = (uint8_t*)malloc(numBytes);
+    if (mData == nullptr) {
+        ALOGE("%s: Allocating buffer failed.", __FUNCTION__);
+        return -ENOMEM;
+    }
+
+    mDataSize = numBytes;
     mAllocatedConfig = mRequestedConfig;
     return 0;
 }
 
 uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
-    if (mData.size() == 0 || planeNum >= mAllocatedConfig.image.planes.size()) {
+    if (mData == nullptr || planeNum >= mAllocatedConfig.image.planes.size()) {
         return nullptr;
     }
 
@@ -212,11 +225,11 @@ uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
                         mAllocatedConfig.image.planes[i].scanline);
     }
 
-    return mData.data() + planeOffset;
+    return mData + planeOffset;
 }
 
 uint32_t PipelineHeapBuffer::getDataSize() const {
-    return mData.size();
+    return mDataSize;
 }
 
 status_t PipelineHeapBuffer::lockData() {
