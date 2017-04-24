@@ -69,7 +69,6 @@ enum ExecuteOn: int {
   kExecuteOnCpuWithIpuAlgorithm,
   kExecuteOnHexagon,
   kExecuteOnIpu,
-  kExecuteOnIpuStriped,  // IPU execution with striping.
 };
 
 

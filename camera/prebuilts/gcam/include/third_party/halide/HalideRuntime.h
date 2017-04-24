@@ -780,6 +780,9 @@ enum halide_error_code_t {
      * can't be expressed in the old buffer_t. */
     halide_error_code_failed_to_downgrade_buffer_t = -30,
 
+    /** A specialize_fail() schedule branch was selected at runtime. */
+    halide_error_code_specialize_fail = -31,
+
 };
 
 /** Halide calls the functions below on various error conditions. The
@@ -848,6 +851,7 @@ extern int halide_error_bad_fold(void *user_context, const char *func_name, cons
 extern int halide_error_fold_factor_too_small(void *user_context, const char *func_name, const char *var_name,
                                               int fold_factor, const char *loop_name, int required_extent);
 extern int halide_error_requirement_failed(void *user_context, const char *condition, const char *message);
+extern int halide_error_specialize_fail(void *user_context, const char *message);
 
 // @}
 
@@ -1026,7 +1030,7 @@ typedef struct halide_buffer_t {
     /** Convenience methods for accessing the flags */
     // @{
     HALIDE_ALWAYS_INLINE bool get_flag(halide_buffer_flags flag) const {
-        return flags & flag;
+        return (flags & flag) != 0;
     }
 
     HALIDE_ALWAYS_INLINE void set_flag(halide_buffer_flags flag, bool value) {
