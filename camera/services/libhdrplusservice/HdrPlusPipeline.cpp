@@ -71,17 +71,12 @@ status_t HdrPlusPipeline::configure(const InputConfiguration &inputConfig,
     }
 
     std::unique_lock<std::mutex> lock(mApiLock);
-    status_t res = stopPipelineLocked();
-    if (res != 0) {
-        ALOGE("%s: Stopping pipeline failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        return -ENODEV;
-    }
 
     // TODO: Check if we can avoid allocating unchanged streams again.
     destroyLocked();
 
     // Allocate pipeline streams.
-    res = createStreamsLocked(inputConfig, outputConfigs);
+    status_t res = createStreamsLocked(inputConfig, outputConfigs);
     if (res != 0) {
         ALOGE("%s: Configuring stream failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         destroyLocked();
