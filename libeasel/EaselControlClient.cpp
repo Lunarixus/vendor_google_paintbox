@@ -21,6 +21,8 @@
 
 #define ESM_DEV_FILE    "/dev/mnh_sm"
 #define NSEC_PER_SEC    1000000000ULL
+#define NSEC_PER_MSEC   1000000
+#define NSEC_PER_USEC   1000
 
 namespace {
 #ifdef MOCKEASEL
@@ -188,6 +190,58 @@ void msgHandlerThread() {
 
 } // anonymous namespace
 
+static int sendTimestamp(void) {
+    int ret;
+
+    ALOGD("%s\n", __FUNCTION__);
+
+    // Prepare local timestamp and send to server
+    EaselControlImpl::SetTimeMsg ctrl_msg;
+    ctrl_msg.h.command = EaselControlImpl::CMD_SET_TIME;
+    struct timespec ts ;
+    clock_gettime(CLOCK_BOOTTIME, &ts);
+    ctrl_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ctrl_msg.realtime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &ctrl_msg;
+    msg.message_buf_size = sizeof(ctrl_msg);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    msg.need_reply = true;
+
+    int replycode;
+    EaselComm::EaselMessage reply;
+
+    ret = easel_conn.sendMessageReceiveReply(&msg, &replycode, &reply);
+    if (ret) {
+        ALOGE("%s: Failed to send timestamp (%d)\n", __FUNCTION__, ret);
+        return ret;
+    }
+
+    if (replycode != EaselControlImpl::REPLY_SET_TIME_OK) {
+        ALOGE("%s: Failed to receive SET_TIME_OK (%d)\n", __FUNCTION__, replycode);
+        return ret;
+    }
+
+    // Get timestamp returned by server
+    EaselControlImpl::SetTimeMsg *tmsg =
+                (EaselControlImpl::SetTimeMsg *)reply.message_buf;
+
+    // Check local timestamp again
+    struct timespec new_ts;
+    clock_gettime(CLOCK_REALTIME, &new_ts);
+    uint64_t realtime = (uint64_t)new_ts.tv_sec * NSEC_PER_SEC + new_ts.tv_nsec;
+
+    ALOGD("%s: Server timestamp is %ld us behind (oneway)\n" , __FUNCTION__,
+          ((long)realtime - (long)tmsg->realtime) / NSEC_PER_USEC);
+    ALOGD("%s took %ld us\n" , __FUNCTION__,
+          ((long)realtime - (long)ctrl_msg.realtime) / NSEC_PER_USEC);
+
+    return ret;
+}
+
 int EaselControlClient::activate() {
     int ret;
 
@@ -219,10 +273,25 @@ int EaselControlClient::activate() {
     msg.message_buf_size = sizeof(ctrl_msg);
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
+    msg.need_reply = true;
 
-    ret = easel_conn.sendMessage(&msg);
+    int replycode;
+
+    ret = easel_conn.sendMessageReceiveReply(&msg, &replycode, nullptr);
+
     if (ret) {
         ALOGE("%s: Failed to send message to Easel (%d)\n", __FUNCTION__, ret);
+        return ret;
+    }
+
+    if (replycode != EaselControlImpl::REPLY_ACTIVATE_OK) {
+        ALOGE("%s: Failed to receive ACTIVATE_OK (%d)\n", __FUNCTION__, replycode);
+        return ret;
+    }
+
+    ret = sendTimestamp();
+    if (ret) {
+        ALOGE("%s: Failed to send sendTimestamp (%d)\n", __FUNCTION__, ret);
         return ret;
     }
 
