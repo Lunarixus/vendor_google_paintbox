@@ -610,6 +610,19 @@ ImxError ImxLoadMatchingPrecompiledGraph(
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
+/* Same as ImxLoadMatchingPrecompiledGraph except that it doesn't return a
+ * handle to the compiled graph and doesn't log errors on failure.
+ * Intended for checking whether a matching PCG has already been saved.
+ */
+ImxError ImxFindMatchingPrecompiledGraph(
+    const char *load_dir_base_path,
+    const char *file_name,
+    ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
+    /* Input - Parameter name for each xfer node */
+    const char **transfer_node_names,
+    int transfer_node_count,  /* Size of previous two arrays */
+    const ImxCompileGraphInfo *info);
+
 /* Preloads all precompiled graph configs that match the given file name and
  * returns them in lexicographical order of their base paths.
  * Expects the following directory hierarchy:
@@ -1055,6 +1068,17 @@ ImxError ImxWaitForCompletion(
 ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
     ImxJobHandle job,  /* modified */
     int64_t timeout_ns);
+
+/* Untile buffer: This is a utility function that converts a buffer layout with
+ * 4x4 tiling into linear layout. buffer_address can be either host address or
+ * device address (ION buffer). For device address, caller is responsible for
+ * locking/unlokcing the buffer.
+ * 'buffer_address' is used for both source and destination; it will read buffer
+ * contents from 'buffer_address' and store the converted layout into
+ * 'buffer_address'. That means it does conversion effecitively 'in place'.
+ */
+ImxError ImxUntileBufferLayout(ImxParameterType buffer_type,
+                               void *buffer_address);
 
 #ifdef __cplusplus
 } /* extern "C" */
