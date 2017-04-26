@@ -23,6 +23,11 @@
 
 #define NSEC_PER_SEC    1000000000ULL
 
+#ifndef MOCKEASEL
+// Compensate +700 us to timestamp (arbitrary value based on experiments)
+#define ADJUSTED_TIMESTAMP_LATENCY_NS   700000ULL
+#endif
+
 // sysfs file to initiate kernel suspend
 #define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
 #define KERNEL_SUSPEND_STRING      "mem"
@@ -104,6 +109,9 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
 {
     // Save the AP's boottime clock at approx. now
     timesync_ap_boottime = boottime;
+#ifndef MOCKEASEL
+    timesync_ap_boottime += ADJUSTED_TIMESTAMP_LATENCY_NS;
+#endif
 
     // Save our current boottime time to compute deltas later
     struct timespec ts;
@@ -115,7 +123,7 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
         timesync_local_boottime = 0;
     }
 #ifndef MOCKEASEL    // System clock should not be modified when using libmockeasel
-    uint64_t timesync_ap_realtime = realtime;
+    uint64_t timesync_ap_realtime = realtime + ADJUSTED_TIMESTAMP_LATENCY_NS;
     ts.tv_sec = timesync_ap_realtime / NSEC_PER_SEC;
     ts.tv_nsec = timesync_ap_realtime - ts.tv_sec * NSEC_PER_SEC;
     if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
@@ -153,16 +161,16 @@ void *msgHandlerThread() {
 
         switch(h->command) {
         case EaselControlImpl::CMD_ACTIVATE: {
-            EaselControlImpl::ActivateMsg *tmsg =
-                (EaselControlImpl::ActivateMsg *)msg.message_buf;
-
             LOGI("Turning the clocks up for active mode\n");
             EaselClockControl::setBypassMode(false);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::CPU, 950);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::IPU, 425);
             EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 2400);
 
-            setTimeFromMsg(tmsg->boottime, tmsg->realtime);
+            // Server will not set realtime on receiving CMD_ACTIVATE
+            // Instead, we assume client will send another CMD_SET_TIME after
+            // receiving this reply.
+            easel_conn.sendReply(&msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
             break;
         }
 
@@ -172,7 +180,9 @@ void *msgHandlerThread() {
 
             LOGI("Turning the clocks down for bypass mode\n");
             EaselClockControl::setSys200Mode();
-            EaselClockControl::setBypassMode(true);
+            // TODO(trevorbunker): Only clock gate IPU after reset is handled
+            //   by app (b/37690165)
+            // EaselClockControl::setBypassMode(true);
 
             break;
         }
@@ -198,6 +208,23 @@ void *msgHandlerThread() {
                 (EaselControlImpl::SetTimeMsg *)msg.message_buf;
 
             setTimeFromMsg(tmsg->boottime, tmsg->realtime);
+
+            // Send server timestamp back to client
+            EaselControlImpl::SetTimeMsg reply_msg;
+            reply_msg.h.command = EaselControlImpl::CMD_SET_TIME;
+            struct timespec ts ;
+            clock_gettime(CLOCK_BOOTTIME, &ts);
+            reply_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            reply_msg.realtime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+
+            EaselComm::EaselMessage reply;
+            reply.message_buf = &reply_msg;
+            reply.message_buf_size = sizeof(reply_msg);
+            reply.dma_buf = 0;
+            reply.dma_buf_size = 0;
+
+            easel_conn.sendReply(&msg, EaselControlImpl::REPLY_SET_TIME_OK, &reply);
             break;
         }
 

@@ -28,6 +28,13 @@ public:
       CMD_RPC,             // RPC message, wrapping request and response
   };
 
+  enum ReplyCode {
+      REPLY_ACTIVATE_OK = 200,
+      REPLY_DEACTIVATE_OK = 201,
+      REPLY_SUSPEND_OK,
+      REPLY_SET_TIME_OK,
+  };
+
   // All control messages start with this header
   struct MsgHeader {
       uint32_t command;    // an enum Command code
