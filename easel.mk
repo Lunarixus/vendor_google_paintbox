@@ -34,7 +34,7 @@ PRODUCT_PACKAGES += \
     libeaselcomm \
     libeaselcontrol \
     libeaselcontrolservice \
-    libeasellog
+    logd.easel
 
 # Add ezlsh and pbti utils in userdebug and eng builds
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
@@ -44,6 +44,7 @@ PRODUCT_PACKAGES += \
     libpbticlient \
     libpbtiservice \
     pbticlient \
-    pbtiserver
+    pbtiserver \
+    logdclient.easel
 
 endif

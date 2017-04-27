@@ -20,6 +20,7 @@ LOCAL_SRC_FILES := \
     EaselStateManager.cpp \
     EaselThermalMonitor.cpp \
     ThermalZone.cpp
+LOCAL_STATIC_LIBRARIES := logdclient
 LOCAL_SHARED_LIBRARIES := libcutils liblog libeaselcomm
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)

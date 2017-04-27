@@ -45,6 +45,8 @@ public:
         EASEL_SERVICE_TEST,
         // HDR+ via Paintbox camera framework service
         EASEL_SERVICE_HDRPLUS,
+        // Logging service.
+        EASEL_SERVICE_LOG,
         // Max service ID
         EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
     };

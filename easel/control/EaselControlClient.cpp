@@ -5,6 +5,7 @@
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
+#include "LogClient.h"
 
 #include <thread>
 
@@ -45,6 +46,8 @@ std::thread *conn_thread = NULL;
 std::mutex conn_mutex;
 std::condition_variable conn_cond;
 bool conn_ready = false;
+
+EaselLog::LogClient gLogClient;
 
 // Mutex to protect the current state of EaselControlClient
 std::mutex state_mutex;
@@ -613,6 +616,13 @@ int EaselControlClient::resume() {
         return ret;
     }
 
+    // Starts logging client.
+    ret = gLogClient.start();
+    if (ret) {
+        ALOGE("Failed to start LogClient (%d)\n", ret);
+        return ret;
+    }
+
     return 0;
 }
 
@@ -621,6 +631,9 @@ int EaselControlClient::suspend() {
     int ret = 0;
 
     ALOGD("%s\n", __FUNCTION__);
+
+    // Stops logging client before suspend.
+    gLogClient.stop();
 
     ret = switchState(ControlState::SUSPENDED);
     if (ret) {
