@@ -51,6 +51,9 @@ status_t MessengerListenerFromHdrPlusService::onMessage(Message *message) {
         case MESSAGE_NOTIFY_FRAME_EASEL_TIMESTAMP_ASYNC:
             deserializeNotifyFrameEaselTimestamp(message);
             return 0;
+        case MESSAGE_NOTIFY_SHUTTER_ASYNC:
+            deserializeNotifyShutter(message);
+            return 0;
         default:
             ALOGE("%s: Receive invalid message type %d.", __FUNCTION__, type);
             return -EINVAL;
@@ -83,6 +86,15 @@ void MessengerListenerFromHdrPlusService::deserializeNotifyFrameEaselTimestamp(M
     RETURN_ON_READ_ERROR(message->readInt64(&easelTimestampNs));
 
     notifyFrameEaselTimestamp(easelTimestampNs);
+}
+
+void MessengerListenerFromHdrPlusService::deserializeNotifyShutter(Message *message) {
+    uint32_t requestId = 0;
+    int64_t apSensorTimestampNs = 0;
+    RETURN_ON_READ_ERROR(message->readUint32(&requestId));
+    RETURN_ON_READ_ERROR(message->readInt64(&apSensorTimestampNs));
+
+    notifyShutter(requestId, apSensorTimestampNs);
 }
 
 void MessengerListenerFromHdrPlusService::deserializeNotifyDmaCaptureResult(Message *message,

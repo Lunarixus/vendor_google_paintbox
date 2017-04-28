@@ -20,8 +20,10 @@ namespace pbcamera {
 
 std::once_flag loadPcgOnce;
 
-HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) :
+HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+        std::shared_ptr<MessengerToHdrPlusClient> messenger) :
         PipelineBlock("HdrPlusProcessingBlock"),
+        mMessengerToClient(messenger),
         mSourceCaptureBlock(sourceCaptureBlock) {
 }
 
@@ -30,11 +32,12 @@ HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
         std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) {
+        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+        std::shared_ptr<MessengerToHdrPlusClient> messenger) {
     ALOGV("%s", __FUNCTION__);
 
     auto block = std::shared_ptr<HdrPlusProcessingBlock>(
-            new HdrPlusProcessingBlock(sourceCaptureBlock));
+            new HdrPlusProcessingBlock(sourceCaptureBlock, messenger));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -237,6 +240,10 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     gcam::BurstSpec burstSpec;
     shot->BeginPayloadFrames(burstSpec);
 
+    // Get the timestamp of the first input.
+    // TODO: b/37757757. Use the real base frame when it's avaiable from libgcam.
+    int64_t apTimestampNs = inputs[0].metadata.frameMetadata->timestamp;
+
     // Add all payload frames to the shot.
     for (auto input : inputs) {
         auto frame = std::make_shared<PayloadFrame>();
@@ -262,6 +269,9 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         ALOGE("%s: Failed to end a shot capture.", __FUNCTION__);
         return -ENODEV;
     }
+
+    // Send out shutter callback.
+    mMessengerToClient->notifyShutterAsync(shotCapture->burstId, apTimestampNs);
 
     return 0;
 }

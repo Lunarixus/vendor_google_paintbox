@@ -161,6 +161,7 @@ private:
     // Override pbcamera::MessengerListenerFromHdrPlusService
     void notifyFrameEaselTimestamp(int64_t easelTimestampNs) override;
     void notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) override;
+    void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) override;
     // Callbacks from HDR+ service end here.
 
     // EaselMessenger to send messages to HDR+ service.
