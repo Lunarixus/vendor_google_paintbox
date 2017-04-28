@@ -34,7 +34,8 @@ public:
      */
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
+                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+                std::shared_ptr<MessengerToHdrPlusClient> messenger);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -44,7 +45,8 @@ protected:
 
 private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
-    HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
+    HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+            std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     // Gcam related constants.
     static const gcam::GcamPixelFormat kGcamFinalImageFormat = gcam::GcamPixelFormat::kNv21;
@@ -167,6 +169,9 @@ private:
 
     // Condition for shot complete.
     std::condition_variable mShotCompletedCondition;
+
+    // Messenger for shutter callback.
+    std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
 
     // TODO: Remove reference to source capture block. b/34854987
     std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;

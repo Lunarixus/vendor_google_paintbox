@@ -46,6 +46,12 @@ public:
     virtual void notifyDmaCaptureResult(DmaCaptureResult *result) = 0;
 
     /*
+     * Invoked when HDR+ processing has started for a request. requestId is the ID of the request.
+     * apSensorTimestampNs is the AP sensor timestamp of the base frame, in nanoseconds.
+     */
+    virtual void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) = 0;
+
+    /*
      * Override EaselMessengerListener::onMessage
      * Invoked when receiving a message from HDR+ service.
      *
@@ -71,6 +77,7 @@ private:
     void deserializeNotifyFrameEaselTimestamp(Message *message);
     void deserializeNotifyDmaCaptureResult(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
+    void deserializeNotifyShutter(Message *message);
 };
 
 } // namespace pbcamera

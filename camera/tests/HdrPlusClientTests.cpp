@@ -20,6 +20,7 @@
 #include <camera/CameraMetadata.h>
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
+#include <inttypes.h>
 #include <sstream>
 #include <utils/Condition.h>
 #include <vector>
@@ -81,6 +82,11 @@ public:
             EXPECT_TRUE(false) << "Recieved a failed capture result for stream " << buffer.streamId;
             returnStreamBuffer(&buffer);
         }
+    }
+
+    void onShutter(uint32_t requestId, int64_t apSensorTimestampNs) {
+        ALOGI("%s: Got a shutter callback for request %u timestamp %" PRId64, __FUNCTION__,
+                requestId, apSensorTimestampNs);
     }
 
 protected:
