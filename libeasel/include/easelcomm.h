@@ -34,18 +34,19 @@ class EaselComm {
 public:
     /*
      * Easel service identifiers registered by clients and servers to
-     * route messages to each other.  These values are taken from the
-     * corresponding identifiers in the kernel header.
+     * route messages to each other.
      */
     enum {
         // Easel system control
-        EASEL_SERVICE_SYSCTRL = EASELCOMM_SERVICE_SYSCTRL,
+        EASEL_SERVICE_SYSCTRL = 0,
         // Easel shell
-        EASEL_SERVICE_SHELL = EASELCOMM_SERVICE_SHELL,
+        EASEL_SERVICE_SHELL,
         // Used by unit tests
-        EASEL_SERVICE_TEST = EASELCOMM_SERVICE_TEST,
+        EASEL_SERVICE_TEST,
         // HDR+ via Paintbox camera framework service
-        EASEL_SERVICE_HDRPLUS = EASELCOMM_SERVICE_HDRPLUS,
+        EASEL_SERVICE_HDRPLUS,
+        // Max service ID
+        EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
     };
 
     /*
