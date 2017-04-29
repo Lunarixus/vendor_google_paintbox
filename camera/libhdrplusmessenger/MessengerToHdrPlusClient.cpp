@@ -131,32 +131,4 @@ void MessengerToHdrPlusClient::notifyCaptureResult(CaptureResult *result) {
     }
 }
 
-void MessengerToHdrPlusClient::notifyShutterAsync(uint32_t requestId, int64_t apSensorTimestampNs) {
-    std::lock_guard<std::mutex> lock(mApiLock);
-
-    if (!mConnected) {
-        ALOGE("%s: Messenger not connected.", __FUNCTION__);
-        return;
-    }
-
-    // Prepare the message.
-    Message *message = nullptr;
-    status_t res = getEmptyMessage(&message);
-    if (res != 0) {
-        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-    }
-
-    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_SHUTTER_ASYNC));
-
-    // Serialize shutter
-    RETURN_ON_WRITE_ERROR(message->writeUint32(requestId));
-    RETURN_ON_WRITE_ERROR(message->writeInt64(apSensorTimestampNs));
-
-    // Send to client.
-    res = sendMessage(message, /*async*/true);
-    if (res != 0) {
-        ALOGE("%s: Sending message failed: %s (%d).", __FUNCTION__, strerror(-res), res);;
-    }
-}
-
 } // namespace pbcamera
