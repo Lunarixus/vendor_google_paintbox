@@ -63,14 +63,6 @@ public:
      * Send a capture result to HDR+ client.
      */
     void notifyCaptureResult(CaptureResult *result);
-
-    /*
-     * Send a shutter callback to HDR+ client.
-     *
-     * requestId is the ID of the request.
-     * apSensorTimestampNs is the AP sensor timestamp of the base frame, in nanoseconds.
-     */
-    void notifyShutterAsync(uint32_t requestId, int64_t apSensorTimestampNs);
 private:
 
     // Protect API methods from being called simultaneously.

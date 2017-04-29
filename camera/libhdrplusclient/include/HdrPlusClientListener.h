@@ -60,12 +60,6 @@ public:
      * will contain distinct output buffers that have not been received yet.
      */
     virtual void onFailedCaptureResult(pbcamera::CaptureResult *failedResult) = 0;
-
-    /*
-     * Invoked when HDR+ processing has started for a request. requestId is the ID of the request.
-     * apSensorTimestampNs is the AP sensor timestamp of the base frame, in nanoseconds.
-     */
-    virtual void onShutter(uint32_t requestId, int64_t apSensorTimestampNs) = 0;
 };
 
 } // namespace android

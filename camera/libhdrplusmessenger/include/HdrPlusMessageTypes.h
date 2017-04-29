@@ -73,7 +73,6 @@ enum HdrPlusMessageType {
     // Messages from HDR+ service to HDR+ client
     MESSAGE_NOTIFY_FRAME_EASEL_TIMESTAMP_ASYNC = 0x10000,
     MESSAGE_NOTIFY_DMA_CAPTURE_RESULT,
-    MESSAGE_NOTIFY_SHUTTER_ASYNC,
 };
 
 } // namespace pbcamera
