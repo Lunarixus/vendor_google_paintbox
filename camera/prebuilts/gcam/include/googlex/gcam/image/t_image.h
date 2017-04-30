@@ -157,21 +157,13 @@ class ReadOnlyTImageView {
   ReadOnlyTImageView(const ReadOnlyTImageView& other,
                      int x0, int y0, int x1, int y1);
 
-  // Restrict access to a single channel by copying an existing read-only
-  // image view:
-  //
-  //  ReadOnlyTImageView v2(v1, c);
-  //
-  // constructs a new single-channel read-only image view by making a
-  // shallow copy of view v1.  Channel c in v1  becomes channel 0 in
-  // the new view.  Channels in v1 other than c in view are not
-  // accessible via the new view.
-  //
-  // Note that this function is implemented only for views with
-  // kChannelContiguous layout.
-  ReadOnlyTImageView(const ReadOnlyTImageView& other, int c);
-
   ReadOnlyTImageView() = default;
+
+  // Interprets external memory passed in via 'base_pointer' as a read-only
+  // image view. The resulting view does not take ownership of the memory
+  // and hence, 'allocator' does nothing.
+  // TODO(jiawen): Remove allocator from views - they shouldn't have them
+  // anyway, only Images need them.
   ReadOnlyTImageView(
       int width, int height, int num_channels, SampleType* base_pointer,
       size_t row_padding,
@@ -183,17 +175,6 @@ class ReadOnlyTImageView {
   virtual ~ReadOnlyTImageView();
 
   ReadOnlyTImageView& operator=(const ReadOnlyTImageView& other);
-
-  // MakeCopy() creates a new image by copying an existing image and its
-  // samples, and transfers ownership of the new image to the caller.
-  //
-  // Note that the sample array for the new image is compact (not padded).
-  // Padding that may exist in the original image is not copied.
-  //
-  // The new image uses the specified memory allocator for its samples.
-  // TODO(ruiduoy): Remove this and use the free function.
-  TImage<T, layout> MakeCopy(
-      TImageSampleAllocator* allocator = TImageDefaultSampleAllocator()) const;
 
   // Width, height, number of channels and layout of the image:
   int width() const { return strides_.width; }
@@ -243,6 +224,7 @@ class ReadOnlyTImageView {
   size_t y_stride() const { return strides_.y_stride; }
   size_t c_stride() const { return strides_.c_stride; }
   size_t sizeof_sample_type() const { return sizeof(SampleType); }
+  int row_padding() const { return strides_.row_padding(); }
 
   // sample_array_size() returns the size of the array that holds the samples
   // in this image.  The size is measured in bytes and includes padding.
@@ -376,24 +358,15 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   ReadWriteTImageView(const ReadWriteTImageView& other,
                       int x0, int y0, int x1, int y1);
 
-  // Restrict access to a single channel by copying an existing read-write
-  // image view.
-  ReadWriteTImageView(const ReadWriteTImageView& other, int c);
-
   ReadWriteTImageView() : ReadOnlyView() {}
 
   ReadWriteTImageView(int width, int height, int num_channels,
          SampleType* base_pointer, size_t row_padding,
          TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
-  // Destructor
   ~ReadWriteTImageView() override;
 
   ReadWriteTImageView& operator=(const ReadWriteTImageView& other);
-
-  // TODO(ruiduoy): Remove this and use the free function.
-  // Making a copy of the image.
-  using ReadOnlyView::MakeCopy;
 
   // Width, height, number of channels and layout of the image:
   using ReadOnlyView::width;
@@ -415,6 +388,7 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   using ReadOnlyView::x_stride;
   using ReadOnlyView::y_stride;
   using ReadOnlyView::c_stride;
+  using ReadOnlyView::row_padding;
 
   typedef TImageSampleIterator<const T, layout> ConstSampleIterator;
   typedef TImageSampleIterator<T, layout> SampleIterator;
@@ -454,6 +428,10 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   //
   void Fill(const SampleType v, int x0, int y0, int x1, int y1) const;
   void Fill(const SampleType v) const;
+
+  // TODO(jiawen): Replace CopyFrom with a free function that accepts a readview
+  // as input and a writeview as output. There are already too many overlapping
+  // functions that do the same thing.
 
   // This does copy with a cropped region.
   template <typename SourceType> void CopyFrom(const SourceType& source,
@@ -534,19 +512,6 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // Destructor - deletes the samples.
   ~TImage() override;
 
-  // MakeCopy() creates a new image by copying an existing image and its
-  // samples, and transfers ownership of the new image to the caller.
-  //
-  // Unlike the copy constructor, MakeCopy() creates a new image where the
-  // the sample array is compact (not padded).  Padding that may exist in
-  // the original image is not copied.
-  //
-  // The new image uses the specified memory allocator for its samples;
-  // passing a null allocator means "use the same allocator as the
-  // original image."
-  // TODO(ruiduoy): Remove this and use the free function.
-  TImage MakeCopy(TImageSampleAllocator* allocator = nullptr) const;
-
   // Width, height, number of channels and layout of the image.
   using ReadOnlyView::width;
   using ReadOnlyView::height;
@@ -563,6 +528,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   using ReadOnlyView::y_stride;
   using ReadOnlyView::c_stride;
   using ReadOnlyView::sizeof_sample_type;
+  using ReadOnlyView::row_padding;
   using ReadWriteView::sample_iterator;
   using ReadOnlyView::sample_array_size;
 
@@ -762,6 +728,8 @@ typedef TImage<float, kChannelContiguous>
 // Implementation of template class TImageStrides<layout>, with specializations
 // for kPixelContiguous and kChannelContiguous layouts.
 
+// TODO(jiawen): Make this class immutable by getting rid of Reset().
+// CopyAndCompactSamples should return a new TImageStrides.
 template <TImageLayout layout>
 class TImageStrides {
  public:
@@ -772,6 +740,7 @@ class TImageStrides {
   int outer_limit() const;
   int middle_limit() const;
   int inner_limit() const;
+  int row_padding() const;  // Row padding is in samples, not bytes.
 
   TImageStrides(const TImageStrides &other) = default;
 
@@ -821,6 +790,9 @@ class TImageStrides<kPixelContiguous> {
   int outer_limit() const { return height; }
   int middle_limit() const { return width; }
   int inner_limit() const { return num_channels; }
+  int row_padding() const {
+    return static_cast<int>(y_stride - x_stride * width);
+  }
 
   template <typename T>
   void CopyAndCompactSamples(const T* old_base_pointer, T* new_base_pointer) {
@@ -873,6 +845,7 @@ class TImageStrides<kChannelContiguous> {
   int outer_limit() const { return num_channels; }
   int middle_limit() const { return height; }
   int inner_limit() const { return width; }
+  int row_padding() const { return static_cast<int>(y_stride - width); }
 
   template <typename T>
   void CopyAndCompactSamples(const T* old_base_pointer, T* new_base_pointer) {
@@ -1034,19 +1007,6 @@ ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
 
 template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
-    const ReadOnlyTImageView& other, int c)
-    : strides_(other.strides_),
-      allocator_(other.allocator_),
-      base_pointer_(other.base_pointer_ + c * c_stride()) {
-  static_assert(layout == kChannelContiguous,
-                "Constructing a single-channel image view is only "
-                "supported for kChannelContiguous layout.");
-  assert(c >= 0 && c < other.num_channels());
-  strides_.num_channels = 1;
-}
-
-template <typename T, TImageLayout layout>
-ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
     const TImageStrides<layout>& strides,
     SampleType* base_pointer) : strides_(strides),
                                 allocator_(nullptr),
@@ -1073,19 +1033,6 @@ ReadOnlyTImageView<T, layout>& ReadOnlyTImageView<T, layout>::
 
 template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::~ReadOnlyTImageView() {}
-
-template <typename T, TImageLayout layout>
-TImage<T, layout> ReadOnlyTImageView<T, layout>::MakeCopy(
-    TImageSampleAllocator* allocator) const {
-  if (*this == nullptr) {
-    return TImage<T, layout>();
-  }
-  assert(allocator != nullptr);
-  TImage<T, layout> copy(width(), height(), num_channels(), kInitUndefined,
-                         0, allocator);
-  copy.CopyFrom(*this);
-  return copy;
-}
 
 template <typename T, TImageLayout layout> inline
 const T& ReadOnlyTImageView<T, layout>::at(int x, int y, int c) const {
@@ -1156,11 +1103,6 @@ template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>::ReadWriteTImageView(
     const ReadWriteTImageView& other, int x0, int y0, int x1, int y1)
     : ReadOnlyView(other, x0, y0, x1, y1) {}
-
-template <typename T, TImageLayout layout>
-ReadWriteTImageView<T, layout>::ReadWriteTImageView(
-    const ReadWriteTImageView& other, int c)
-    : ReadOnlyView(other, c) {}
 
 template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>::ReadWriteTImageView(
@@ -1422,13 +1364,6 @@ TImage<T, layout>& TImage<T, layout>::operator=(std::nullptr_t) {
   allocator_ = nullptr;
   strides_ = TImageStrides<layout>(0, 0, 0, 0);
   return *this;
-}
-
-template <typename T, TImageLayout layout>
-TImage<T, layout> TImage<T, layout>::MakeCopy(
-    TImageSampleAllocator* allocator) const {
-  return ReadOnlyTImageView<T, layout>::MakeCopy(allocator ? allocator
-                                                           : this->allocator());
 }
 
 template <typename T, TImageLayout layout>

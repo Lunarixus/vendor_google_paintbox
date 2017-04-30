@@ -8,6 +8,7 @@
 
 namespace gcam {
 
+class Context;
 class RawImage;
 class RawReadView;
 
@@ -25,11 +26,13 @@ void GetFinalDngImageSize(const InterleavedReadViewU16& image,
 bool WriteDng(const char* filename,
               const InterleavedReadViewU16& image,
               const ExifMetadata& exif_metadata,
-              const bool compress_output = false);
+              bool compress_output = false,
+              const Context* context = nullptr);
 bool WriteDng(const char* filename,
               const RawReadView& image,
               const ExifMetadata& exif_metadata,
-              const bool compress_output = false);
+              bool compress_output = false,
+              const Context* context = nullptr);
 
 // Write a raw image with metadata to a DNG file in memory.
 // Returns whether it succeeded.
@@ -39,12 +42,14 @@ bool WriteDngToMemory(uint8_t** out_buffer,
                       uint32_t* out_buffer_size_bytes,
                       const InterleavedReadViewU16& image,
                       const ExifMetadata& exif_metadata,
-                      const bool compress_output = false);
+                      bool compress_output = false,
+                      const Context* context = nullptr);
 bool WriteDngToMemory(uint8_t** out_buffer,
                       uint32_t* out_buffer_size_bytes,
                       const RawReadView& image,
                       const ExifMetadata& exif_metadata,
-                      const bool compress_output = false);
+                      bool compress_output = false,
+                      const Context* context = nullptr);
 
 // Reads a DNG file from disk into an RawImage. Populates the ExifMetadata
 // struct with the resulting metadata.  Returns a null image on failure.
@@ -55,7 +60,8 @@ bool WriteDngToMemory(uint8_t** out_buffer,
 RawImage ReadDng(const char* filename,
                  ExifMetadata* exif_metadata,
                  TImageSampleAllocator* custom_allocator =
-                     TImageDefaultSampleAllocator());
+                     TImageDefaultSampleAllocator(),
+                 const Context* context = nullptr);
 
 }  // namespace gcam
 
