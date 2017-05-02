@@ -16,13 +16,13 @@
 #include "EaselLog.h"
 #include "EaselClockControl.h"
 
-#define LPDDR_SYS_FILE         "/sys/kernel/mnh_freq_cool/lpddr_freq"
-#define CPU_SYS_FILE           "/sys/kernel/mnh_freq_cool/cpu_freq"
-#define IPU_SYS_FILE           "/sys/kernel/mnh_freq_cool/ipu_freq"
-#define IPU_CLK_SRC_SYS_FILE   "/sys/kernel/mnh_freq_cool/ipu_clk_src"
-#define SYS200_SYS_FILE        "/sys/kernel/mnh_freq_cool/sys200"
-#define LPDDR_SYS200_SYS_FILE  "/sys/kernel/mnh_freq_cool/lpddr_sys200"
-#define BYPASS_SYS_FILE        "/sys/kernel/mnh_freq_cool/clock_gating"
+#define LPDDR_SYS_FILE                "/sys/kernel/mnh_freq_cool/lpddr_freq"
+#define CPU_SYS_FILE                  "/sys/kernel/mnh_freq_cool/cpu_freq"
+#define IPU_SYS_FILE                  "/sys/kernel/mnh_freq_cool/ipu_freq"
+#define IPU_CLK_SRC_SYS_FILE          "/sys/kernel/mnh_freq_cool/ipu_clk_src"
+#define SYS200_SYS_FILE               "/sys/kernel/mnh_freq_cool/sys200"
+#define LPDDR_SYS200_SYS_FILE         "/sys/kernel/mnh_freq_cool/lpddr_sys200"
+#define IPU_CLOCK_GATING_SYS_FILE     "/sys/kernel/mnh_freq_cool/ipu_clock_gating"
 
 #define LPDDR_MIN_FREQ 132
 
@@ -237,7 +237,7 @@ int EaselClockControl::setIpuClockGating(bool enable)
     char buf[32];
 
     snprintf(buf, 32, "%d", enable);
-    return writeSysFile((char*)BYPASS_SYS_FILE, buf, 32);
+    return writeSysFile((char*)IPU_CLOCK_GATING_SYS_FILE, buf, 32);
 }
 
 int EaselClockControl::openSysFile(char *file)
