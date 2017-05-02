@@ -27,11 +27,54 @@
 class EaselClockControl {
 
 public:
+    enum Mode {
+        /*
+         * Bypass mode is our lowest-power operating mode. We clock and power
+         * gate the IPU. We slow all internal clocks to their lowest operating
+         * mode. The kernel will continue to run, but will be very
+         * low-performance.
+         */
+        Bypass,
+        /*
+         * Capture mode is the expected operating mode when capturing MIPI
+         * frames to DRAM. We disable IPU clock gating, and raise the internal
+         * clocks to the minimum levels that can support the workload.
+         */
+        Capture,
+        /*
+         * Functional mode is our highest-performance operating mode. We disable
+         * IPU clock gating, and we raise the internal clocks to their highest
+         * frequency. This mode also consumes the most power. The duration of
+         * Functional mode should be much less frequent compared to Bypass and
+         * Capture mode. In the future, this mode may be broken into multiple
+         * levels allowing for various levels of performance/power depending on
+         * the thermal environment.
+         */
+        Functional,
+        Max,
+    };
+
     enum Subsystem {
         CPU,
         IPU,
         LPDDR,
     };
+
+    /*
+     * Sets the operating mode of the device. Each mode has a different set of
+     * operating clocks.
+     *
+     * Returns zero for success or an error code for failure.
+     */
+    static int setMode(enum Mode mode);
+
+    /*
+     * Gets the operating mode of the device. Each mode has a different set of
+     * operating clocks.
+     *
+     * Returns zero for success or an error code for failure.
+     */
+    static enum Mode getMode();
 
     /*
      * Gets the current frequency of the given subsystem.
@@ -63,11 +106,11 @@ public:
      */
     static int setSys200Mode();
 
-    /* Sets the state of bypass clock gating.
+    /* Sets the state of Ipu clock gating.
      *
      * Returns zero for success of -1 for failure.
      */
-    static int setBypassMode(bool enable);
+    static int setIpuClockGating(bool enable);
 
 private:
     static int openSysFile(char *file);

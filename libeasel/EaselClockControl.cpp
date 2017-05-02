@@ -32,6 +32,52 @@ static const int fspIndexToFrequency[] = {132, 1200, 2400, 1600};
 static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
 
+static enum EaselClockControl::Mode mMode = (enum EaselClockControl::Mode)-EINVAL;
+
+int EaselClockControl::setMode(enum Mode mode)
+{
+    if (mode == mMode) {
+        return 0;
+    }
+
+    switch (mode) {
+        case Mode::Bypass:
+            LOGI("%s: Bypass Mode (132/200/100)\n", __FUNCTION__);
+            //setIpuClockGating(true);
+            EaselClockControl::setSys200Mode();
+            break;
+
+        case Mode::Capture:
+            LOGI("%s: Capture Mode (1200/200/200)\n", __FUNCTION__);
+            setIpuClockGating(false);
+            setFrequency(Subsystem::LPDDR, 1200);
+            setFrequency(Subsystem::IPU, 200);
+            setFrequency(Subsystem::CPU, 200);
+            break;
+
+        case Mode::Functional:
+            LOGI("%s: Functional Mode (2400/425/950)\n", __FUNCTION__);
+            setIpuClockGating(false);
+            setFrequency(Subsystem::LPDDR, 2400);
+            setFrequency(Subsystem::IPU, 425);
+            setFrequency(Subsystem::CPU, 950);
+            break;
+
+        default:
+            LOGE("Invalid operating mode %d\n", mode);
+            return -EINVAL;
+    }
+
+    mMode = mode;
+
+    return 0;
+}
+
+enum EaselClockControl::Mode EaselClockControl::getMode()
+{
+    return mMode;
+}
+
 int EaselClockControl::getFrequency(enum Subsystem system)
 {
     switch (system) {
@@ -185,15 +231,10 @@ int EaselClockControl::setSys200Mode()
         return ret;
     }
 
-    ret = setLpddrFrequency(LPDDR_MIN_FREQ);
-    if (ret) {
-        return ret;
-    }
-
-    return writeSysFile((char*)LPDDR_SYS200_SYS_FILE, buf, 32);
+    return setLpddrFrequency(LPDDR_MIN_FREQ);
 }
 
-int EaselClockControl::setBypassMode(bool enable)
+int EaselClockControl::setIpuClockGating(bool enable)
 {
     char buf[32];
 

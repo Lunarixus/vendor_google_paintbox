@@ -199,6 +199,38 @@ private:
 class EaselControlServer {
 public:
     /*
+     * Clock operating modes.
+     *
+     * Should match the modes used in EaselClockControl.h.
+     */
+    enum ClockMode {
+        /*
+         * Bypass mode is our lowest-power operating mode. We clock and power
+         * gate the IPU. We slow all internal clocks to their lowest operating
+         * mode. The kernel will continue to run, but will be very
+         * low-performance.
+         */
+        Bypass,
+        /*
+         * Capture mode is the expected operating mode when capturing MIPI
+         * frames to DRAM. We disable IPU clock gating, and raise the internal
+         * clocks to the minimum levels that can support the workload.
+         */
+        Capture,
+        /*
+         * Functional mode is our highest-performance operating mode. We disable
+         * IPU clock gating, and we raise the internal clocks to their highest
+         * frequency. This mode also consumes the most power. The duration of
+         * Functional mode should be much less frequent compared to Bypass and
+         * Capture mode. In the future, this mode may be broken into multiple
+         * levels allowing for various levels of performance/power depending on
+         * the thermal environment.
+         */
+        Functional,
+        Max,
+    };
+
+    /*
      * Open an easelcontrol connection.  Initialize easelcomm communications
      * for the easelcontrol service.
      *
@@ -269,6 +301,18 @@ public:
      * to the registered handler.
      */
     int registerHandler(RequestHandler *handler, int handlerId);
+
+    /*
+     * Sets the clock operating mode.
+     *
+     * Returns zero for success or negative errno for failure.
+     */
+    static int setClockMode(ClockMode mode);
+
+    /*
+     * Returns the current clock operating mode.
+     */
+    static ClockMode getClockMode();
 };
 
 /* Convenience wrapper for EaselControlServer::log() */

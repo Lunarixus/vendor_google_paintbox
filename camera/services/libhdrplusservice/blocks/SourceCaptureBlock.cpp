@@ -11,6 +11,8 @@
 #include "SourceCaptureBlock.h"
 #include "HdrPlusPipeline.h"
 
+#define STABLE_BUFFER_COUNT 5
+
 namespace pbcamera {
 
 static void dequeueRequestThread(SourceCaptureBlock* block) {
@@ -421,6 +423,8 @@ void DequeueRequestThread::signalExit() {
 }
 
 void DequeueRequestThread::dequeueRequestThreadLoop() {
+    static int capturedBufferCount = 0;
+
     while (1) {
         // Wait for new event for pending request.
         bool waitForRequest = false;
@@ -499,6 +503,13 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                 ALOGI("[EASEL_STARTUP_LATENCY] %s: First RAW capture done at %" PRId64 " ms",
                         __FUNCTION__, now / kNsPerMs);
                 mFirstCaptureDone = true;
+                capturedBufferCount = 1;
+            }
+
+            // TODO (b/37850485): if we switch to Capture mode too quickly,
+            // capture service gets into a bad state
+            if (capturedBufferCount++ == STABLE_BUFFER_COUNT) {
+                EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
             }
 
             int64_t syncedEaselTimeNs = 0;
