@@ -19,12 +19,12 @@ LOCAL_SHARED_LIBRARIES:= \
     libcutils
 
 ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_SHARED_LIBRARIES += libmockeasel
-    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeasel
+    LOCAL_SHARED_LIBRARIES += libmockeaselcomm
+    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeaselcomm
     LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
 else
-    LOCAL_SHARED_LIBRARIES += libeasel
-    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeasel
+    LOCAL_SHARED_LIBRARIES += libeaselcomm
+    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcomm
     LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
 endif
 

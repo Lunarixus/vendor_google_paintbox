@@ -31,7 +31,10 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libhdrplusmessenger \
     liblog \
-    libutils
+    libutils \
+    libeaselcontrol
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
@@ -41,12 +44,10 @@ LOCAL_C_INCLUDES += \
     vendor/google_paintbox/camera/include
 
 ifeq ($(USE_LIB_EASEL), 0)
-       LOCAL_SHARED_LIBRARIES += libmockeasel
-       LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeasel
+       LOCAL_SHARED_LIBRARIES += libmockeaselcomm
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
 else
-       LOCAL_SHARED_LIBRARIES += libeasel
-       LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeasel
+       LOCAL_SHARED_LIBRARIES += libeaselcomm
        LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
 endif
 

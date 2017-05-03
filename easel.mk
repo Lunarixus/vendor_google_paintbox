@@ -31,8 +31,9 @@ PRODUCT_PACKAGES += \
     libhdrplusclient \
     libhdrplusmessenger \
     libhdrplusservice \
-    libeasel \
-    libeaselservice \
+    libeaselcomm \
+    libeaselcontrol \
+    libeaselcontrolservice \
     libeasellog
 
 # Add ezlsh and pbti utils in userdebug and eng builds

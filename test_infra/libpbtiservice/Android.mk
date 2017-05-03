@@ -10,14 +10,15 @@ LOCAL_SRC_FILES :=  \
 
 LOCAL_SHARED_LIBRARIES:= \
     libpbtimessenger \
-    liblog
+    liblog \
+    libeaselcontrol
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
 
 ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_SHARED_LIBRARIES += libmockeasel
-    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeasel
+    LOCAL_SHARED_LIBRARIES += libmockeaselcomm
 else
-    LOCAL_SHARED_LIBRARIES += libeasel
-    LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeasel
+    LOCAL_SHARED_LIBRARIES += libeaselcomm
 endif
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include

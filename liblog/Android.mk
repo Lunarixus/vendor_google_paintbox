@@ -8,7 +8,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_STATIC_LIBRARIES := libdebuggerd
 
-LOCAL_SHARED_LIBRARIES := libunwind liblzma libeasel libbacktrace libbase
+LOCAL_SHARED_LIBRARIES := libunwind liblzma libeaselcontrol libbacktrace libbase
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
