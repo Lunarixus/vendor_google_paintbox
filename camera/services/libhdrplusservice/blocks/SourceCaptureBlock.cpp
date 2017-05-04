@@ -44,6 +44,11 @@ status_t SourceCaptureBlock::createCaptureService() {
     if (mCaptureService != nullptr) {
         return -EEXIST;
     }
+
+    // Create a timestamp notification thread to send Easel timestamps.
+    mTimestampNotificationThread =
+        std::make_unique<TimestampNotificationThread>(mMessengerToClient);
+
     ALOGI("%s: Creating new catpure service", __FUNCTION__);
     mCaptureService = CaptureService::CreateInstance(mCaptureConfig);
     CaptureError err = mCaptureService->Initialize();
@@ -56,13 +61,13 @@ status_t SourceCaptureBlock::createCaptureService() {
 
     // Create a dequeue request thread.
     mDequeueRequestThread = std::make_unique<DequeueRequestThread>(this);
-
     return 0;
 }
 
 void SourceCaptureBlock::destroyCaptureService() {
     mDequeueRequestThread = nullptr;
     mCaptureService = nullptr;
+    mTimestampNotificationThread = nullptr;
 }
 
 std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
@@ -342,7 +347,9 @@ void SourceCaptureBlock::handleCompletedCaptureForRequest(const OutputRequest &o
     }
 
     // Notify the client of the Easel timestamp.
-    mMessengerToClient->notifyFrameEaselTimestampAsync(easelTimestamp);
+    if (mTimestampNotificationThread != nullptr) {
+        mTimestampNotificationThread->notifyNewEaselTimestampNs(easelTimestamp);
+    }
 }
 
 void SourceCaptureBlock::sendOutputResult(const OutputResult &result) {
@@ -394,6 +401,16 @@ void SourceCaptureBlock::notifyFrameMetadata(const FrameMetadata &metadata) {
             metadata.easelTimestamp);
 }
 
+void SourceCaptureBlock::requestCaptureToPreventFrameDrop() {
+    // Capture service needs one more buffer to prevent a frame drop.
+    // Take the oldest one from pending output result queue and abort it.
+    std::unique_lock<std::mutex> resultLock(mPendingOutputResultQueueLock);
+    if (mPendingOutputResultQueue.size() > 0) {
+        abortOutputRequest(mPendingOutputResultQueue[0]);
+        mPendingOutputResultQueue.pop_front();
+    }
+}
+
 DequeueRequestThread::DequeueRequestThread(
         SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false) {
     mDequeueRequestThread = std::make_unique<std::thread>(dequeueRequestThread, parent);
@@ -420,6 +437,22 @@ void DequeueRequestThread::signalExit() {
     std::unique_lock<std::mutex> lock(mDequeueThreadLock);
     mExiting = true;
     mEventCondition.notify_one();
+}
+
+void DequeueRequestThread::checkNumberPendingRequests() {
+    bool needMoreRequest = false;
+
+    {
+        // Check if capture service needs more requests.
+        std::unique_lock<std::mutex> lock(mDequeueThreadLock);
+        if (mPendingCaptureRequests.size() < kMinNumPendingRequests) {
+            needMoreRequest = true;
+        }
+    }
+
+    if (needMoreRequest) {
+        mParent->requestCaptureToPreventFrameDrop();
+    }
 }
 
 void DequeueRequestThread::dequeueRequestThreadLoop() {
@@ -517,7 +550,69 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                     frameBuffer->GetTimestampStartNs(), &syncedEaselTimeNs);
 
             mParent->handleCompletedCaptureForRequest(request, syncedEaselTimeNs);
+
+            // Check if we have enough pending requests.
+            checkNumberPendingRequests();
         }
+    }
+}
+
+static void timestampNotificationThreadLoop(TimestampNotificationThread *notificationThread) {
+    if (notificationThread != nullptr) {
+        notificationThread->threadLoop();
+    }
+}
+
+TimestampNotificationThread::TimestampNotificationThread(
+        std::shared_ptr<MessengerToHdrPlusClient> messengerToClient) :
+        mMessengerToClient(messengerToClient),
+        mExiting(false) {
+    mThread = std::make_unique<std::thread>(timestampNotificationThreadLoop, this);
+}
+
+TimestampNotificationThread::~TimestampNotificationThread() {
+    signalExit();
+    if (mThread != nullptr) {
+        mThread->join();
+        mThread = nullptr;
+    }
+}
+
+void TimestampNotificationThread::signalExit() {
+    std::unique_lock<std::mutex> lock(mEventLock);
+    mExiting = true;
+    mEventCondition.notify_one();
+}
+
+void TimestampNotificationThread::notifyNewEaselTimestampNs(int64_t easelTimestampNs) {
+    std::unique_lock<std::mutex> lock(mEventLock);
+    mEaselTimestamps.push_back(easelTimestampNs);
+    mEventCondition.notify_one();
+}
+
+void TimestampNotificationThread::threadLoop() {
+    int64_t easelTimestampNs = 0;
+
+    while (1) {
+        {
+            std::unique_lock<std::mutex> lock(mEventLock);
+
+            // Wait until a new timestamp arrives or it's exiting.
+            if (mEaselTimestamps.size() == 0 && !mExiting) {
+                mEventCondition.wait(lock,
+                        [&] { return mEaselTimestamps.size() > 0 || mExiting; });
+            }
+
+            if (mExiting) {
+                ALOGV("%s: Exiting.", __FUNCTION__);
+                return;
+            }
+
+            easelTimestampNs = mEaselTimestamps[0];
+            mEaselTimestamps.pop_front();
+        }
+
+        mMessengerToClient->notifyFrameEaselTimestampAsync(easelTimestampNs);
     }
 }
 
