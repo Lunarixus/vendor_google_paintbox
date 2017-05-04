@@ -1077,7 +1077,7 @@ ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
  * contents from 'buffer_address' and store the converted layout into
  * 'buffer_address'. That means it does conversion effecitively 'in place'.
  */
-ImxError ImxUntileBufferLayout(ImxParameterType buffer_type,
+ImxError ImxUntileBufferLayout(const ImxParameterType* buffer_type,
                                void *buffer_address);
 
 #ifdef __cplusplus

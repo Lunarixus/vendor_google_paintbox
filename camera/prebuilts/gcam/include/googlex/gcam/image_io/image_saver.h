@@ -8,7 +8,6 @@
 #include <string>
 
 #include "googlex/gcam/image/t_image.h"
-#include "googlex/gcam/image/yuv.h"
 
 namespace gcam {
 
