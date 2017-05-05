@@ -1,6 +1,7 @@
 #define LOG_TAG "EaselControlClient"
 
 #include "EaselStateManager.h"
+#include "EaselThermalMonitor.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "mockeaselcomm.h"
@@ -12,12 +13,11 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unordered_map>
+#include <vector>
 
-#ifdef ANDROID
 #include <android/log.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
-#endif
 
 #define ESM_DEV_FILE    "/dev/mnh_sm"
 #define NSEC_PER_SEC    1000000000ULL
@@ -32,7 +32,7 @@ EaselCommClientNet easel_conn;
 EaselCommClient easel_conn;
 #endif
 
-// EaselStateManager instances
+// EaselStateManager instance
 EaselStateManager stateMgr;
 
 // Lock to guard gCallbackMap
@@ -54,17 +54,24 @@ enum ControlState {
     ACTIVATED,   // Powered, EaselCommClient channel is active
 } state = SUSPENDED;
 
+// EaselThermalMonitor instance
+EaselThermalMonitor thermalMonitor;
+static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
+    {"bcm15602_tz", 1},
+    {"fpc_therm", 1000},
+    {"back_therm", 1000},
+    {"pa_therm", 1000},
+    {"msm_therm", 1000},
+    {"quiet_therm", 1000},
+};
+
 /*
  * Handle CMD_LOG Android logging control message received from server.
  */
 void handleLog(const EaselControlImpl::LogMsg *msg) {
     char *tag = (char *)msg + sizeof(EaselControlImpl::LogMsg);
     char *text = tag + msg->tag_len;
-#ifdef ANDROID
     __android_log_write(msg->prio, tag, text);
-#else
-    printf("<%d> %s %s\n", msg->prio, tag, text);
-#endif
 }
 
 /*
@@ -75,18 +82,15 @@ void handleMessages() {
         EaselComm::EaselMessage msg;
         int ret = easel_conn.receiveMessage(&msg);
         if (ret) {
-            if (errno != ESHUTDOWN)
-#ifdef ANDROID
-                ALOGI("easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
-#else
-                fprintf(stderr,
-                        "easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
-#endif
+            if (errno != ESHUTDOWN) {
+                ALOGE("easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
+            }
             break;
         }
 
-        if (msg.message_buf == nullptr)
+        if (msg.message_buf == nullptr) {
             continue;
+        }
 
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
@@ -125,13 +129,8 @@ void handleMessages() {
             break;
         }
         default:
-#ifdef ANDROID
             ALOGE("easelcontrol: unknown command code %d received\n",
                     h->command);
-#else
-            fprintf(stderr, "easelcontrol: unknown command code %d received\n",
-                    h->command);
-#endif
             // TODO(toddpoynor): panic restart Easel on misbehavior
         }
 
@@ -287,7 +286,6 @@ void easelConnThread()
     ALOGI("%s: handshake done\n", __FUNCTION__);
 #endif
 
-#ifdef ANDROID
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
         EaselControlImpl::DeactivateMsg ctrl_msg;
 
@@ -303,7 +301,6 @@ void easelConnThread()
             ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
         }
     }
-#endif
 
     conn_ready = true;
     conn_lock.unlock();
@@ -554,7 +551,7 @@ int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int ra
     };
     int ret;
 
-    ALOGI("%s: camera %d, rate %d\n", __FUNCTION__, camera, rate);
+    ALOGD("%s: camera %d, rate %d\n", __FUNCTION__, camera, rate);
 
     // TODO (b/36537557): intercept here to add functional mode
     config.mode = EaselStateManager::EaselMipiConfig::ESL_MIPI_MODE_BYPASS;
@@ -580,7 +577,7 @@ int EaselControlClient::stopMipi(enum EaselControlClient::Camera camera)
 {
     struct EaselStateManager::EaselMipiConfig config;
 
-    ALOGI("%s: camera %d\n", __FUNCTION__, camera);
+    ALOGD("%s: camera %d\n", __FUNCTION__, camera);
 
     if (camera == EaselControlClient::MAIN) {
         config.rxChannel = EaselStateManager::EaselMipiConfig::ESL_MIPI_RX_CHAN_0;
@@ -597,7 +594,13 @@ int EaselControlClient::stopMipi(enum EaselControlClient::Camera camera)
 int EaselControlClient::resume() {
     int ret;
 
-    ALOGI("%s\n", __FUNCTION__);
+    ALOGD("%s\n", __FUNCTION__);
+
+    ret = thermalMonitor.start();
+    if (ret) {
+        ALOGE("failed to start EaselThermalMonitor (%d)\n", ret);
+        return ret;
+    }
 
     ret = switchState(ControlState::RESUMED);
     if (ret) {
@@ -612,11 +615,16 @@ int EaselControlClient::resume() {
 int EaselControlClient::suspend() {
     int ret = 0;
 
-    ALOGI("%s\n", __FUNCTION__);
+    ALOGD("%s\n", __FUNCTION__);
 
     ret = switchState(ControlState::SUSPENDED);
     if (ret) {
         ALOGE("%s: failed to suspend Easel (%d)\n", __FUNCTION__, ret);
+    }
+
+    ret = thermalMonitor.stop();
+    if (ret) {
+        ALOGE("%s: failed to stop EaselThermalMonitor (%d)\n", __FUNCTION__, ret);
     }
 
     return ret;
@@ -625,7 +633,13 @@ int EaselControlClient::suspend() {
 int EaselControlClient::open() {
     int ret = 0;
 
-    ALOGI("%s\n", __FUNCTION__);
+    ALOGD("%s\n", __FUNCTION__);
+
+    ret = thermalMonitor.open(thermalCfg);
+    if (ret) {
+        ALOGE("failed to open EaselThermalMonitor (%d)\n", ret);
+        return ret;
+    }
 
     gCallbackMap.clear();
 
@@ -658,6 +672,7 @@ void EaselControlClient::close() {
     }
 
     stateMgr.close();
+    thermalMonitor.close();
 }
 
 bool isEaselPresent()

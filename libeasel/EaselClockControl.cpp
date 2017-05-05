@@ -26,8 +26,6 @@
 
 #define LPDDR_MIN_FREQ 132
 
-#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
-
 static const int fspIndexToFrequency[] = {132, 1200, 2400, 1600};
 static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
