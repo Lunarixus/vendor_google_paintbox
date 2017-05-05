@@ -644,9 +644,10 @@ void client_push_file(char *local_path, char *remote_path) {
         list_dir_recursive(std::string(local_path), "", files);
         std::string file;
         while (std::getline(files, file, '\n')) {
+            std::string local_full_path = std::string(local_path) + kFileSeparator + file;
             std::string local = std::string(basename(local_path)) + kFileSeparator + file;
             std::string remote = std::string(remote_path) + kFileSeparator + local;
-            client_push_file_worker(const_cast<char*>(local.c_str()),
+            client_push_file_worker(const_cast<char*>(local_full_path.c_str()),
                                     const_cast<char*>(remote.c_str()));
         }
     }
