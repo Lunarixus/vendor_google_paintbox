@@ -45,6 +45,13 @@ public:
      */
     virtual void disconnect() = 0;
 
+
+    /*
+     * Invoked when HDR+ client has been disconnected, which may happens when the client closes
+     * EaselComm or the client has crashed.
+     */
+    virtual void notifyClientClosed() = 0;
+
     /*
      * Invoked when HDR+ client set static metadata of current camera device.
      *
@@ -117,6 +124,7 @@ public:
      */
     virtual void notifyFrameMetadata(const FrameMetadata &metadata) = 0;
 
+private:
     /*
      * Override EaselMessengerListener::onMessage
      * Invoked when receiving a message from HDR+ client.
@@ -138,7 +146,12 @@ public:
     status_t onMessageWithDmaBuffer(Message *message, DmaBufferHandle handle,
             uint32_t dmaDataSize) override;
 
-private:
+    /*
+     * Override EaselMessengerListener::onEaselCommClosed.
+     * Invoked when EaselComm is closed.
+     */
+    void onEaselCommClosed() override;
+
     /*
      * Functions to deserialize messages.
      *

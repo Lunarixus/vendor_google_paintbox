@@ -96,6 +96,10 @@ status_t MessengerListenerFromHdrPlusClient::onMessageWithDmaBuffer(Message *mes
     return 0;
 }
 
+void MessengerListenerFromHdrPlusClient::onEaselCommClosed() {
+    notifyClientClosed();
+}
+
 status_t MessengerListenerFromHdrPlusClient::deserializeConnect(Message *message){
     (void)message;
     return connect();

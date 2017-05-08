@@ -59,6 +59,10 @@ status_t MessengerListenerFromHdrPlusService::onMessage(Message *message) {
     return 0;
 }
 
+void MessengerListenerFromHdrPlusService::onEaselCommClosed() {
+    notifyServiceClosed();
+}
+
 status_t MessengerListenerFromHdrPlusService::onMessageWithDmaBuffer(Message *message,
         DmaBufferHandle handle, uint32_t dmaBufferSize) {
     if (message == nullptr) return -EINVAL;
