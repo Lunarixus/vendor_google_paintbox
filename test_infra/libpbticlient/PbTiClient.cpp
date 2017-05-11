@@ -107,14 +107,14 @@ status_t PbTiClient::resumeEasel() {
 // TODO: change system call to ioctl function call when it's ready
 status_t PbTiClient::freezeEaselState() {
     ALOGD("%s: Freezing Easel state.", __FUNCTION__);
-    system("echo 1 > /sys/bus/platform/drivers/mnh_sm/soc:mnh-sm/freeze_state");
+    system("echo 1 > /sys/devices/virtual/misc/mnh_sm/freeze_state");
     return OK;
 }
 
 // TODO: change system call to ioctl function call when it's ready
 status_t PbTiClient::unfreezeEaselState() {
     ALOGD("%s: Unfreezing Easel state.", __FUNCTION__);
-    system("echo 0 > /sys/bus/platform/drivers/mnh_sm/soc:mnh-sm/freeze_state");
+    system("echo 0 > /sys/devices/virtual/misc/mnh_sm/freeze_state");
     return OK;
 }
 
