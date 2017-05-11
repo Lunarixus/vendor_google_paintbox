@@ -69,10 +69,12 @@ TOYBOX_ALL_TOOLS := \
 
 EASEL_RAMDISK_SRC_DIR := vendor/google_paintbox/firmware/ramdisk/
 EASEL_RAMDISK_TOOL_DIR := prebuilts/google/paintbox/tools/
+EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 EASEL_RAMDISK_DIR := $(TARGET_OUT_INTERMEDIATES)/easel/ramdisk/
 EASEL_RAMDISK_PREBUILT_DIR := $(EASEL_RAMDISK_DIR)/prebuilt/
 EASEL_RAMDISK_BIN_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/system/bin/
 EASEL_RAMDISK_LIB_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/system/lib64/
+EASEL_RAMDISK_PCG_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/data/paintbox/compiled_graph/
 EASEL_RAMDISK_INSTALL := $(TARGET_OUT_VENDOR)/firmware/easel/
 
 GEN_CPIO=$(EASEL_RAMDISK_TOOL_DIR)/gen_init_cpio
@@ -130,6 +132,10 @@ easel_ramdisk: $(ACP) $(MKBOOTFS) $(BIN_MODULES) $(SYSTEM_LIB_MODULES) $(VENDOR_
 
 	$(foreach file, $(wildcard $(EASEL_RAMDISK_LIB_DIR)/*),\
 		$(TARGET_STRIP) $(file);)
+
+	# PCG
+	@mkdir -p $(EASEL_RAMDISK_PCG_DIR)
+	$(ACP) -rfp $(EASEL_PCG_DIR)/* $(EASEL_RAMDISK_PCG_DIR)
 
 	$(GEN_INITRAMFS_LIST) $(EASEL_RAMDISK_PREBUILT_DIR) >> $(EASEL_RAMDISK_DIR)/files.txt
 
