@@ -2,41 +2,61 @@
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE := easel_ramdisk.img
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware/easel
+LOCAL_MODULE_STEM := ramdisk.img
+LOCAL_MODULE_OWNER := google
+
+# TODO(cjluo): Add notice file before launch.
+
+include $(BUILD_SYSTEM)/base_rules.mk
+
+EASEL_RAMDISK_SRC_DIR := vendor/google_paintbox/firmware/ramdisk
+
 PREBUILT_BIN_MODULES := \
-	toybox \
-	sh
+	$(EASEL_RAMDISK_SRC_DIR)/toybox \
+	$(EASEL_RAMDISK_SRC_DIR)/sh
 
 BIN_MODULES := \
-	linker \
-	ezlsh \
-	pbserver
+	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
+	$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
+	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
-SYSTEM_LIB_MODULES := \
-	libbacktrace \
-	libbase \
-	libc++ \
-	libc \
-	libc_malloc_debug \
-	libcutils \
-	libdl \
-	liblzma \
-	libm \
-	libunwind \
-	libutils \
-	libz
+LIB_MODULES := \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libbase)/libbase.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libc++)/libc++.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libc)/libc.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,liblzma)/liblzma.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libm)/libm.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libmipimux)/libmipimux.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeasellog)/libeasellog.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so
 
-VENDOR_LIB_MODULES := \
-	libcapture \
-	libgcam \
-	libhdrplusmessenger \
-	libhdrplusservice \
-	libimageprocessor \
-	libmipimux \
-	libeasellog \
-	libeaselcomm \
-	libeaselcontrolservice
+EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 
-TOYBOX_ALL_TOOLS := \
+PCG_MODULES := $(wildcard $(EASEL_PCG_DIR)/*)
+
+EASEL_RAMDISK_TOOL_DIR := vendor/google_paintbox/firmware/tools/
+
+GEN_CPIO := $(HOST_OUT_EXECUTABLES)/gen_init_cpio
+GEN_INITRAMFS_LIST := $(EASEL_RAMDISK_TOOL_DIR)/gen_initramfs_list.sh
+MKIMAGE := $(EASEL_RAMDISK_TOOL_DIR)/mkimage
+
+$(LOCAL_BUILT_MODULE): TOYBOX_ALL_TOOLS := \
 	usr/bin/acpi usr/bin/base64 usr/bin/basename bin/blkid usr/bin/blockdev \
 	usr/bin/bunzip2 usr/bin/bzcat usr/bin/cal bin/cat bin/chattr bin/chgrp \
 	bin/chmod bin/chown usr/sbin/chroot usr/sbin/chrt bin/cksum usr/bin/clear \
@@ -67,82 +87,79 @@ TOYBOX_ALL_TOOLS := \
 	sbin/vconfig bin/vmstat usr/bin/wc usr/bin/which usr/bin/whoami usr/bin/xargs \
 	usr/bin/xxd usr/bin/yes
 
-EASEL_RAMDISK_SRC_DIR := vendor/google_paintbox/firmware/ramdisk/
-EASEL_RAMDISK_TOOL_DIR := prebuilts/google/paintbox/tools/
-EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
-EASEL_RAMDISK_DIR := $(TARGET_OUT_INTERMEDIATES)/easel/ramdisk/
-EASEL_RAMDISK_PREBUILT_DIR := $(EASEL_RAMDISK_DIR)/prebuilt/
-EASEL_RAMDISK_BIN_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/system/bin/
-EASEL_RAMDISK_LIB_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/system/lib64/
-EASEL_RAMDISK_PCG_DIR := $(EASEL_RAMDISK_PREBUILT_DIR)/data/paintbox/compiled_graph/
-EASEL_RAMDISK_INSTALL := $(TARGET_OUT_VENDOR)/firmware/easel/
+$(LOCAL_BUILT_MODULE): RAMDISK_PHYS_ADDR := 0x40890000
 
-GEN_CPIO=$(EASEL_RAMDISK_TOOL_DIR)/gen_init_cpio
-GEN_INITRAMFS_LIST=$(EASEL_RAMDISK_TOOL_DIR)/gen_initramfs_list.sh
-MKIMAGE=$(EASEL_RAMDISK_TOOL_DIR)/mkimage
+$(LOCAL_BUILT_MODULE): PRIVATE_GEN_CPIO := $(GEN_CPIO)
+$(LOCAL_BUILT_MODULE): PRIVATE_GEN_INITRAMFS_LIST := $(GEN_INITRAMFS_LIST)
+$(LOCAL_BUILT_MODULE): PRIVATE_MKIMAGE := $(MKIMAGE)
 
-RAMDISK_PHYS_ADDR=0x40890000
+$(LOCAL_BUILT_MODULE): PRIVATE_EASEL_RAMDISK_SRC_DIR := $(EASEL_RAMDISK_SRC_DIR)
+$(LOCAL_BUILT_MODULE): PRIVATE_PREBUILT_BIN_MODULES := $(PREBUILT_BIN_MODULES)
+$(LOCAL_BUILT_MODULE): PRIVATE_BIN_MODULES := $(BIN_MODULES)
+$(LOCAL_BUILT_MODULE): PRIVATE_LIB_MODULES := $(LIB_MODULES)
+$(LOCAL_BUILT_MODULE): PRIVATE_PCG_MODULES := $(PCG_MODULES)
 
-.PHONY: easel_ramdisk
-easel_ramdisk: $(ACP) $(MKBOOTFS) $(BIN_MODULES) $(SYSTEM_LIB_MODULES) $(VENDOR_LIB_MODULES)
-	@echo "Building easel ramdisk"
-	@rm -rf $(EASEL_RAMDISK_DIR)
-	@mkdir -p $(EASEL_RAMDISK_DIR)
+$(LOCAL_BUILT_MODULE): EASEL_PREBUILT := prebuilt/
+$(LOCAL_BUILT_MODULE): EASEL_BIN := prebuilt/system/bin/
+$(LOCAL_BUILT_MODULE): EASEL_LIB := prebuilt/system/lib64/
+$(LOCAL_BUILT_MODULE): EASEL_PCG := prebuilt/data/paintbox/compiled_graph/
+
+$(LOCAL_BUILT_MODULE): \
+	$(PREBUILT_BIN_MODULES) \
+	$(BIN_MODULES) \
+	$(LIB_MODULES) \
+	$(PCG_MODULES) \
+	$(GEN_CPIO) $(GEN_INITRAMFS_LIST) $(MKIMAGE) \
+	$(EASEL_RAMDISK_SRC_DIR)/files.txt \
+	$(EASEL_RAMDISK_SRC_DIR)/init
+
+	@rm -rf $(dir $@)
+	@mkdir -p $(dir $@)
 
 	# files.txt
-	$(ACP) -fp $(EASEL_RAMDISK_SRC_DIR)/files.txt $(EASEL_RAMDISK_DIR)
+	@cp -f $(PRIVATE_EASEL_RAMDISK_SRC_DIR)/files.txt $(dir $@)
 
 	# Pre-generate symlinks for toybox
-	@echo "dir /system 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
-	@echo "dir /system/bin 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
-	@echo "dir /system/sbin 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
-	@echo "dir /system/usr 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
-	@echo "dir /system/usr/bin 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
-	@echo "dir /system/usr/sbin 755 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt
+	@echo "dir /system 755 0 0" >> $(dir $@)/files.txt
+	@echo "dir /system/bin 755 0 0" >> $(dir $@)/files.txt
+	@echo "dir /system/sbin 755 0 0" >> $(dir $@)/files.txt
+	@echo "dir /system/usr 755 0 0" >> $(dir $@)/files.txt
+	@echo "dir /system/usr/bin 755 0 0" >> $(dir $@)/files.txt
+	@echo "dir /system/usr/sbin 755 0 0" >> $(dir $@)/files.txt
 	$(foreach tool, $(TOYBOX_ALL_TOOLS),\
-		echo "slink /system/$(tool) /system/bin/toybox 777 0 0" >> $(EASEL_RAMDISK_DIR)/files.txt;)
+		echo "slink /system/$(tool) /system/bin/toybox 777 0 0" >> $(dir $@)/files.txt;)
 
 	# init
-	@mkdir -p $(EASEL_RAMDISK_PREBUILT_DIR)
-	$(ACP) -fp $(EASEL_RAMDISK_SRC_DIR)/init $(EASEL_RAMDISK_PREBUILT_DIR)
+	@mkdir -p $(dir $@)/$(EASEL_PREBUILT)
+	@cp -f $(PRIVATE_EASEL_RAMDISK_SRC_DIR)/init $(dir $@)/$(EASEL_PREBUILT)
 
 	# Binary
-	@mkdir -p $(EASEL_RAMDISK_BIN_DIR)
-	$(ACP) -fp $(TARGET_OUT)/bin/linker64 $(EASEL_RAMDISK_BIN_DIR)
-	$(ACP) -fp $(TARGET_OUT_VENDOR)/bin/ezlsh $(EASEL_RAMDISK_BIN_DIR)
-	@mv -f $(TARGET_OUT_VENDOR)/bin/pbserver $(EASEL_RAMDISK_BIN_DIR)
+	@mkdir -p $(dir $@)/$(EASEL_BIN)
+	$(foreach module, $(PRIVATE_BIN_MODULES),\
+		cp -f $(module) $(dir $@)/$(EASEL_BIN) &&) (true)
+	$(foreach module, $(PRIVATE_PREBUILT_BIN_MODULES),\
+		cp -f $(module) $(dir $@)/$(EASEL_BIN) &&) (true)
 
-	$(foreach module, $(PREBUILT_BIN_MODULES),\
-		$(ACP) -fp $(EASEL_RAMDISK_SRC_DIR)/$(module) $(EASEL_RAMDISK_BIN_DIR);)
+	$(TARGET_STRIP) $(dir $@)/$(EASEL_BIN)/*
 
 	# Library
-	@mkdir -p $(EASEL_RAMDISK_LIB_DIR)
+	@mkdir -p $(dir $@)/$(EASEL_LIB)
 
-	$(foreach module, $(SYSTEM_LIB_MODULES),\
-		$(ACP) -fp $(TARGET_OUT)/lib64/$(module).so $(EASEL_RAMDISK_LIB_DIR);)
+	$(foreach module, $(PRIVATE_LIB_MODULES),\
+		cp -f $(module) $(dir $@)/$(EASEL_LIB);)
 
-	$(foreach module, $(VENDOR_LIB_MODULES),\
-		$(ACP) -fp $(TARGET_OUT_VENDOR)/lib64/$(module).so $(EASEL_RAMDISK_LIB_DIR);)
+	@mv -f $(dir $@)/$(EASEL_LIB)/libeasellog.so $(dir $@)/$(EASEL_LIB)/liblog.so
+	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
 
-	@mv -f $(EASEL_RAMDISK_LIB_DIR)/libeasellog.so $(EASEL_RAMDISK_LIB_DIR)/liblog.so
-	@mv -f $(EASEL_RAMDISK_LIB_DIR)/libeaselcontrolservice.so $(EASEL_RAMDISK_LIB_DIR)/libeaselcontrol.so
-
-	$(foreach file, $(wildcard $(EASEL_RAMDISK_BIN_DIR)/*),\
-		$(TARGET_STRIP) $(file);)
-
-	$(foreach file, $(wildcard $(EASEL_RAMDISK_LIB_DIR)/*),\
-		$(TARGET_STRIP) $(file);)
+	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*
 
 	# PCG
-	@mkdir -p $(EASEL_RAMDISK_PCG_DIR)
-	$(ACP) -rfp $(EASEL_PCG_DIR)/* $(EASEL_RAMDISK_PCG_DIR)
+	@mkdir -p $(dir $@)/$(EASEL_PCG)
+	$(foreach pcg, $(PRIVATE_PCG_MODULES),\
+		cp -rf $(pcg) $(dir $@)/$(EASEL_PCG) &&) (true)
 
-	$(GEN_INITRAMFS_LIST) $(EASEL_RAMDISK_PREBUILT_DIR) >> $(EASEL_RAMDISK_DIR)/files.txt
+	$(PRIVATE_GEN_INITRAMFS_LIST) $(dir $@)/$(EASEL_PREBUILT) >> $(dir $@)/files.txt
 
-	${GEN_CPIO} $(EASEL_RAMDISK_DIR)/files.txt > $(EASEL_RAMDISK_DIR)/initramfs.cpio
+	$(PRIVATE_GEN_CPIO) $(dir $@)/files.txt > $(dir $@)/initramfs.cpio
 
-	${MKIMAGE} -A arm64 -O linux -C none -T ramdisk \
-		-n ramdisk -a $(RAMDISK_PHYS_ADDR) -e $(RAMDISK_PHYS_ADDR) -n "Easel initramfs" \
-		-d $(EASEL_RAMDISK_DIR)/initramfs.cpio $(EASEL_RAMDISK_DIR)/ramdisk.img
-
-	$(ACP) -fp $(EASEL_RAMDISK_DIR)/ramdisk.img $(EASEL_RAMDISK_INSTALL)/ramdisk.img
+	$(PRIVATE_MKIMAGE) $(dir $@)/initramfs.cpio $@
