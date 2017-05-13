@@ -539,7 +539,7 @@ status_t HdrPlusProcessingBlock::convertToGcamStaticMetadata(
 
     // TODO: Get make, model, device from somewhere.
     static const char* kGcamMake = "Google";
-    static const char* kGcamDevice = "Marlin";
+    static const char* kGcamDevice = "walleye";
     gcamMetadata->make = std::string(kGcamMake);
     gcamMetadata->device = std::string(kGcamDevice);
 
