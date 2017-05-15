@@ -106,11 +106,19 @@ public:
      */
     static int setSys200Mode();
 
-    /* Sets the state of Ipu clock gating.
+    /*
+     * Sets the state of Ipu clock gating.
      *
      * Returns zero for success of -1 for failure.
      */
     static int setIpuClockGating(bool enable);
+
+    /*
+     * Sets the state of AXI clock gating.
+     *
+     * Returns zero for success of -1 for failure.
+     */
+    static int setAxiClockGating(bool enable);
 
 private:
     static int openSysFile(char *file);

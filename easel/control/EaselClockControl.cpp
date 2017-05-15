@@ -23,6 +23,11 @@
 #define SYS200_SYS_FILE               "/sys/kernel/mnh_freq_cool/sys200"
 #define LPDDR_SYS200_SYS_FILE         "/sys/kernel/mnh_freq_cool/lpddr_sys200"
 #define IPU_CLOCK_GATING_SYS_FILE     "/sys/kernel/mnh_freq_cool/ipu_clock_gating"
+#define PCIE_POWER_MODE_FILE          "/sys/devices/platform/200000.pcie/power_mode"
+
+#define PCIE_POWER_MODE_CLKPM_ENABLE    (1 << 0)
+#define PCIE_POWER_MODE_L1_2_ENABLE     (1 << 1)
+#define PCIE_POWER_MODE_AXI_CG_ENABLE   (1 << 2)
 
 #define LPDDR_MIN_FREQ 132
 
@@ -43,11 +48,13 @@ int EaselClockControl::setMode(enum Mode mode)
             LOGI("%s: Bypass Mode (132/200/100)\n", __FUNCTION__);
             //setIpuClockGating(true);
             EaselClockControl::setSys200Mode();
+            setAxiClockGating(true);
             break;
 
         case Mode::Capture:
             LOGI("%s: Capture Mode (1200/200/200)\n", __FUNCTION__);
             setIpuClockGating(false);
+            setAxiClockGating(false);
             setFrequency(Subsystem::LPDDR, 1200);
             setFrequency(Subsystem::IPU, 200);
             setFrequency(Subsystem::CPU, 200);
@@ -56,6 +63,7 @@ int EaselClockControl::setMode(enum Mode mode)
         case Mode::Functional:
             LOGI("%s: Functional Mode (2400/425/950)\n", __FUNCTION__);
             setIpuClockGating(false);
+            setAxiClockGating(false);
             setFrequency(Subsystem::LPDDR, 2400);
             setFrequency(Subsystem::IPU, 425);
             setFrequency(Subsystem::CPU, 950);
@@ -238,6 +246,25 @@ int EaselClockControl::setIpuClockGating(bool enable)
 
     snprintf(buf, 32, "%d", enable);
     return writeSysFile((char*)IPU_CLOCK_GATING_SYS_FILE, buf, 32);
+}
+
+int EaselClockControl::setAxiClockGating(bool enable)
+{
+    char buf[32];
+    unsigned int val = 0;
+
+    LOGI("%s: %d\n", __FUNCTION__, enable);
+
+    if (enable) {
+        val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_L1_2_ENABLE
+              | PCIE_POWER_MODE_AXI_CG_ENABLE;
+    } else {
+        val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_L1_2_ENABLE;
+    }
+
+    snprintf(buf, 32, "%d", val);
+
+    return writeSysFile((char*)PCIE_POWER_MODE_FILE, buf, 32);
 }
 
 int EaselClockControl::openSysFile(char *file)
