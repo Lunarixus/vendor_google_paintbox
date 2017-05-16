@@ -11,7 +11,7 @@
 #include "SourceCaptureBlock.h"
 #include "HdrPlusPipeline.h"
 
-#define STABLE_BUFFER_COUNT 5
+#define STABLE_BUFFER_COUNT 30
 
 namespace pbcamera {
 
