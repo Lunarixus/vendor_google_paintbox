@@ -358,7 +358,9 @@ int switchState(enum ControlState nextState)
 {
     int ret = 0;
 
-    std::unique_lock<std::mutex> conn_lock(state_mutex);
+    std::unique_lock<std::mutex> state_lock(state_mutex);
+
+    ALOGD("%s: Switch from state %d to state %d", __FUNCTION__, state, nextState);
 
     if (state == nextState) {
         return 0;
@@ -437,7 +439,10 @@ int switchState(enum ControlState nextState)
             break;
     }
 
-    if (!ret) {
+    if (ret) {
+        ALOGE("%s: Failed to switch from state %d to state %d (%d)", __FUNCTION__, state,
+              nextState, ret);
+    } else {
         state = nextState;
     }
 
