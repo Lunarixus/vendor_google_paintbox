@@ -266,7 +266,6 @@ int sendDeactivateCommand()
 void easelConnThread()
 {
     int ret;
-    std::unique_lock<std::mutex> conn_lock(conn_mutex);
 
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
     ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
@@ -302,8 +301,10 @@ void easelConnThread()
         }
     }
 
+    std::unique_lock<std::mutex> conn_lock(conn_mutex);
     conn_ready = true;
     conn_lock.unlock();
+
     conn_cond.notify_one();
 
     handleMessages();
