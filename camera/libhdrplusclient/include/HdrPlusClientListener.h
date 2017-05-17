@@ -46,6 +46,12 @@ public:
     virtual void onOpenFailed(status_t err) = 0;
 
     /*
+     * Invoked when HDR+ client is in a fatal error state. After receiving this error, calls to HDR+
+     * client will not succeed and HDR+ client should be closed.
+     */
+    virtual void onFatalError() = 0;
+
+    /*
      * Invoked when a CaptureResult, containing a subset or all output buffers for a CaptureRequest,
      * is received. This may be invoked multiple times for one CaptureRequest but each CaptureResult
      * will contain distinct output buffers that have not been received yet.

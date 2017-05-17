@@ -43,6 +43,7 @@ private:
     // Override pbcamera::MessengerListenerFromHdrPlusClient
     status_t connect() override;
     void disconnect() override;
+    void notifyClientClosed() override;
     status_t setStaticMetadata(const StaticMetadata& metadata);
     status_t configureStreams(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) override;

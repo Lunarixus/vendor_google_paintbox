@@ -87,6 +87,11 @@ void HdrPlusService::disconnect() {
     ALOGI("%s: Disconnected.", __FUNCTION__);
 }
 
+void HdrPlusService::notifyClientClosed() {
+    ALOGI("%s", __FUNCTION__);
+    disconnect();
+}
+
 status_t HdrPlusService::setStaticMetadata(const StaticMetadata& metadata) {
     std::unique_lock<std::mutex> lock(mApiLock);
 

@@ -210,6 +210,12 @@ public:
      */
     virtual status_t onMessageWithDmaBuffer(Message *message, DmaBufferHandle handle,
             uint32_t dmaBufferSize) = 0;
+
+    /*
+     * Invoked when EaselComm has been closed. EaselComm may be closed because the other end close
+     * the connection or the other end has crashed.
+     */
+    virtual void onEaselCommClosed() = 0;
 };
 
 /*
@@ -343,8 +349,8 @@ private:
         bool transferred;
     };
 
-    // Disconnect with mEaselCommLock held.
-    void disconnectLocked();
+    // Clean up Easel comm with mEaselCommLock held.
+    void cleanupEaselCommLocked();
 
     /*
      * Return a message with mAvailableMessagesLock held.
@@ -380,12 +386,13 @@ private:
     std::vector<Message*> mAvailableMessages;
 
     // Listener to invoke callbacks when received messages from the connected messenger.
-    EaselMessengerListener *mListener;
-    std::thread *mListenerThread;
+    std::mutex mListenerLock;
+    EaselMessengerListener *mListener; // Protected by mListenerLock.
+    std::thread *mListenerThread; // Protected by mListenerLock.
 
     // Protect mEaselComm from being accessed simultaneously.
     std::mutex mEaselCommLock;
-    // Instance of EaselComm object to send and receive messages.
+    // Instance of EaselComm object to send and receive messages. Protected by mEaselCommLock.
     EaselComm *mEaselComm;
 };
 

@@ -52,6 +52,9 @@ public:
     // Not used because HDR+ client will be created synchronously.
     void onOpened(std::unique_ptr<HdrPlusClient>) override {};
     void onOpenFailed(status_t) override {};
+    void onFatalError() override {
+        ASSERT_FALSE(true) << "HDR+ client has a fatal error.";
+    };
 
     // Override HdrPlusClientListener::onCaptureResult to receive capture results.
     void onCaptureResult(pbcamera::CaptureResult *result, const camera_metadata_t &resultMetadata)

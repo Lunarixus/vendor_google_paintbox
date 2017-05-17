@@ -218,45 +218,57 @@ status_t EaselMessenger::connect(EaselMessengerListener &listener, int maxMessag
         EaselComm *easelComm) {
     if (easelComm == nullptr) return -EINVAL;
 
-    std::lock_guard<std::mutex> lock(mEaselCommLock);
+    {
+        std::lock_guard<std::mutex> lock(mEaselCommLock);
 
-    // Already connected?
-    if (mEaselComm != nullptr) return -EEXIST;
+        // Already connected?
+        if (mEaselComm != nullptr) return -EEXIST;
 
-    // Initialize messages.
-    for (int i = 0; i < kNumMessages; i++) {
-        Message *message = new Message();
-        status_t res = message->create(maxMessageSize);
-        if (res != 0) {
-            ALOGE("%s: Creating a message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-            disconnectLocked();
-            return -ENODEV;
+        // Initialize messages.
+        for (int i = 0; i < kNumMessages; i++) {
+            Message *message = new Message();
+            status_t res = message->create(maxMessageSize);
+            if (res != 0) {
+                ALOGE("%s: Creating a message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+                cleanupEaselCommLocked();
+                return -ENODEV;
+            }
+            std::lock_guard<std::mutex> messageLock(mAvailableMessagesLock);
+            mAvailableMessages.push_back(message);
         }
-        std::lock_guard<std::mutex> messageLock(mAvailableMessagesLock);
-        mAvailableMessages.push_back(message);
+
+        mEaselComm = easelComm;
     }
 
-    mEaselComm = easelComm;
+    {
+        std::lock_guard<std::mutex> lock(mListenerLock);
 
-    // Start listener thread.
-    mListener = &listener;
-    mListenerThread = new std::thread(listenerThreadFunc, this);
+        // Start listener thread.
+        mListener = &listener;
+        mListenerThread = new std::thread(listenerThreadFunc, this);
+    }
 
     return 0;
 }
 
 void EaselMessenger::disconnect() {
-    std::lock_guard<std::mutex> lock(mEaselCommLock);
-    disconnectLocked();
-}
+    {
+        std::lock_guard<std::mutex> lock(mListenerLock);
 
-void EaselMessenger::disconnectLocked() {
-    // Close listener thread.
-    if (mListenerThread != nullptr){
-        mListenerThread->join();
-        mListenerThread = nullptr;
+        // Close listener thread.
+        if (mListenerThread != nullptr){
+            mListenerThread->join();
+            mListenerThread = nullptr;
+        }
+
+        mListener = nullptr;
     }
 
+    std::lock_guard<std::mutex> lock(mEaselCommLock);
+    cleanupEaselCommLocked();
+}
+
+void EaselMessenger::cleanupEaselCommLocked() {
     std::lock_guard<std::mutex> messageLock(mAvailableMessagesLock);
     for (auto message : mAvailableMessages) {
         delete message;
@@ -264,7 +276,6 @@ void EaselMessenger::disconnectLocked() {
     mAvailableMessages.clear();
 
     mEaselComm = nullptr;
-    mListener = nullptr;
 }
 
 status_t EaselMessenger::getEmptyMessage(Message **message) {
@@ -460,6 +471,14 @@ void EaselMessenger::listenerThreadLoop() {
         } else {
             if (errno == ESHUTDOWN) {
                 ALOGD("%s: EaselComm has shut down.", __FUNCTION__);
+
+                {
+                    std::lock_guard<std::mutex> lock(mEaselCommLock);
+                    mEaselComm = nullptr;
+                }
+
+                // Notify the listener that EaselComm has been closed.
+                mListener->onEaselCommClosed();
                 return;
             }
 

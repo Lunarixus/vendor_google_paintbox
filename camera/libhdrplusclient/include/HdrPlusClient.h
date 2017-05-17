@@ -161,7 +161,11 @@ private:
     // Override pbcamera::MessengerListenerFromHdrPlusService
     void notifyFrameEaselTimestamp(int64_t easelTimestampNs) override;
     void notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) override;
+    void notifyServiceClosed() override;
     // Callbacks from HDR+ service end here.
+
+    // Return and mark all pending requests as failed. Must called with mClientListenerLock held.
+    void failAllPendingRequestsLocked();
 
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
@@ -189,6 +193,10 @@ private:
     std::array<float, 4> mBlackLevelPattern; // android.sensor.blackLevelPattern
 
     sp<NotifyFrameMetadataThread> mNotifyFrameMetadataThread;
+
+    // If HDR+ service is closed unexpectedly. Once mServiceClosed is true, it can no longer send
+    // messages to HDR+ service.
+    std::atomic<bool> mServiceFatalErrorState;
 };
 
 /**

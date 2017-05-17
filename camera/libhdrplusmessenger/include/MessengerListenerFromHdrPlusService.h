@@ -46,6 +46,13 @@ public:
     virtual void notifyDmaCaptureResult(DmaCaptureResult *result) = 0;
 
     /*
+     * Invoked when HDR+ service has been closed, which may happens when the sevice closes
+     * EaselComm or the service has crashed.
+     */
+    virtual void notifyServiceClosed() = 0;
+
+private:
+    /*
      * Override EaselMessengerListener::onMessage
      * Invoked when receiving a message from HDR+ service.
      *
@@ -66,7 +73,12 @@ public:
     status_t onMessageWithDmaBuffer(Message *message, DmaBufferHandle handle,
             uint32_t dmaDataSize) override;
 
-private:
+    /*
+     * Override EaselMessengerListener::onEaselCommClosed.
+     * Invoked when EaselComm is closed.
+     */
+    void onEaselCommClosed() override;
+
     // Functions to deserialize messages.
     void deserializeNotifyFrameEaselTimestamp(Message *message);
     void deserializeNotifyDmaCaptureResult(Message *message, DmaBufferHandle handle,
