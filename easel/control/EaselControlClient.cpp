@@ -339,14 +339,13 @@ int teardownEaselConn()
         return 0;
     }
 
-    easel_conn.close();
-
-    if (conn_ready) {
-        conn_thread->join();
-    } else {
-        conn_thread->detach();
+    if (!conn_ready) {
+        conn_cond.wait(conn_lock, []{return conn_ready;});
     }
 
+    easel_conn.close();
+
+    conn_thread->join();
     delete conn_thread;
     conn_thread = NULL;
     conn_ready = false;
