@@ -75,11 +75,6 @@ private:
      * Thread for monitoring thermal zones
      */
     std::thread *mThread;
-
-    /*
-     * Atomic condition flag for stopping monitorThread
-     */
-    std::atomic_bool mThreadStopFlag;
 };
 
 #endif // __EASEL_THERMAL_MONITOR_H__
