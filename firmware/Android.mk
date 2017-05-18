@@ -12,46 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-LOCAL_PATH:= $(call my-dir)
-
 include $(call all-subdir-makefiles)
-
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := easel/fip.bin
-LOCAL_SRC_FILES := fip.bin
-LOCAL_MODULE_OWNER := google
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
-
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := easel/Image
-LOCAL_SRC_FILES := Image
-LOCAL_MODULE_OWNER := google
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
-
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := easel/mnh.dtb
-LOCAL_SRC_FILES := mnh.dtb
-LOCAL_MODULE_OWNER := google
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
-
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-
-LOCAL_MODULE := easel/ramdisk.img
-LOCAL_SRC_FILES := ramdisk.img
-LOCAL_MODULE_OWNER := google
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
-
-include $(BUILD_PREBUILT)
