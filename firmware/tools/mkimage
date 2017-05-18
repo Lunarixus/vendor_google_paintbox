@@ -1,0 +1,69 @@
+#!/usr/bin/python
+
+"""Given a cpio ramdisk file, produces a ramdisk.img.
+
+Usage:  mkimage input_cpio_file output_ramdisk_file
+"""
+
+from __future__ import print_function
+
+import argparse
+import binascii
+import os
+import struct
+import sys
+import time
+
+if sys.hexversion < 0x02070000:
+  print("Python 2.7 or newer is required.", file=sys.stderr)
+  sys.exit(1)
+
+
+def WriteInt(f, i):
+  f.write(struct.pack(">i", i))
+
+
+def WriteZero(f, byte):
+  if byte < 0:
+    return
+  for _ in range(byte):
+    f.write("\0")
+
+
+def WriteZeroTo64B(f):
+  size = f.tell()
+  WriteZero(f, 64 - size)
+
+
+MAGIC_NUMBER_1 = 0x27091956
+MAGIC_NUMBER_2 = 0x05160300
+RAMDISK_ADDR = 0x48090000
+
+
+def GenerateRamdisk(cpio, ramdisk):
+  input_path = cpio
+  output_path = ramdisk
+  with open(output_path, "wb") as output:
+    WriteInt(output, MAGIC_NUMBER_1)
+    # Generate dummy header CRC for now.
+    WriteZero(output, 4)
+    WriteInt(output, int(time.time()))
+    WriteInt(output, os.path.getsize(input_path))
+    WriteInt(output, RAMDISK_ADDR)
+    WriteInt(output, RAMDISK_ADDR)
+    buf = open(input_path, "rb").read()
+    body_crc32 = binascii.crc32(buf)
+    WriteInt(output, body_crc32)
+    WriteInt(output, MAGIC_NUMBER_2)
+    output.write("Easel initramfs")
+    WriteZeroTo64B(output)
+    output.write(buf)
+
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(
+      description="generate ramdisk.img from cpio file.")
+  parser.add_argument("cpio", help="Input cpio file path")
+  parser.add_argument("ramdisk", help="Output ramdisk file path")
+  args = parser.parse_args()
+  GenerateRamdisk(args.cpio, args.ramdisk)
