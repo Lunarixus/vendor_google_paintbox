@@ -19,7 +19,7 @@ PRODUCT_PACKAGES += \
     easel/fip.bin \
     easel/Image \
     easel/mnh.dtb \
-    easel/ramdisk.img
+    easel_ramdisk.img
 
 # vendor/google_paintbox
 PRODUCT_PACKAGES += \
