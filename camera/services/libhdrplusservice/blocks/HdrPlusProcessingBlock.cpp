@@ -21,8 +21,9 @@ namespace pbcamera {
 std::once_flag loadPcgOnce;
 
 HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
-        bool skipTimestampCheck) :
+        bool skipTimestampCheck, std::shared_ptr<MessengerToHdrPlusClient> messenger) :
         PipelineBlock("HdrPlusProcessingBlock"),
+        mMessengerToClient(messenger),
         mSourceCaptureBlock(sourceCaptureBlock),
         mSkipTimestampCheck(skipTimestampCheck) {
 }
@@ -32,11 +33,12 @@ HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
         std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck) {
+        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck,
+        std::shared_ptr<MessengerToHdrPlusClient> messenger) {
     ALOGV("%s", __FUNCTION__);
 
     auto block = std::shared_ptr<HdrPlusProcessingBlock>(
-            new HdrPlusProcessingBlock(sourceCaptureBlock, skipTimestampCheck));
+            new HdrPlusProcessingBlock(sourceCaptureBlock, skipTimestampCheck, messenger));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -86,6 +88,16 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
             ALOGE("%s: Initializing Gcam failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             return false;
         }
+    }
+
+    // Notify shutters that are ready.
+    {
+        std::unique_lock<std::mutex> shuttersLock(mShuttersLock);
+        for (auto &shutter : mShutters) {
+            notifyShutterLocked(shutter);
+        }
+
+        mShutters.clear();
     }
 
     // Check if there is a pending Gcam shot capture.
@@ -183,6 +195,7 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     }
 
     shotCapture->outputRequest = outputRequest;
+    shotCapture->baseFrameIndex = kInvalidBaseFrameIndex;
     mPendingShotCapture = shotCapture;
 
     return true;
@@ -302,7 +315,7 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         return -ENODEV;
     }
 
-    shotCapture->burstId = shot->shot_id();
+    shotCapture->shotId = shot->shot_id();
 
     // Begin payload frame with an empty burst spec for ZSL.
     gcam::BurstSpec burstSpec;
@@ -400,14 +413,61 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
     return 0;
 }
 
+void HdrPlusProcessingBlock::notifyShutterLocked(const Shutter &shutter) {
+    if (mPendingShotCapture == nullptr) {
+        ALOGE("%s: There is no pending shot for shot id %d. Dropping a base frame index %d.",
+                __FUNCTION__, shutter.shotId, shutter.baseFrameIndex);
+        return;
+    }
+
+    if (shutter.shotId != mPendingShotCapture->shotId) {
+        ALOGE("%s: Expecting a base frame index for shot %d but got a final image for shot %d.",
+                __FUNCTION__, mPendingShotCapture->shotId, shutter.shotId);
+        return;
+    }
+
+    if (shutter.baseFrameIndex >= static_cast<int>(mPendingShotCapture->frames.size())) {
+        ALOGE("%s: baseFrameIndex is %d but there are only %zu frames", __FUNCTION__,
+                shutter.baseFrameIndex, mPendingShotCapture->frames.size());
+        return;
+    }
+
+    if (mPendingShotCapture->baseFrameIndex != kInvalidBaseFrameIndex) {
+        ALOGE("%s: baseFrameIndex is already selected for shot %d", __FUNCTION__, shutter.shotId);
+        return;
+    }
+
+    mPendingShotCapture->baseFrameIndex = shutter.baseFrameIndex;
+
+    mMessengerToClient->notifyShutterAsync(mPendingShotCapture->outputRequest.metadata.requestId,
+            mPendingShotCapture->frames[shutter.baseFrameIndex]->
+                    input.metadata.frameMetadata->timestamp);
+}
+
+
+void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex) {
+    ALOGD("%s: Gcam selected a base frame index %d for shot %d.", __FUNCTION__, baseFrameIndex,
+        shotId);
+    {
+        std::unique_lock<std::mutex> lock(mShuttersLock);
+        Shutter shutter = {};
+        shutter.shotId = shotId;
+        shutter.baseFrameIndex = baseFrameIndex;
+        mShutters.push_back(shutter);
+    }
+
+    // Notify worker thread.
+    notifyWorkerThreadEvent();
+}
+
 void HdrPlusProcessingBlock::onGcamInputImageReleased(const int64_t imageId) {
     ALOGD("%s: Got image %" PRId64, __FUNCTION__, imageId);
     // TODO: Put buffers back to queue here instead of later in onGcamFinalImage().
 }
 
-void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvResult,
+void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
         gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat) {
-    ALOGD("%s: Got a final image (format %d) for request %d.", __FUNCTION__, pixelFormat, burst_id);
+    ALOGD("%s: Got a final image (format %d) for request %d.", __FUNCTION__, pixelFormat, shotId);
 
     if (rgbResult != nullptr) {
         ALOGW("%s: Not expecting an RGB final image from GCAM.", __FUNCTION__);
@@ -429,14 +489,14 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
 
         if (mPendingShotCapture == nullptr) {
-            ALOGE("%s: There is no pending shot for burst id %d. Dropping a final image.",
-                    __FUNCTION__, burst_id);
+            ALOGE("%s: There is no pending shot for shot id %d. Dropping a final image.",
+                    __FUNCTION__, shotId);
             return;
         }
 
-        if (burst_id != mPendingShotCapture->burstId) {
+        if (shotId != mPendingShotCapture->shotId) {
             ALOGE("%s: Expecting a final image for shot %d but got a final image for shot %d.",
-                    __FUNCTION__, mPendingShotCapture->burstId, burst_id);
+                    __FUNCTION__, mPendingShotCapture->shotId, shotId);
             return;
         }
 
@@ -487,13 +547,9 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
         }
     }
 
-    // TODO: Assume the first frame is the base frame. GCAM should privide the base frame index.
-    // b/32721233.
-    uint32_t baseFrameIndex = 0;
-
     // Set frame metadata.
     outputResult.metadata.frameMetadata =
-            finishingShot->frames[baseFrameIndex]->input.metadata.frameMetadata;
+            finishingShot->frames[finishingShot->baseFrameIndex]->input.metadata.frameMetadata;
 
     // Set the result metadata. GCAM should provide more result metadata. b/32721233.
     outputResult.metadata.resultMetadata = std::make_shared<ResultMetadata>();
@@ -806,8 +862,10 @@ status_t HdrPlusProcessingBlock::initGcam() {
             std::make_unique<GcamInputImageReleaseCallback>(shared_from_this());
     mGcamFinalImageCallback =
             std::make_unique<GcamFinalImageCallback>(shared_from_this());
+    mGcamBaseFrameCallback =
+            std::make_unique<GcamBaseFrameCallback>(shared_from_this());
     mShotCallbacks = {
-            /*base_frame_callback*/nullptr,
+            /*base_frame_callback*/mGcamBaseFrameCallback.get(),
             /*postview_callback*/nullptr,
             /*merge_raw_image_callback*/nullptr,
             /*merged_dng_callback*/nullptr,
@@ -858,6 +916,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
         ALOGE("%s: Failed to create a Gcam instance.", __FUNCTION__);
         mGcamInputImageReleaseCallback = nullptr;
         mGcamFinalImageCallback = nullptr;
+        mGcamBaseFrameCallback = nullptr;
         return -ENODEV;
     }
 
@@ -887,6 +946,30 @@ status_t HdrPlusProcessingBlock::setStaticMetadata(std::shared_ptr<StaticMetadat
     mStaticMetadata = metadata;
     return 0;
 }
+
+
+// Callback invoked when Gcam selects a base frame.
+HdrPlusProcessingBlock::GcamBaseFrameCallback::GcamBaseFrameCallback(
+        std::weak_ptr<PipelineBlock> block) : mBlock(block) {
+}
+
+void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
+        int base_frame_index) {
+    if (shot == nullptr) {
+        ALOGE("%s: shot is nullptr.", __FUNCTION__);
+        return;
+    }
+
+    int shotId = shot->shot_id();
+    auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
+    if (block != nullptr) {
+        block->onGcamBaseFrameCallback(shotId, base_frame_index);
+    } else {
+        ALOGE("%s: Gcam selected a base frame index %d for shot %d but block is destroyed.",
+                __FUNCTION__, base_frame_index, shotId);
+    }
+}
+
 
 HdrPlusProcessingBlock::GcamInputImageReleaseCallback::GcamInputImageReleaseCallback(
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {

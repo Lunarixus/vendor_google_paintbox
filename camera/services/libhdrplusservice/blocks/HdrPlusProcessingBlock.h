@@ -34,7 +34,8 @@ public:
      */
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck);
+                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck,
+                std::shared_ptr<MessengerToHdrPlusClient> messenger);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -45,7 +46,7 @@ protected:
 private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
     HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
-            bool skipTimestampCheck);
+            bool skipTimestampCheck, std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     // Gcam related constants.
     static const gcam::GcamPixelFormat kGcamFinalImageFormat = gcam::GcamPixelFormat::kNv21;
@@ -62,6 +63,7 @@ private:
     static constexpr float kPostRawSensitivityBoostUnity = 100.0f;
     static const bool kGcamCorrectBlackLevel = false;
     static const bool kGcamDetectFlare = false;
+    static const int32_t kInvalidBaseFrameIndex = -1;
 
     // Camera metadata related constants.
     static constexpr float kMaxFaceScore = 100.f;
@@ -94,6 +96,16 @@ private:
         std::weak_ptr<PipelineBlock> mBlock;
     };
 
+    // Callback invoked when Gcam selects a base frame.
+    class GcamBaseFrameCallback : public gcam::BaseFrameCallback {
+    public:
+        GcamBaseFrameCallback(std::weak_ptr<PipelineBlock> block);
+        virtual ~GcamBaseFrameCallback() = default;
+    private:
+        virtual void Run(const gcam::IShot* shot, int base_frame_index);
+        std::weak_ptr<PipelineBlock> mBlock;
+    };
+
     // Contains information about a payload frame for a GCam shot capture.
     struct PayloadFrame {
         // Block input.
@@ -106,22 +118,33 @@ private:
 
     // Contains information about a Gcam shot capture.
     struct ShotCapture {
-        // Burst id.
-        int32_t burstId;
+        // Shot id given by gcam.
+        int32_t shotId;
         // Block output request.
         OutputRequest outputRequest;
         // A list of payload frame data.
         std::deque<std::shared_ptr<PayloadFrame>> frames;
+        // Base frame index;
+        int32_t baseFrameIndex;
 
         DECLARE_PROFILER_TIMER(timer, "HDR+ Processing");
+    };
+
+    // Contains information used to send out a shutter event.
+    struct Shutter {
+        int32_t shotId;  // Shot id for this shutter.
+        int32_t baseFrameIndex; // Base frame index for this shot.
     };
 
     // Callback invoked when Gcam releases an input image.
     void onGcamInputImageReleased(const int64_t imageId);
 
     // Callback invoked when Gcam finishes a final processed image.
-    void onGcamFinalImage(int burst_id, gcam::YuvImage* yuvResult,
+    void onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
             gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat);
+
+    // Callback invoked when Gcam selects a base frame.
+    void onGcamBaseFrameCallback(int shotId, int index);
 
     // Initialize a Gcam instance.
     status_t initGcam();
@@ -155,6 +178,9 @@ private:
             int32_t inputCropH, int32_t outputW, int32_t outputH, int32_t *outputCropX,
             int32_t *outputCropY, int32_t *outputCropW, int32_t *outputCropH);
 
+    // Notify AP about a shutter. Must be called when mHdrPlusProcessingLock is locked.
+    void notifyShutterLocked(const Shutter &shutter);
+
     std::mutex mHdrPlusProcessingLock;
 
     // Static metadata of current device.
@@ -169,6 +195,9 @@ private:
     // Gcam callback for finishing a final image.
     std::unique_ptr<GcamFinalImageCallback> mGcamFinalImageCallback;
 
+    // Gcam callback for selecting a base frame.
+    std::unique_ptr<GcamBaseFrameCallback> mGcamBaseFrameCallback;
+
     // Gcam instance.
     std::unique_ptr<gcam::Gcam> mGcam;
 
@@ -178,6 +207,9 @@ private:
     // Condition for shot complete.
     std::condition_variable mShotCompletedCondition;
 
+    // Messenger for shutter callback.
+    std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
+
     // TODO: Remove reference to source capture block. b/34854987
     std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;
 
@@ -185,6 +217,9 @@ private:
 
     // Whether to skip timestamp check to return old input buffers.
     bool mSkipTimestampCheck;
+
+    std::mutex mShuttersLock;
+    std::deque<Shutter> mShutters; // Shutters ready to send to AP.
 };
 
 } // namespace pbcamera
