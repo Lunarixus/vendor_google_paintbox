@@ -67,15 +67,6 @@ int64_t timesync_local_boottime = 0;
 // Incoming message handler thread
 std::thread *msg_handler_thread;
 
-// EaselThermalMonitor instance
-EaselThermalMonitor thermalMonitor;
-static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
-    {"lpddr", 1},
-    {"cpu", 1},
-    {"ipu1", 1},
-    {"ipu2", 1},
-};
-
 static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
     EaselControlImpl::RpcMsg replyMsg(rpcMsg);
     ControlData request((void *)rpcMsg.payloadBody, rpcMsg.payloadSize);
@@ -178,23 +169,12 @@ void *msgHandlerThread() {
             // Instead, we assume client will send another CMD_SET_TIME after
             // receiving this reply.
             easel_conn.sendReply(&msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
-
-            ret = thermalMonitor.start();
-            if (ret) {
-                LOGE("failed to start EaselThermalMonitor (%d)\n", ret);
-            }
-
             break;
         }
 
         case EaselControlImpl::CMD_DEACTIVATE: {
             // Invalidate current timesync value
             timesync_ap_boottime = 0;
-
-            ret = thermalMonitor.stop();
-            if (ret) {
-                LOGE("%s: failed to stop EaselThermalMonitor (%d)\n", __FUNCTION__, ret);
-            }
 
             EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
             break;
@@ -297,12 +277,6 @@ int EaselControlServer::open() {
 
     ret = initializeServer();
     if (ret) {
-        return ret;
-    }
-
-    ret = thermalMonitor.open(thermalCfg);
-    if (ret) {
-        LOGE("failed to open EaselThermalMonitor (%d)\n", ret);
         return ret;
     }
 
