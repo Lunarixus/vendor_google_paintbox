@@ -45,7 +45,12 @@ std::unordered_map<int, std::function<void(const ControlData &)>> gCallbackMap;
 std::thread *conn_thread = NULL;
 std::mutex conn_mutex;
 std::condition_variable conn_cond;
-bool conn_ready = false;
+enum ConnState {
+    CONN_STATE_CLOSED, // control channel is closed, no message thread running
+    CONN_STATE_PENDING, // message thread has been started, but channel is not opened
+    CONN_STATE_OPENED, // channel is opened and handshake has completed successfully
+    CONN_STATE_FAILED, // channel closed because of some failure
+} conn_state = CONN_STATE_CLOSED;
 
 EaselLog::LogClient gLogClient;
 
@@ -254,6 +259,15 @@ int sendDeactivateCommand()
     return ret;
 }
 
+void setConnStateAndNotify(enum ConnState state)
+{
+    {
+        std::lock_guard<std::mutex> conn_lock(conn_mutex);
+        conn_state = state;
+    }
+    conn_cond.notify_all();
+}
+
 void easelConnThread()
 {
     int ret;
@@ -263,6 +277,7 @@ void easelConnThread()
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
+        setConnStateAndNotify(CONN_STATE_FAILED);
         return;
     }
 
@@ -271,6 +286,7 @@ void easelConnThread()
     ret = easel_conn.initialHandshake();
     if (ret) {
         ALOGE("%s: Failed to handshake with server", __FUNCTION__);
+        setConnStateAndNotify(CONN_STATE_FAILED);
         return;
     }
     ALOGI("%s: handshake done\n", __FUNCTION__);
@@ -292,54 +308,75 @@ void easelConnThread()
         }
     }
 
-    std::unique_lock<std::mutex> conn_lock(conn_mutex);
-    conn_ready = true;
-    conn_lock.unlock();
-
-    conn_cond.notify_one();
+    setConnStateAndNotify(CONN_STATE_OPENED);
 
     handleMessages();
+
+    setConnStateAndNotify(CONN_STATE_CLOSED);
 }
 
 int setupEaselConn()
 {
-    std::unique_lock<std::mutex> conn_lock(conn_mutex);
-
-    if (conn_ready) {
-        return 0;
+    {
+        std::unique_lock<std::mutex> conn_lock(conn_mutex);
+        if (conn_state == CONN_STATE_OPENED) {
+            return 0;
+        }
     }
 
     if (conn_thread == NULL) {
+        {
+            std::unique_lock<std::mutex> conn_lock(conn_mutex);
+            conn_state = CONN_STATE_PENDING;
+        }
+
         conn_thread = new std::thread(easelConnThread);
         if (conn_thread == NULL) {
             return -ENOMEM;
         }
+
         return 0;
     }
 
-    conn_cond.wait(conn_lock, []{return conn_ready;});
+    {
+        std::unique_lock<std::mutex> conn_lock(conn_mutex);
+        conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_PENDING);});
+        if (conn_state == CONN_STATE_FAILED) {
+            ALOGE("%s: Resume failed because of easelConnThread failure", __FUNCTION__);
+            return -EIO;
+        }
+    }
 
     return 0;
 }
 
 int teardownEaselConn()
 {
-    std::unique_lock<std::mutex> conn_lock(conn_mutex);
-
     if (!conn_thread) {
         return 0;
     }
 
-    if (!conn_ready) {
-        conn_cond.wait(conn_lock, []{return conn_ready;});
+    {
+        std::unique_lock<std::mutex> conn_lock(conn_mutex);
+        if (conn_state == CONN_STATE_CLOSED) {
+            return 0;
+        } else if (conn_state == CONN_STATE_PENDING) {
+            conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_PENDING);});
+        }
     }
 
     easel_conn.close();
 
+    {
+        std::unique_lock<std::mutex> conn_lock(conn_mutex);
+        if (conn_state == CONN_STATE_OPENED) {
+            conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_OPENED);});
+        }
+    }
+
     conn_thread->join();
     delete conn_thread;
     conn_thread = NULL;
-    conn_ready = false;
 
     return 0;
 }
