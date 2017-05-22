@@ -47,9 +47,6 @@ export GLOG_v=-1
 # LOG_LEVEL controls overall logging level. Set to debug to dump timing report.
 # LOG_LEVEL overrides GLOG_v if LOG_LEVEL is higher than GLOG_v.
 export LOG_LEVEL=DEBUG
-# LOG_TO_CONSOLE will log output to console, e.g. ezlsh instead of logcat.
-# please set LOG_TO_CONSOLE=true if your are running program in ezlsh
-export LOG_TO_CONSOLE=false
 
 # mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -58,6 +55,11 @@ mount -t debugfs none /sys/kernel/debug
 
 # Print to kernel log
 echo "Welcome to Easel" > /dev/kmsg
+
+# Starts logd.
+mkdir /dev/socket
+echo 64 > /proc/sys/net/unix/max_dgram_qlen
+system/bin/logd.easel &
 
 # Start pbserver.
 /system/bin/pbserver &

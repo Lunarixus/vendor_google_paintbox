@@ -17,39 +17,14 @@ char* android::uidToName(uid_t) {
     return nullptr;
 }
 
-static int fdDmesg = -1;
 void android::prdebug(const char* fmt, ...) {
-    if (fdDmesg < 0) {
-        return;
-    }
-
-    static const char message[] = {
-        KMSG_PRIORITY(LOG_DEBUG), 'l', 'o', 'g', 'd', ':', ' '
-    };
-    char buffer[256];
-    memcpy(buffer, message, sizeof(message));
-
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(buffer + sizeof(message),
-                      sizeof(buffer) - sizeof(message), fmt, ap);
-    va_end(ap);
-    if (n > 0) {
-        buffer[sizeof(buffer) - 1] = '\0';
-        if (!strchr(buffer, '\n')) {
-            buffer[sizeof(buffer) - 2] = '\0';
-            strlcat(buffer, "\n", sizeof(buffer));
-        }
-        write(fdDmesg, buffer, strlen(buffer));
-    }
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
 }
 
 int main() {
-    static const char dev_kmsg[] = "/dev/kmsg";
-    fdDmesg = android_get_control_file(dev_kmsg);
-    if (fdDmesg < 0) {
-        fdDmesg = TEMP_FAILURE_RETRY(open(dev_kmsg, O_WRONLY | O_CLOEXEC));
-    }
 
     // LogBuffer is the object which is responsible for holding all
     // log entries.
@@ -62,7 +37,7 @@ int main() {
 
     LogListener* swl = new LogListener(logBuf, nullptr);
     // Backlog and /proc/sys/net/unix/max_dgram_qlen set to large value
-    if (swl->startListener(600)) {
+    if (swl->startListener(64)) {
         exit(1);
     }
 

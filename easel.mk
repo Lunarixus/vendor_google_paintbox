@@ -23,18 +23,10 @@ PRODUCT_PACKAGES += \
 
 # vendor/google_paintbox
 PRODUCT_PACKAGES += \
-    pbserver \
-    libgcam \
-    libimageprocessor \
-    libcapture \
-    libmipimux \
     libhdrplusclient \
     libhdrplusmessenger \
-    libhdrplusservice \
     libeaselcomm \
-    libeaselcontrol \
-    libeaselcontrolservice \
-    logd.easel
+    libeaselcontrol
 
 # Add ezlsh and pbti utils in userdebug and eng builds
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))

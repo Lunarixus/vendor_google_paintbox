@@ -21,7 +21,9 @@ PREBUILT_BIN_MODULES := \
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
-	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
+	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver \
+	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
+	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
@@ -31,6 +33,7 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblzma)/liblzma.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libm)/libm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
@@ -42,9 +45,11 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libmipimux)/libmipimux.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeasellog)/libeasellog.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so
+	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libnl)/libnl.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libsysutils)/libsysutils.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libprocinfo)/libprocinfo.so
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 
@@ -148,7 +153,6 @@ $(LOCAL_BUILT_MODULE): \
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
 		cp -f $(module) $(dir $@)/$(EASEL_LIB);)
 
-	@mv -f $(dir $@)/$(EASEL_LIB)/libeasellog.so $(dir $@)/$(EASEL_LIB)/liblog.so
 	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*
