@@ -1,5 +1,5 @@
 #define LOG_TAG "EaselManagerClient"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
 #include "HdrPlusProfiler.h"

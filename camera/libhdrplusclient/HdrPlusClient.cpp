@@ -15,7 +15,7 @@
  */
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusClient"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
 

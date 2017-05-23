@@ -15,7 +15,7 @@
  */
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusClientTest"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include <camera/CameraMetadata.h>
 #include <cutils/properties.h>

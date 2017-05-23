@@ -1,6 +1,6 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusPipeline"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include <inttypes.h>
 #include <system/graphics.h>

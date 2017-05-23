@@ -15,7 +15,7 @@
  */
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MessengerListenerFromHdrPlusService"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include "HdrPlusMessageTypes.h"
 #include "MessengerListenerFromHdrPlusService.h"
