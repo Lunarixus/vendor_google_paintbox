@@ -28,15 +28,25 @@ PRODUCT_PACKAGES += \
     libeaselcomm \
     libeaselcontrol
 
-# Add ezlsh and pbti utils in userdebug and eng builds
+# Add addtional utils in userdebug and eng builds
+# Also includes modules for ramdisk so they could
+# be extracted from target files.
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
     ezlsh \
-    libpbtimessenger \
+    libcapture \
+    libeaselcontrolservice \
+    libgcam \
+    libhdrplusservice \
+    libimageprocessor \
+    libmipimux \
     libpbticlient \
+    libpbtimessenger \
     libpbtiservice \
+    logd.easel \
+    logdclient.easel \
+    pbserver \
     pbticlient \
-    pbtiserver \
-    logdclient.easel
+    pbtiserver
 
 endif
