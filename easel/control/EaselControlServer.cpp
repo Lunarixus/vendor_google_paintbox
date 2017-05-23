@@ -49,11 +49,6 @@ std::mutex gServerLock;
 // true if easel_conn is opened
 bool gServerInitialized;
 
-// Mutex to guard gHandlerMap
-std::mutex gHandlerMapMutex;
-// Map from handlerId to RequestHandler.
-std::unordered_map<int, RequestHandler *> gHandlerMap;
-
 /*
  * The AP boottime clock value we received at the last SET_TIME command,
  * converted to an nsecs_t-style count of nanoseconds, or zero if AP has not
@@ -74,46 +69,6 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"ipu1", 1},
     {"ipu2", 1},
 };
-
-static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
-    EaselControlImpl::RpcMsg replyMsg(rpcMsg);
-    ControlData request((void *)rpcMsg.payloadBody, rpcMsg.payloadSize);
-
-    // Request should have been verfied on client side.
-    if(request.size > EaselControlImpl::kMaxPayloadSize) {
-        ALOGE("%s: Request size out of boundary %" PRIu64, __FUNCTION__, request.size);
-        return;
-    }
-
-    std::unique_lock<std::mutex> lock(gHandlerMapMutex);
-    if (gHandlerMap.count(rpcMsg.handlerId) > 0) {
-        if (rpcMsg.callbackId > 0) {
-            ControlData response((void *)replyMsg.payloadBody, replyMsg.payloadSize);
-            gHandlerMap[rpcMsg.handlerId]->handleRequest(rpcMsg.rpcId, request, &response);
-            // Body is shared between replyMsg and response, however, size is not.
-            replyMsg.payloadSize = response.size;
-
-            if (response.size > EaselControlImpl::kMaxPayloadSize) {
-                ALOGE("%s: Response size out of boundary %" PRIu64,
-                        __FUNCTION__, response.size);
-                return;
-            }
-
-            EaselComm::EaselMessage msg;
-            replyMsg.getEaselMessage(&msg);
-
-            int ret = easel_conn.sendMessage(&msg);
-            if (ret) {
-                ALOGE("%s: Failed to send RPC message to AP (%d)",
-                        __FUNCTION__, ret);
-            }
-        } else {
-            gHandlerMap[rpcMsg.handlerId]->handleRequest(rpcMsg.rpcId, request, nullptr);
-        }
-    } else {
-        ALOGE("No handler registered for %d", rpcMsg.handlerId);
-    }
-}
 
 void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
 {
@@ -240,13 +195,6 @@ void *msgHandlerThread() {
             break;
         }
 
-        case EaselControlImpl::CMD_RPC: {
-            EaselControlImpl::RpcMsg *rpcMsg =
-                (EaselControlImpl::RpcMsg *)msg.message_buf;
-            handleRpc(*rpcMsg);
-            break;
-        }
-
         default:
             fprintf(stderr, "ERROR: unrecognized command %d\n", h->command);
             assert(0);
@@ -270,7 +218,6 @@ int initializeServer() {
     if (gServerInitialized)
         return ret;
 
-    gHandlerMap.clear();
 #ifdef MOCKEASEL
     easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
 #endif
@@ -360,25 +307,6 @@ int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
     if (ret)
         return ret;
     *timestamp = clockval + vsync_timestamp_fuzz(random_generator);
-    return 0;
-}
-
-int EaselControlServer::registerHandler(
-        RequestHandler *handler, int handlerId) {
-    if (handler == nullptr) {
-        ALOGE("ERROR: handler is null");
-        return -EFAULT;
-    }
-
-    std::unique_lock<std::mutex> lock(gHandlerMapMutex);
-    if (gHandlerMap.count(handlerId) > 0) {
-        ALOGE("ERROR: handler id %d already registered", handlerId);
-        return -EEXIST;
-    }
-
-    gHandlerMap[handlerId] = handler;
-
-    ALOGI("handlerId %d registered", handlerId);
     return 0;
 }
 
