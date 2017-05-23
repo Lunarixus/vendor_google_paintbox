@@ -15,10 +15,9 @@
 
 #ifdef EASELSERVER
 #include "easelcontrol.h"
-#include "EaselLog.h"
-#else
-#include <utils/Log.h>
 #endif
+
+#include <log/log.h>
 
 #include "EaselThermalMonitor.h"
 
@@ -41,11 +40,7 @@ enum {
 void monitor(EaselThermalMonitor *inst)
 {
     if (inst == NULL) {
-#ifdef EASELSERVER
-        LOGE("%s: monitor thread received null pointers", __FUNCTION__);
-#else
         ALOGE("%s: monitor thread received null pointers", __FUNCTION__);
-#endif
         return;
     }
 
@@ -78,11 +73,7 @@ int EaselThermalMonitor::open(const std::vector<struct Configuration> &cfg)
 
         ret = zone->open();
         if (ret) {
-#ifdef EASELSERVER
-            LOGE("Could not open zone \"%s\" (%d)", cfg[i].name.c_str(), ret);
-#else
             ALOGE("Could not open zone \"%s\" (%d)", cfg[i].name.c_str(), ret);
-#endif
             continue;
         }
 
@@ -153,9 +144,5 @@ void EaselThermalMonitor::printStatus()
         strcat(buf, buf2);
     };
 
-#ifdef EASELSERVER
-    LOGI("%s", buf);
-#else
     ALOGI("%s", buf);
-#endif
 }

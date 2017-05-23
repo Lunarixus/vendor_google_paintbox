@@ -35,21 +35,6 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
-#ifndef ANDROID
-// Supply the Android priority enum values for non-Android build
-typedef enum android_LogPriority {
-    ANDROID_LOG_UNKNOWN = 0,
-    ANDROID_LOG_DEFAULT,    /* only for SetMinPriority() */
-    ANDROID_LOG_VERBOSE,
-    ANDROID_LOG_DEBUG,
-    ANDROID_LOG_INFO,
-    ANDROID_LOG_WARN,
-    ANDROID_LOG_ERROR,
-    ANDROID_LOG_FATAL,
-    ANDROID_LOG_SILENT,     /* only for SetMinPriority(); must be last */
-} android_LogPriority;
-#endif
-
 // Payload wrapper for a request or response with anonymous type.
 struct ControlData {
     void const *body;  // body of the object.
@@ -287,14 +272,6 @@ public:
      *     activated.
      */
     static int getLastEaselVsyncTimestamp(int64_t *timestamp);
-    /*
-     * Log to Android main log buffer.
-     *
-     * prio is a log priority such as ANDROID_LOG_INFO.
-     * tag is the log tag string to use.
-     * text is the string to log.
-     */
-    static void log(int prio, const char *tag, const char *text);
 
     /*
      * Registers a handler to handle CustomMsg with handlerId.
@@ -318,9 +295,6 @@ public:
      */
     static ClockMode getClockMode();
 };
-
-/* Convenience wrapper for EaselControlServer::log() */
-extern void easelLog(int prio, const char *tag, const char *format, ...);
 
 /* returns true if Easel is present in the system */
 extern bool isEaselPresent();

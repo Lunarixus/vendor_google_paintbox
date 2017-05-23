@@ -38,6 +38,6 @@ LOCAL_SRC_FILES := \
     EaselControlServer.cpp \
     EaselThermalMonitor.cpp \
     ThermalZone.cpp
-LOCAL_SHARED_LIBRARIES := libeaselcomm
+LOCAL_SHARED_LIBRARIES := liblog libeaselcomm
 LOCAL_PROPRIETARY_MODULE := true
 include $(BUILD_SHARED_LIBRARY)

@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "EaselClockControl.h"
-#include "EaselLog.h"
 #include "EaselThermalMonitor.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
@@ -73,7 +72,7 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
 
     // Request should have been verfied on client side.
     if(request.size > EaselControlImpl::kMaxPayloadSize) {
-        LOGE("%s: Request size out of boundary %" PRIu64, request.size);
+        ALOGE("%s: Request size out of boundary %" PRIu64, __FUNCTION__, request.size);
         return;
     }
 
@@ -86,7 +85,7 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
             replyMsg.payloadSize = response.size;
 
             if (response.size > EaselControlImpl::kMaxPayloadSize) {
-                LOGE("%s: Response size out of boundary %" PRIu64,
+                ALOGE("%s: Response size out of boundary %" PRIu64,
                         __FUNCTION__, response.size);
                 return;
             }
@@ -96,14 +95,14 @@ static void handleRpc(const EaselControlImpl::RpcMsg &rpcMsg) {
 
             int ret = easel_conn.sendMessage(&msg);
             if (ret) {
-                LOGE("%s: Failed to send RPC message to AP (%d)",
+                ALOGE("%s: Failed to send RPC message to AP (%d)",
                         __FUNCTION__, ret);
             }
         } else {
             gHandlerMap[rpcMsg.handlerId]->handleRequest(rpcMsg.rpcId, request, nullptr);
         }
     } else {
-        LOGE("No handler registered for %d", rpcMsg.handlerId);
+        ALOGE("No handler registered for %d", rpcMsg.handlerId);
     }
 }
 
@@ -159,7 +158,7 @@ void *msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
-        LOGI("Received command %d\n", h->command);
+        ALOGI("Received command %d\n", h->command);
 
         switch(h->command) {
         case EaselControlImpl::CMD_ACTIVATE: {
@@ -338,55 +337,22 @@ int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
     return 0;
 }
 
-/*
- * Send string to client for Android log.
- * Should be identical for mock and real versions.
- */
-void EaselControlServer::log(int prio, const char *tag, const char *text) {
-    int log_msg_len = sizeof(EaselControlImpl::LogMsg);
-    int tag_len = strlen(tag) + 1;
-    int text_len = strlen(text) + 1;
-
-    char *buf = (char *)malloc(log_msg_len + tag_len + text_len);
-    if (!buf) {
-        perror("malloc");
-        return;
-    }
-
-    initializeServer();
-    EaselControlImpl::LogMsg *log_msg = (EaselControlImpl::LogMsg *)buf;
-    log_msg->h.command = EaselControlImpl::CMD_LOG;
-    log_msg->prio = prio;
-    log_msg->tag_len = tag_len;
-    memcpy(buf + log_msg_len, tag, tag_len);
-    memcpy(buf + log_msg_len + tag_len, text, text_len);
-
-    EaselComm::EaselMessage msg;
-    msg.message_buf = log_msg;
-    msg.message_buf_size = log_msg_len + tag_len + text_len;
-    msg.dma_buf = 0;
-    msg.dma_buf_size = 0;
-    easel_conn.sendMessage(&msg);
-
-    free(buf);
-}
-
 int EaselControlServer::registerHandler(
         RequestHandler *handler, int handlerId) {
     if (handler == nullptr) {
-        LOGE("ERROR: handler is null");
+        ALOGE("ERROR: handler is null");
         return -EFAULT;
     }
 
     std::unique_lock<std::mutex> lock(gHandlerMapMutex);
     if (gHandlerMap.count(handlerId) > 0) {
-        LOGE("ERROR: handler id %d already registered", handlerId);
+        ALOGE("ERROR: handler id %d already registered", handlerId);
         return -EEXIST;
     }
 
     gHandlerMap[handlerId] = handler;
 
-    LOGI("handlerId %d registered", handlerId);
+    ALOGI("handlerId %d registered", handlerId);
     return 0;
 }
 
@@ -398,17 +364,4 @@ int EaselControlServer::setClockMode(ClockMode mode)
 EaselControlServer::ClockMode EaselControlServer::getClockMode()
 {
     return (EaselControlServer::ClockMode)EaselClockControl::getMode();
-}
-
-/* Convenience wrapper for EaselControlServer::log() */
-void easelLog(int prio, const char *tag, const char *format, ...) {
-    char text[1024]; // This matches ALOG limit.
-
-    // Write the formatted log to text.
-    va_list args;
-    va_start(args, format);
-    vsnprintf(text, sizeof(text), format, args);
-    va_end(args);
-
-    EaselControlServer::log(prio, tag, text);
 }
