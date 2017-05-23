@@ -24,7 +24,6 @@ public:
       CMD_DEACTIVATE,      // Deactivate Easel
       CMD_SUSPEND,         // Suspend Easel
       CMD_SET_TIME,        // Sync AP boottime and time of day clocks
-      CMD_LOG,             // Android logging string
       CMD_RPC,             // RPC message, wrapping request and response
   };
 
@@ -62,15 +61,6 @@ public:
       struct MsgHeader h;   // common header
       uint64_t boottime;    // AP boottime clock
       uint64_t realtime;    // AP realtime time of day clock
-  };
-
-  // CMD_LOG message, from server to client
-  struct LogMsg {
-      struct MsgHeader h;   // common header
-      uint32_t prio;        // __android_log_write priority
-      uint32_t tag_len;     // length of tag including terminator (bytes)
-      // followed by null-terminated tag string
-      // followed by null-terminated text string
   };
 
   static const int kMaxPayloadSize = 4096;

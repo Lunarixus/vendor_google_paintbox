@@ -69,15 +69,6 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
 };
 
 /*
- * Handle CMD_LOG Android logging control message received from server.
- */
-void handleLog(const EaselControlImpl::LogMsg *msg) {
-    char *tag = (char *)msg + sizeof(EaselControlImpl::LogMsg);
-    char *text = tag + msg->tag_len;
-    __android_log_write(msg->prio, tag, text);
-}
-
-/*
  * Handle incoming messages from EaselControlServer.
  */
 void handleMessages() {
@@ -99,9 +90,6 @@ void handleMessages() {
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
         switch (h->command) {
-        case EaselControlImpl::CMD_LOG:
-            handleLog((EaselControlImpl::LogMsg *)msg.message_buf);
-            break;
         case EaselControlImpl::CMD_RPC: {
             EaselControlImpl::RpcMsg *rpcMsg =
                     (EaselControlImpl::RpcMsg *)msg.message_buf;

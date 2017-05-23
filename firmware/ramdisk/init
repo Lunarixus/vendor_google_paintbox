@@ -59,7 +59,7 @@ echo "Welcome to Easel" > /dev/kmsg
 # Starts logd.
 mkdir /dev/socket
 echo 64 > /proc/sys/net/unix/max_dgram_qlen
-system/bin/logd.easel &
+/system/bin/logd.easel &
 
 # Start pbserver.
 /system/bin/pbserver &
