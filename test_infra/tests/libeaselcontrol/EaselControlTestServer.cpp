@@ -7,7 +7,7 @@
 
 #include "easelcontrol.h"
 #include "EaselControlTest.h"
-#include "utils/Log.h"
+#include "log/log.h"
 
 // Test server for EaselControl RpcMsg interface.
 // Test server will stop when received END message

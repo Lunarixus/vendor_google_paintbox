@@ -4,7 +4,7 @@
 
 #define LOG_TAG "EaselClockControlTest"
 
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include "EaselClockControl.h"
 #include "gtest/gtest.h"

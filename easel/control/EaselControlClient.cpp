@@ -18,7 +18,7 @@
 
 #include <android/log.h>
 #include <cutils/properties.h>
-#include <utils/Log.h>
+#include <log/log.h>
 
 #define ESM_DEV_FILE    "/dev/mnh_sm"
 #define NSEC_PER_SEC    1000000000ULL

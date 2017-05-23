@@ -4,7 +4,7 @@
 
 #define LOG_TAG "EaselStateManagerTest"
 
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include "EaselStateManager.h"
 #include "gtest/gtest.h"

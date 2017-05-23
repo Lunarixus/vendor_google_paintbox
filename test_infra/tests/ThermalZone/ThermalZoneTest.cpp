@@ -1,7 +1,7 @@
 #define LOG_TAG "ThermalZoneTest"
 
 #include "gtest/gtest.h"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include "ThermalZone.h"
 

@@ -15,7 +15,7 @@
  */
 //#define LOG_NDEBUG 0
 #define LOG_TAG "HdrPlusTestBurstInput"
-#include <utils/Log.h>
+#include <log/log.h>
 
 #include <algorithm>
 #include <dirent.h>
