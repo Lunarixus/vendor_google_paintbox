@@ -8,6 +8,14 @@
 
 namespace EaselLog {
 
+// States that LogClient could fall to.
+enum class LogClientState {
+  STARTING,  // LogClient is starting, but mCommClient is not opened.
+  STARTED,  // mCommClient is fully started.
+  STOPPING,  // mCommClient is going to be stopped.
+  STOPPED,  // Default state, LogClient is stopped, mReceivingThread joined.
+};
+
 // Log client to receive easel side logs.
 class LogClient {
  public:
@@ -27,7 +35,9 @@ class LogClient {
   std::thread mReceivingThread;
   // Guards the mCommClient;
   std::mutex mClientGuard;
-  std::atomic_bool mFinish;
+  // Condition when mCommClient is opened
+  std::condition_variable mStarted;
+  std::atomic<LogClientState> mState;
 };
 
 }  // namespace EaselLog

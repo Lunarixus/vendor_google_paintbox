@@ -13,7 +13,7 @@
 namespace EaselLog {
 
 LogClient::LogClient() {
-  mFinish = true;
+  mState = LogClientState::STOPPED;
 }
 
 LogClient::~LogClient() {
@@ -21,49 +21,55 @@ LogClient::~LogClient() {
 }
 
 int LogClient::start() {
-  if (!mFinish) {
+  if (mState != LogClientState::STOPPED) {
     return -EBUSY;
   }
 
-  mFinish = false;
-  if (mReceivingThread.joinable()) {
-    ALOGE("LogClient: receiving thread already started");
-    mFinish = true;
-    return -EBUSY;
-  }
-
+  mState = LogClientState::STARTING;
   mReceivingThread = std::thread(&LogClient::log, this);
 
   return 0;
 }
 
 void LogClient::stop() {
-  mFinish = true;
-  std::lock_guard<std::mutex> lock(mClientGuard);
+  if (mState == LogClientState::STOPPING || mState == LogClientState::STOPPED) {
+    return;
+  }
+  std::unique_lock<std::mutex> lock(mClientGuard);
+  mStarted.wait(lock, [this]{return mState == LogClientState::STARTED;});
+  mState = LogClientState::STOPPING;
   mCommClient.close();
   if (mReceivingThread.joinable()) {
     mReceivingThread.join();
   }
+  mState = LogClientState::STOPPED;
 }
 
 // Running in mReceivingThread
 void LogClient::log() {
+  if (mState != LogClientState::STARTING) {
+    return;
+  }
+
   int ret = 0;
   {
     // Open easel comm client in thread to save camera boot time.
     std::lock_guard<std::mutex> lock(mClientGuard);
     ret = mCommClient.open(EaselComm::EASEL_SERVICE_LOG);
+    mState = LogClientState::STARTED;
   }
+
+  mStarted.notify_one();
 
   if (ret != 0) {
     ALOGE("open easelcomm client error (%d, %d), exiting", ret, errno);
-    mFinish = true;
+    mState = LogClientState::STOPPED;
     return;
   }
 
   EaselComm::EaselMessage msg;
   char textBuf[LOGGER_ENTRY_MAX_PAYLOAD];
-  while (!mFinish) {
+  while (mState == LogClientState::STARTED) {
     int ret = mCommClient.receiveMessage(&msg);
     if (ret != 0) {
       if (errno != ESHUTDOWN) {
