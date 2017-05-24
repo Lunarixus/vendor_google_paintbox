@@ -19,14 +19,6 @@ ThermalZone::ThermalZone(const std::string &name, int scaling)
     mScaling = scaling;
 }
 
-ThermalZone::~ThermalZone()
-{
-    if (mFd >= 0) {
-        ::close(mFd);
-        mFd = -1;
-    }
-}
-
 int ThermalZone::open()
 {
     mFd = findFile(mName);
@@ -38,12 +30,14 @@ int ThermalZone::open()
 
 int ThermalZone::close()
 {
+    int ret = 0;
+
     if (mFd >= 0) {
-        ::close(mFd);
+        ret = ::close(mFd);
         mFd = -1;
     }
 
-    return 0;
+    return ret;
 }
 
 std::string ThermalZone::getName()
@@ -68,6 +62,7 @@ int ThermalZone::findFile(const std::string &name)
 {
     DIR *thermal_dir = opendir(THERMAL_ZONE_SYSFS_PATH);
     struct dirent *entry;
+    int retFd = -ENOENT;
 
     if (thermal_dir == NULL)
         return -errno;
@@ -89,12 +84,14 @@ int ThermalZone::findFile(const std::string &name)
                 if (strncmp(buffer, name.c_str(), strlen(name.c_str())) == 0) {
                     snprintf(filename, kMaxCharBufferLen, "%s/%s/temp", THERMAL_ZONE_SYSFS_PATH,
                              entry->d_name);
-                    fd = ::open(filename, O_RDONLY);
-                    return fd;
+                    retFd = ::open(filename, O_RDONLY);
+                    break;
                 }
             }
         }
     }
 
-    return -ENOENT;
+    closedir(thermal_dir);
+
+    return retFd;
 }

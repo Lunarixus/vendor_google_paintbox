@@ -43,6 +43,7 @@ int EaselStateManager::open()
             if (write(fd, buf, strlen(buf)) < 0) {
                 ALOGE("%s: failed to write to pmic sysfs file (%d)", __FUNCTION__, -errno);
             }
+            ::close(fd);
         }
     }
 
@@ -51,10 +52,14 @@ int EaselStateManager::open()
 
 int EaselStateManager::close()
 {
-    if (mFd >= 0)
-        return ::close(mFd);
+    int ret = 0;
 
-    return 0;
+    if (mFd >= 0) {
+        ret = ::close(mFd);
+        mFd = -1;
+    }
+
+    return ret;
 }
 
 int EaselStateManager::startMipi(struct EaselMipiConfig *config)

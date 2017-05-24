@@ -100,6 +100,7 @@ int EaselThermalMonitor::close()
     }
 
     for (auto zone : mZones) {
+        zone->close();
         delete zone;
     }
     mZones.clear();

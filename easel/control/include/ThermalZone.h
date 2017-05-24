@@ -13,7 +13,6 @@ public:
     static const int kMaxCharBufferLen = 100;
 
     ThermalZone(const std::string &name, int scaling);
-    ~ThermalZone();
 
     /*
      * Opens the thermal zone sysfs file.
