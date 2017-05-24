@@ -116,6 +116,7 @@ public:
      * Wait for the next message from remote to arrive.
      *
      * msg->message_buf points to the message received.
+     *   message_buf needs to be manually freed after consumption.
      * msg->message_buf_size is the size of the message in bytes.
      * msg->dma_buf_size is the size of the DMA transfer in bytes, or zero if
      *   none.  If non-zero, receiveDMA must be called to receive or discard

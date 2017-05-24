@@ -97,6 +97,8 @@ void LogClient::log() {
         static_cast<int>(logMsg->tid), text);
 
     __android_log_buf_write(logId, prio, tag, textBuf);
+
+    free(msg.message_buf);
   }
 }
 
