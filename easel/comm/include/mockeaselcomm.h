@@ -108,6 +108,9 @@ public:
     */
     int receiveDMA(const EaselMessage *msg) override;
 
+    void close() override;
+    void flush() override;
+
     // Control message handler thread.
     std::thread *mMessageHandlerThread;
 
@@ -116,7 +119,7 @@ public:
 
 protected:
     EaselCommNet();
-    ~EaselCommNet() {};
+    virtual ~EaselCommNet() {};
 
     // Default port for Easel remote service mockups via TCP/IP
     const static int PORT_DEFAULT = 4242;

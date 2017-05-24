@@ -814,7 +814,7 @@ void EaselCommServerNet::close() {
  * stale state at startup time, which is already handled by TCP connection
  * close and re-open semantics.
  */
-void EaselComm::flush() {
+void EaselCommNet::flush() {
 }
 
 /*
@@ -823,5 +823,5 @@ void EaselComm::flush() {
  * implementation always uses the EaselCommNetClient and EaselCommNetServer
  * overrides of the following method.
  */
-void EaselComm::close() {
+void EaselCommNet::close() {
 }

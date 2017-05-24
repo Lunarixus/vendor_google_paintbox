@@ -24,6 +24,8 @@
 
 #include <cstddef> // size_t
 #include <cstdint> // uint64_t
+#include <functional>
+#include <thread>
 
 #include <uapi/linux/google-easel-comm.h>
 
@@ -187,11 +189,30 @@ public:
      */
     virtual void flush();
 
+    /*
+     * Starts a thread to handle incoming messages.
+     * Returns 0 for successful, error code for failed.
+     * callback the callback fundtion triggered when an EaselMessage is received.
+     * The handler thread owns EaselMessage msg and msg will be destroyed after
+     * callback returns.
+     */
+    int startMessageHandlerThread(
+            std::function<void(EaselMessage *msg)> callback);
+
 protected:
-    virtual ~EaselComm() {};
+    EaselComm();
+    virtual ~EaselComm();
 
     // File descriptor for easelcomm device
     int mEaselCommFd;
+    std::thread mHandlerThread;
+    bool mClosed;
+
+    /*
+     * Thread function for mHandlerThread.
+     * Each valid received message is handled by callback.
+     */
+    void handleReceivedMessages(std::function<void(EaselMessage *msg)> callback);
 };
 
 class EaselCommClient : public EaselComm {

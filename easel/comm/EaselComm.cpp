@@ -172,6 +172,15 @@ static int verifyHandshake(EaselComm::EaselMessage *msg, int seq) {
 }  // anonymous namespace
 
 
+EaselComm::EaselComm() {
+    mEaselCommFd = -1;
+    mClosed = true;
+}
+
+EaselComm::~EaselComm() {
+    close();
+}
+
 // Send a message without waiting for a reply.
 int EaselComm::sendMessage(const EaselMessage *msg) {
     struct easelcomm_kmsg_desc kmsg_desc;
@@ -369,6 +378,10 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
+    if (!mClosed) {
+        return -EBUSY;
+    }
+
     while (1) {
         long diff_ms;
         struct timespec now;
@@ -394,6 +407,8 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
         mEaselCommFd = -1;
         return ret;
     }
+    mClosed = false;
+
     return 0;
 }
 
@@ -412,14 +427,53 @@ int EaselCommServer::open(int service_id, __unused long timeout_ms) {
 
 // Close connection.
 void EaselComm::close() {
+    if (mClosed) {
+        return;
+    }
     ioctl(mEaselCommFd, EASELCOMM_IOC_SHUTDOWN);
     ::close(mEaselCommFd);
     mEaselCommFd = -1;
+    mClosed = true;
+    if (mHandlerThread.joinable()) {
+        mHandlerThread.join();
+    }
 }
 
 // Flush connection.
 void EaselComm::flush() {
     ioctl(mEaselCommFd, EASELCOMM_IOC_FLUSH);
+}
+
+int EaselComm::startMessageHandlerThread(
+        std::function<void(EaselMessage *msg)> callback) {
+    if (mHandlerThread.joinable()) {
+        return -EBUSY;
+    }
+    if (mClosed) {
+        return -EINVAL;
+    }
+    mHandlerThread = std::thread(&EaselComm::handleReceivedMessages, this, callback);
+    return 0;
+}
+
+void EaselComm::handleReceivedMessages(
+        std::function<void(EaselMessage *msg)> callback) {
+
+    EaselMessage msg;
+    while (!mClosed) {
+        int ret = receiveMessage(&msg);
+        if (ret != 0) {
+          break;
+        }
+        if (msg.message_buf == nullptr) {
+          continue;
+        }
+        callback(&msg);
+        if (msg.message_buf != nullptr) {
+            free(msg.message_buf);
+            msg.message_buf = nullptr;
+        }
+    }
 }
 
 // Client side handshaking.
