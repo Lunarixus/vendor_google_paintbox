@@ -151,7 +151,7 @@ $(LOCAL_BUILT_MODULE): \
 	@mkdir -p $(dir $@)/$(EASEL_LIB)
 
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
-		cp -f $(module) $(dir $@)/$(EASEL_LIB);)
+		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
 	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
 
