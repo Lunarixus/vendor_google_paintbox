@@ -6,7 +6,8 @@ LOCAL_MODULE:= logd.easel
 
 LOCAL_SRC_FILES := \
     main.cpp \
-    LogBufferEasel.cpp
+    LogBufferEasel.cpp \
+    LogEntry.cpp
 
 LOCAL_STATIC_LIBRARIES := \
     liblogd
@@ -29,7 +30,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE:= logdclient
 
-LOCAL_SRC_FILES := LogClient.cpp
+LOCAL_SRC_FILES := LogClient.cpp LogEntry.cpp
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include

@@ -15,6 +15,8 @@ class LogBufferEasel final : public LogBufferInterface {
       const char* msg, unsigned short len) override;
  private:
   EaselCommServer mCommServer;
+  const int mLogLevel;
+  const bool mLogToConsole;
 };
 
 #endif  // PAINTBOX_LOG_BUFFER_EASEL_H

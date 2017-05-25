@@ -9,6 +9,7 @@
 #include <string>
 
 #include "LogMessage.h"
+#include "LogEntry.h"
 
 namespace EaselLog {
 
@@ -82,21 +83,20 @@ void LogClient::log() {
 
     log_id_t logId = logMsg->log_id;
     char* log = logMsg->log;
-    int prio = *log;
-    const char* tag = log + 1;
-    const char* text = tag + strnlen(tag, logMsg->len - 1) + 1;
+
+    LogEntry entry = parseEntry(log, logMsg->len);
 
     // Logs PID, TID and text for easel.
     // Every easel log will have a prefix of EASEL
     // on the first line for debugging purpose.
     // If text is too long, it may gets truncated.
     // TODO(cjluo): Handle realtime if needed.
-    snprintf(textBuf, LOGGER_ENTRY_MAX_PAYLOAD - (text - log),
+    snprintf(textBuf, LOGGER_ENTRY_MAX_PAYLOAD - (entry.text - log),
         "EASEL (PID %d TID %d): %s",
         static_cast<int>(logMsg->pid),
-        static_cast<int>(logMsg->tid), text);
+        static_cast<int>(logMsg->tid), entry.text);
 
-    __android_log_buf_write(logId, prio, tag, textBuf);
+    __android_log_buf_write(logId, entry.prio, entry.tag, textBuf);
 
     free(msg.message_buf);
   }
