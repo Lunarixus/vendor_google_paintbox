@@ -50,17 +50,24 @@ GOOGLE3_GCAM_TARGET="libgcam-package"
 GOOGLE3_GCAM_OUT_TGZ="libgcam.tgz"
 GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
 GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
+GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessor.so"
+GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
+GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/precompile_burst_process.sh"
 
 ANDROID_GCAM_PREBUILT_PATH="vendor/google_paintbox/camera/prebuilts/gcam/"
 ANDROID_GCAM_LIB_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib64"
 ANDROID_GCAM_INC_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/include"
-ANDROID_GCAM_BUILD_PATH="vendor/google_paintbox/camera"
+ANDROID_IMX_PREBUILT_PATH="vendor/google_paintbox/prebuilts/libs"
+ANDROID_PCG_PATH="vendor/google_paintbox/prebuilts/compiled_graph"
 
 GOOGLE3_GCAM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_PATH}"
+GOOGLE3_GCAM_TARGET_FULL_PATH="${GOOGLE3_GCAM_PATH%%/}:${GOOGLE3_GCAM_TARGET}"
 GOOGLE3_GCAM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_OUT}"
 GOOGLE3_GCAM_OUT_TGZ_FULL="${GOOGLE3_GCAM_OUT_FULL_PATH%%/}/${GOOGLE3_GCAM_OUT_TGZ}"
 GOOGLE3_HALIDE_RUNTIME_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/third_party/halide/halide_runtime_headers/${GOOGLE3_HALIDE_RUNTIME_H}"
 GOOGLE3_HALIDE_BUFFER_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/third_party/halide/halide_runtime_headers/${GOOGLE3_HALIDE_BUFFER_H}"
+GOOGLE3_IMX_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_IMX_OUT}"
+GOOGLE3_IMX_H_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_IMX_H}"
 
 ANDROID_GCAM_PREBUILT_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_PREBUILT_PATH}"
 ANDROID_GCAM_LIB_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_LIB_PATH}"
@@ -68,6 +75,12 @@ ANDROID_GCAM_INC_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_INC_PATH}"
 ANDROID_GCAM_BUILD_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_GCAM_BUILD_PATH}"
 ANDROID_HALIDE_RUNTIME_H="${ANDROID_GCAM_PREBUILT_FULL_PATH%%/}/include/${GOOGLE3_HALIDE_RUNTIME_H}"
 ANDROID_HALIDE_BUFFER_H="${ANDROID_GCAM_PREBUILT_FULL_PATH%%/}/include/${GOOGLE3_HALIDE_BUFFER_H}"
+ANDROID_IMX_PREBUILT_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_IMX_PREBUILT_PATH}"
+ANDROID_IMX_OUT_FULL_PATH="${ANDROID_IMX_PREBUILT_FULL_PATH%%/}/libimageprocessor.so"
+ANDROID_IMX_H_FULL_PATH="${ANDROID_IMX_PREBUILT_FULL_PATH%%/}/include/imx.h"
+
+ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}"
+TMP_PCG_FULL_PATH="/tmp/pcg"
 
 ######################################################################
 # Verify paths
@@ -103,9 +116,22 @@ fi
 
 echo -e "\e[1;34m** Building libgcam library\e[00m"
 
-pushd ${GOOGLE3_GCAM_FULL_PATH}
+pushd ${GOOGLE3_PATH}
 
-blaze build --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET}
+# Generate PCG
+rm -rf ${TMP_PCG_FULL_PATH}
+mkdir -p ${TMP_PCG_FULL_PATH}
+
+${GOOGLE3_PCG_GEN_SH} \
+  --build_for_easel=0 \
+  --build_for_pbserver \
+  --image_set=0042_19700118_164050_527_5frames \
+  --num_frames=5 \
+  --synthetic_exposures=2 \
+  --pcg_output_dir=${TMP_PCG_FULL_PATH}
+
+# Build libgcam
+blaze build --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
   popd
@@ -150,6 +176,14 @@ mkdir -p `dirname ${ANDROID_HALIDE_RUNTIME_H}`
 cp ${GOOGLE3_HALIDE_RUNTIME_H_FULL_PATH} ${ANDROID_HALIDE_RUNTIME_H}
 mkdir -p `dirname ${ANDROID_HALIDE_BUFFER_H}`
 cp ${GOOGLE3_HALIDE_BUFFER_H_FULL_PATH} ${ANDROID_HALIDE_BUFFER_H}
+
+# Copy Imx lib
+cp ${GOOGLE3_IMX_OUT_FULL_PATH} ${ANDROID_IMX_OUT_FULL_PATH}
+cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
+
+# Copy PCG
+rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
+cp -r ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
 
 # Rebuild prebuilts, so there's no surprises when trying to relink
 
