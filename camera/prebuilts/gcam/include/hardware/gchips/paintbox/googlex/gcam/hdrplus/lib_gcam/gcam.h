@@ -6,12 +6,14 @@
 #include <string>
 #include <vector>
 
+#include "googlex/gcam/ae/ae_results.h"
+#include "googlex/gcam/ae/ae_shot_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/debug_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_callbacks.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/init_params.h"
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/postview_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tuning.h"
-#include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_io/image_saver.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
@@ -34,21 +36,12 @@
 //     https://docs.google.com/a/google.com/document/d/1Vn3R9BOf22oJZ5nVLjwTCak0Vew6KZZQjRFOG1bEscM
 // TODO(geiss): Update this guide. How do these requirements map to the various
 //   levels of Android Camera2 compliance?
-//
-// In addition, for a handy list of recommended automated compliance tests
-// (to can help verify that your camera driver is capturing the right stuff,
-// and setting the FrameMetadata struct properly), see this doc:
-//     Gcam - Compliance Unit Tests
-//     https://docs.google.com/a/google.com/document/d/1mp02rePD9tCiHwjCrMKvhFIxgPgSNcAJ3Lo1csav_QI/edit
-// TODO(yuntatsai): Update this doc. How do these tests map to the CTS/ITS tests
-//   already in place for Android Camera2?
 
 namespace gcam {
 
 class AeTraining;
 class PipelineManager;
 class IShot;
-struct AeResults;
 struct Camera;
 struct ShotMemInfo;
 
@@ -69,31 +62,34 @@ class Gcam {
   // index within 'cameras_'. The i-th camera in the list is NOT required to
   // have a sensor ID of i, but this is often the case in practice.
   //
-  // The latest tuning and noise model for each of the cameras is assumed.
-  // override this behavior, UpdateCameras() may be used. (Having the ability
-  // to query tuning based on old "device codes" is useful for reprocessing
-  // saved bursts in their original configurations.)
+  // In general, the latest tuning and noise model for each of the cameras is
+  // used. For legacy devices, a versioned "device code" was used to describe
+  // tuning revisions. To use an older tuning revision on a legacy device,
+  // UpdateCameras() may be used to override the default tuning. For more recent
+  // devices, we use an all-lowercase version of "<make>|<device>" as the
+  // device code, for compatibility purposes.
   //
-  // If any camera is unknown, null will be returned.
+  // If any camera is unknown and InitParams::allow_unknown_devices is false,
+  // nullptr will be returned.
   //
   // Current devices:
-  //   device           make         model            latest device code
-  //   ---------------  -----------  ---------------  -------------------
-  //   TBD              "Google"     "taiman"         "taiman"
-  //   TBD              "Google"     "muskie"         "muskie"
-  //   TBD              "Google"     "walleye"        "walleye"
-  //   Google Pixel XL  "Google"     "Pixel"          "marlin"
-  //   Google Pixel     "Google"     "Pixel"          "sailfish"
-  //   Nexus 6P         "Huawei"     "angler"         "nexus6v2"
-  //   Nexus 5X         "LGE"        "bullhead"       "nexus5v2"
-  //   Nexus 6          "motorola"   "Nexus 6"        "nexus6"
-  //   Nexus 5          "LGE"        "Nexus 5"        "nexus5"
-  //   Glass v2         "Google"     "Glass 2"        "sand001"
-  //   Glass v1         "Google"     "Glass 1"        "glass0711f"
-  //   IMX214 array     "Gcam"       "Flatfish"       "array002"
-  //   OV5680 array     "Gcam"       "OV5680 Array"   "array001"
+  //   name           make         device           latest "device code"
+  //   -------------  -----------  ---------------  ---------------------
+  //   TBD            "Google"     "taimen"         -
+  //   TBD            "Google"     "muskie"         -
+  //   TBD            "Google"     "walleye"        -
+  //   Pixel XL       "Google"     "marlin"         -
+  //   Pixel          "Google"     "sailfish"       -
+  //   Nexus 6P       "Huawei"     "angler"         -
+  //   Nexus 5X       "LGE"        "bullhead"       -
+  //   Nexus 6        "motorola"   "shamu"          -
+  //   Nexus 5        "LGE"        "hammerhead"     -
+  //   Glass v2       "Google"     "glass-2"        "sand001"
+  //   Glass v1       "Google"     "glass-1"        "glass0711f"
+  //   IMX214 array   "Gcam"       "flatfish"       "array002"
+  //   OV5680 array   "Gcam"       "ov5680-array"   "array001"
   //
-  // Legacy device codes:
+  // Older device codes:
   //   - Glass v1: "glass0711", "glass0711[b-e]"
   //   - Galaxy Nexus: "gn04d", "gn078", "gn079", "gn0711"
   //   - Before calibration: "uncalibrated"
@@ -268,8 +264,7 @@ class Gcam {
   //     version of the frame.  Around QVGA (320x240) is optimal for AE: high
   //     enough resolution for best-quality AE, without the expense of software
   //     downsampling.
-  // Takes ownership of raw, sgm.
-  // TODO(geiss, jiawen): Pass the now-required SpatialGainMap by value.
+  // Takes ownership of raw.
   // TODO(geiss): There's an outstanding potential bug that AdjustDigitalGain
   //   doesn't seem to be applied to frames coming in here (unlike
   //   AddMeteringFrame and AddPayloadFrame, which both call it).
@@ -314,47 +309,63 @@ class Gcam {
   // (See also: PeakMemoryWithNewShotBytes.)
   bool IsCapturing() const;
 
-  // Begins capture of a new shot.
-  // Multiple shots can be captured at a time.
-  // After this, call methods on the shot object to add frames, etc.
-  // The burst ID must not have the value of kInvalidBurstId, and must be
-  //   different from any other shots currently being constructed or background-
-  //   processed.
-  // 'postview_params' is required if InitParams.postview_callback != nullptr
-  // Gcam retains ownership of this object.
-  // Postview images:
-  //   If you would like a callback the moment a postview image is be
-  //   produced, provide a valid 'postview_callback' in gcam's InitParams, then
-  //   pass in a non-null PostviewParams here.  If the postview callback is
-  //   valid, then PostviewParams must be non-null.
-  IShot* StartShotCapture(int camera_id, int burst_id,
-                          const ShotParams& shot_params,
-                          // Sometimes optional:
-                          const PostviewParams* postview_params,
-                          // Optional:
-                          const ImageSaverParams* image_saver_params);
-
+  // Begins capture of a new shot. Multiple shots can be captured at a time.
+  //
+  // After this function returns, call methods on the IShot object to add
+  // frames, etc. Gcam retains ownership of the IShot object.
+  //
   // IMPORTANT:
   // You must call either EndShotCapture or AbortShotCapture, exactly once, for
   // each shot successfully created via StartShotCapture.
+  //
+  // Callback lifetime:
+  //   Shot capture and processing are asynchronous and the pipeline reports its
+  //   progress and results via callbacks specified in 'shot_callbacks'.
+  //   Each member callback of 'shot_callbacks', if not set to nullptr, must
+  //   persist for the lifetime of the IShot.
+  //   Gcam deletes an IShot when:
+  //   - The shot successfully finishes (right after
+  //     shot_callbacks.finished_callback is invoked as a final notification).
+  //   - The client successfully aborts the shot (via AbortShotCapture() or
+  //     AbortShotProcessing()).
+  //   - EndShotCapture() or EndPayloadFrames() fails (when these functions
+  //     fail, they return false and delete the IShot).
+  //
+  // Final images:
+  //   If shot_callbacks.final_image_callback is not set to nullptr, then
+  //   final_image_pixel_format must not be gcam::GcamPixelFormat::kUnknown.
+  //
+  // Postview images:
+  //   If shot_callbacks.postview_callback is not set to nullptr, then
+  //   postview_params.pixel_format must not be GcamPixelFormat::kUnknown.
+  IShot* StartShotCapture(int camera_id,
+                          const ShotParams& shot_params,
+                          const ShotCallbacks& shot_callbacks,
+                          GcamPixelFormat final_image_pixel_format,
+                          PostviewParams postview_params,
+                          // Optional:
+                          const ImageSaverParams* image_saver_params);
 
-  // Call this once your capture is complete (after Shot::EndPayloadFrames).
+  // Call this once capture is complete (after IShot::EndPayloadFrames).
   // Return value:
   //   - True on success, meaning that the shot capture was successfully
-  //       completed and transitioned to background processing.  You can then
-  //       wait for the callback(s) (that you provided in InitParams) to be
-  //       called.  InitParams.finished_callback will notify you when this shot
-  //       is finished background-processing.
-  //   - False on failure.  This could be because:
+  //       completed and transitioned to background processing. You can then
+  //       wait for the callback(s) (that you provided in StartShotCapture) to
+  //       be called. ShotCallbacks::finished_callback will notify you when
+  //       this shot is finished background-processing.
+  //   - False on failure. This could be because:
   //       - shot was nullptr
   //       - the shot was not being managed by Gcam
   //       - the shot had already finished capturing
   //       - EndShotCapture had already been called on the shot
   //       - AbortShotCapture had been called on the shot
   //       - the shot had a severe error during capture
-  // In either case, after the call, 'shot' is invalidated, and it becomes
-  //   illegal (at the public Gcam interface) to call any methods on 'shot',
-  //   or to pass 'shot' to any functions.
+  //
+  // After this call, it is illegal (at the public Gcam interface) to call any
+  //   methods on 'shot'.
+  //
+  // If this call fails (returns false), 'shot' will be invalidated and the
+  //   client should release all references to shot.
   bool EndShotCapture(IShot* shot);
 
   // You must call this if you decide to abort the shot capture.
@@ -362,16 +373,17 @@ class Gcam {
   //   public Gcam interface) to call any methods on 'shot' or pass 'shot' to
   //   any functions.
   // Returns true on success.
+  // Returns false if the shot is not currently being captured, or is nullptr.
   // This call (if successful) alone kills the shot; it is not necessary to call
   //   AbortShotProcessing() afterwards.
   // SEE ALSO: AbortShotProcessing.
   bool AbortShotCapture(IShot* shot);
 
-  // Aborts background processing of the shot with the given burst_id.
+  // Aborts background processing of the given shot.
   // Returns true if the abort succeeded.
-  // The actual abort might or might not happen immediately (synchronously), but
-  //   the return value will tell you, for certain, whether or not the shot will
-  //   be aborted before any results are returned.
+  // The actual abort may not happen immediately (synchronously), but the return
+  //   return value will tell you, for certain, whether or not the shot will be
+  //   aborted before any results are returned.
   //
   // If the shot hasn't finished capturing yet, that's ok; it will be
   //   auto-aborted once the capture is complete (before background processing
@@ -381,29 +393,30 @@ class Gcam {
   // If the capture is complete, the shot will be aborted during background
   //   processing.
   //
-  // Returns false if the shot is not found.
-  // Returns true if the shot is found, but was still being captured, and gets
-  //   flagged to be aborted once the capture is complete.
-  // Returns true if the shot is found, was done being captured, and was
-  //   successfully aborted.
-  // Returns false if the shot is found, but is almost finished processing,
-  //   to the point gcam had already started calling result callbacks, and thus,
-  //   it was too late to abort it.  In this case, the shot will be finished
-  //   normally: the progress callback will reach 'kFinal', all callbacks will
-  //   be called, etc.
+  // Returns true on success:
+  //   - If the shot is still being captured, it will be flagged to be aborted
+  //     once capture is complete.
+  //   - If the shot is being processed in the background and was successfully
+  //     aborted.
+  // Returns false on failure:
+  //   - If background processing is almost finished and it is too late to abort
+  //     (callbacks are already being invoked).
+  //   - If the shot was not found or is nullptr.
   //
   // SEE ALSO: AbortShotCapture.
-  bool AbortShotProcessing(int burst_id);
+  bool AbortShotProcessing(IShot* shot);
 
   //----------------------------------------------------------
   // Misc
   //----------------------------------------------------------
 
+  const StaticMetadata& GetStaticMetadata(int camera_id) const;
+  const Tuning& GetTuning(int camera_id) const;
+
   // The methods below are for development and internal Gcam use only.
   // Normal clients probably won't have to call these.
   // TODO(hasinoff): Refactor so that these functions aren't exposed as part of
   //   the regular API.
-  const Tuning& GetTuning(int camera_id) const;
   void UpdateCameras(
       const std::vector<StaticMetadata>& new_static_metadata_list,
       const std::vector<Tuning>& new_tuning_list);
@@ -431,6 +444,9 @@ class Gcam {
   // implementation details, we should use the PIMPL idiom.
   const InitParams init_params_;
   std::unique_ptr<AeTraining> ae_training_;
+
+  // A counter that is incremented each time a new shot is created.
+  int next_shot_id_ = 0;
 
   // The cameras.
   std::vector<Camera> cameras_;

@@ -6,8 +6,7 @@
 
 #include <array>
 #include <cassert>
-#include <cmath>
-#include <cstdint>
+#include <cstddef>
 #include <map>
 #include <string>
 #include <vector>
@@ -15,7 +14,7 @@
 #include "googlex/gcam/ae/ae_type.h"
 #include "googlex/gcam/base/pixel_rect.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tet_model.h"
-#include "googlex/gcam/image/t_image.h"
+#include "googlex/gcam/image/icc_profile.h"
 #include "googlex/gcam/image_metadata/bayer_pattern.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
@@ -111,8 +110,8 @@ struct RawNoiseModel {
   //
   // where x is the noise-free signal level, expressed in digital values after
   // black level subtraction, in the range [0, white_level - black_level].
-  float scale;
-  float offset;
+  float scale = 0.0f;
+  float offset = 0.0f;
 
   // Produce a raw noise model from a DNG noise model and the white/black
   // levels.
@@ -126,9 +125,17 @@ struct RawNoiseModel {
   }
 };
 
-// Compute the average SNR for a given frame, by evaluating the given noise
-// model at the mean signal level. As in RawNoiseModel, only a single value is
-// used for black level.
+// The DNG noise model is specified independently for each Bayer channel, in
+// terms of normalized signal levels. This function converts a 4-channel DNG
+// noise model to black-subtracted raw noise models.
+void RawNoiseModelFromDngNoiseModel(
+    const DngNoiseModel dng_noise_model_bayer[4],
+    const float black_levels_bayer[4], float white_level,
+    RawNoiseModel* raw_noise_model);
+
+// Compute the average SNR for a given raw frame, by evaluating the given noise
+// model at the mean signal level, approximated using a single green channel.
+// Only a single value is used for black level.
 float AverageSnrFromFrame(const RawReadView& raw,
                           BayerPattern bayer_pattern,
                           float noise_model_black_level,
@@ -450,7 +457,16 @@ struct RawFinishParams {
   // If > 0, limits the maximum number of synthetic exposures in the HDR block.
   int max_synthetic_exposures;
 
+  // Flare suppression parameters.
   ArcFlareParam arc_flare;
+
+  // ICC profile to embed in the output, specifying the output color space.
+  // NOTE: All tuning currently assumes an sRGB output color space.
+  // TODO(hasinoff): Fork the tuning for color saturation and 3D LUT to take
+  //   output color space into account.
+  // TODO(hasinoff): Dither more heavily for wide gamut color spaces, to offset
+  //   increased quantization in 8-bit output?
+  IccProfile icc_profile;
 };
 
 // This struct houses a subset of the parameters for capture, and is limited
@@ -471,39 +487,88 @@ struct CaptureParams {
   // cost of one fewer short exposure and an extra processing step (in Finish).
   bool capture_true_long_exposure;
 
-  // The max overall gain that Gcam should allow, including both analog and
-  //   digital gain.
-  // Note that digital gain can be applied at the sensor or in the ISP; if it
-  //   is not, then Gcam will apply it in software.
+  // In non-ZSL mode, determines whether the sensor is allowed to apply digital
+  //   gain to raw payload frames.  (Does not apply to ZSL mode, where the
+  //   client decides what to capture; and in non-ZSL mode, it applies only
+  //   to the capture of explicit payload bursts - not metering bursts.)
+  // Disabling sensor-side digital gain can provide several advantages:
+  //   1. Any digital gain applied to a raw image at the sensor will cause
+  //      erroneous color shifts if the black levels are not exactly correct.
+  //      If HDR+ will come up with better black levels than those used by
+  //      the sensor, then waiting to apply digital gain (until we can use
+  //      those improved black levels) will avoid these color shifts.
+  //   2. Avoids the dangers of using digital gain (especially non-integer
+  //      digital gains) on sensors that don't implement digital gain well,
+  //      leading to re-quantization.  (The Pixel 2016 sensor, in its shipping
+  //      configuration, has this issue; there, unfortunately, the driver
+  //      tries to force a small amount of non-integer digital gain into any
+  //      shot that uses analog gain.  This was done to limit color-popping
+  //      artifacts near the edges of the viewfinder, but sadly, it causes
+  //      extra quantization that causes ugly color banding - especially
+  //      visible on low-noise images with a small bright center and very
+  //      dark edges.)
+  float allow_digital_gain_at_sensor;
+
+  // Note that the limits below involving "gain" do not take into account
+  // the extra digital gain from lens shading, white balance gains, or the CCM.
+
+  // Maximum additional ("post-capture") digital gain applied by gcam.
+  //   Any digital gain applied earlier, by the sensor, to the raw input
+  //   frames, does not count toward this limit.
+  // Post-capture gain includes:
+  //   1. Global digital gain applied by gcam
+  //   2. Local digital gain applied by gcam (during local tonemapping).
+  // If necessary, either or both of these will be throttled in order to meet
+  //   this constraint.
+  // TUNING:
+  //   This limit should be tuned primarily to limit artifacts from
+  //     quantization in raw input frames.  (It should not be tuned based on
+  //     noise or denoising limits, or to mitigate color shifts caused by
+  //     imperfect black levels.)
+  //   This limit won't often kick in when sensor-side digital gain is used,
+  //     and in that case, can be kept low (say, 12).  When sensor-side digital
+  //     gain is not used, this value should be higher, and should be more
+  //     carefully tuned.
+  float max_post_capture_gain_zsl;
+  float max_post_capture_gain_non_zsl;
+
+  // The max overall gain that Gcam will allow in the final image.
+  // This includes:
+  //   1. Analog gain at the sensor
+  //   2. Digital gain at the sensor
+  //   3. Global digital gain applied by gcam
+  //   4. Further digital gain applied to the shadows, by gcam, for local
+  //        tonemapping.
+  // If necessary, the local (and even global) gain applied by gcam will be
+  //   throttled in order to meet this constraint.
+  // TUNING: This limit should be as high as possible, until either:
+  //   1. Noise becomes too strong for our denoising algorithms, or
+  //   2. Black level imperfections begin to produce unacceptable color shifts.
+  //   This threshold should not, however, be tuned to mitigate issues from
+  //   from quantization (such as color banding) in the incoming raw images.
   float max_overall_gain;
 
-  // This describes the maximum dynamic range compression that our HDR can
-  //   deliver (for a given device & pipeline). AE prescribes two TET values
-  //   for a scene: a short TET and a long TET. Let 'hdr_ratio' be the ratio
-  //   (long_tet / short_tet). If hdr_ratio is less than 'max_hdr_ratio' then
-  //   HDR can be used (with these exact TETs) on the scene.
+  // This limits the maximum dynamic range compression that our local
+  //   tonemapping block can deliver (for a given device & pipeline). AE
+  //   prescribes two TET values for a scene: a short TET and a long TET.
+  //   Let 'hdr_ratio' be the ratio (long_tet / short_tet).  If hdr_ratio is
+  //   less than 'max_hdr_ratio' then HDR can be used (with these exact TETs)
+  //   on the scene.
   // If hdr_ratio exceeds max_hdr_ratio, then HDR can still be used, *but* the
   //   short or long TET will be adjusted, by blowing out the short exposure
   //   (increasing short_tet), dimming the long exposure (decreasing long_tet),
   //   or some combination of the two. In this case, the HDR ratio after
   //   adjustments will be exactly max_hdr_ratio.
+  // TUNING: This limit should be tuned based on how far we can push our local
+  //   tonemapping block to compress dynamic range, without producing cartoony
+  //   renditions.  (It should not be tuned to mitigate noise, quantization in
+  //   shadows, or color shifts from poor black levels.)
+  // Note that if you increase this value, then for devices/modes that don't
+  //   use sensor-side digital gain, you might also need to increase
+  //   post_capture_digital_gain_[zsl/non_zsl], in order to see the full
+  //   benefit on all shots.  Of course, don't force it; follow the 'TUNING:'
+  //   guidelines for that limit.
   float max_hdr_ratio;  // Should be > 1.
-
-  // *** The YUV pipeline ignores this member. ***
-  // Limit the maximum post-capture gain for ZSL shots.
-  // In practice, this only triggers for ZSL shots where the scene has a very
-  //   high dynamic range, and the in-driver dynamic underexposure code went too
-  //   far, chasing very bright highlights, and capturing frames with a TET that
-  //   is below what our (higher-quality) AE would have called for.
-  // In that case, without this limit, in the HDR block, the synthetic long
-  //   exposure would (potentially) use up to 8x digital gain (from the hdr
-  //   ratio), *in addition to some extra gain that the synthetic short exposure
-  //   needed*, pushing the long exposure over 8x, which we're not yet capable
-  //   of handling, due to artifacts from:
-  //     1. Imperfect black levels result in more color shifting
-  //     2. Noise
-  //     3. Quantization
-  float max_zsl_post_capture_gain;
 
   // *** The YUV pipeline ignores this member. ***
   // In the raw pipeline (only), this value controls the ratio between the
@@ -624,12 +689,14 @@ struct Tuning {
   //   sensor, for given capture settings and ideal signal level. This noise
   //   model is only useful for raw images; it is invalidated by the processing
   //   required to produce a YUV image.
-  // We assume that sensor noise can be modeled as the same over all Bayer
-  //   channels.
+  // There are four separate SensorNoiseModel's for each color channel of the
+  //   raw image, following the Bayer plane order defined by the top-left 2x2
+  //   pixels of the sensor, in row-column scan order (or "reading" order):
+  //   upper-left, upper-right, lower-left, and lower-right.
   // NOTE: This tuning overrides FrameMetadata::dng_noise_model_bayer[], but it
   //   should only be necessary for older devices, or devices with untrustworthy
   //   metadata.
-  SensorNoiseModel sensor_noise_model_override;
+  SensorNoiseModel sensor_noise_model_override_bayer[4];
 
   // This describes the row noise that occurs in the raw measurements from the
   // sensor.
@@ -890,12 +957,13 @@ struct Tuning {
   const CaptureParams& GetCaptureParams(const ShotParams& shot_params) const;
 };
 
-// Gets tuning for the given device code and sensor ID. Returns false if the
-// device code was not found, or if the tuning does not exist for the given
-// sensor ID.
-bool GetTuningFromDeviceCode(const char* device_code,  // Minus the "_M" prefix.
-                             int sensor_id,
-                             Tuning* tuning);
+// Gets tuning for the given device code and sensor ID.
+// If the tuning does not exist for the given sensor ID, or if the device code
+//   was not found and 'allow_unknown_devices' is false, returns false.
+// If the device code was not found and 'allow_unknown_devices' is true,
+//   warns and gets "uncalibrated" tuning.
+bool GetTuningFromDeviceCode(const std::string& device_code, int sensor_id,
+                             bool allow_unknown_devices, Tuning* tuning);
 
 // Check whether the given FrameMetadata and Tuning are consistent.
 bool CheckMetadataTuningConsistency(const FrameMetadata& meta,

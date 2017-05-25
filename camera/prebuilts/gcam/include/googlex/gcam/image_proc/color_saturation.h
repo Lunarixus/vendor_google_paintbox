@@ -115,9 +115,9 @@ class ColorSatSubParams {
               float sat_exp);
 
   // Applies the current settings for saturation & vibrance to an image.
-  void ProcessImage(const InterleavedWriteViewU8* rgb,
+  void ProcessImage(const InterleavedWriteViewU8& rgb,
                     const Context& gcam_context) const;
-  void ProcessImageReference(const InterleavedWriteViewU8* image) const;
+  void ProcessImageReference(const InterleavedWriteViewU8& image) const;
 
   inline bool UsesSaturation() const {
     return (fabsf(highlight_saturation_ - 0) >= (1.0f / 256.0f)) ||

@@ -34,7 +34,7 @@ class SaveInfo;
 //   them.
 class IShot {
  public:
-  virtual ~IShot() { }
+  virtual ~IShot() {}
 
   // Step 1: If you're using smart metering, take the latest background AE
   //   results and call BuildPayloadBurstSpec to convert it to a payload burst
@@ -109,8 +109,8 @@ class IShot {
   //     If they are smaller than QVGA, there might not be enough
   //     information, and the quality of Gcam's AE might suffer.
   //   SPATIAL GAIN MAPS:
-  //     sgm describes the LSC (lens shading correction) maps that the
-  //       ISP will apply to the Bayer raw frame.
+  //     The lens shading correction (LSC) maps for the raw metering
+  //       frames, corresponding to the full active area.
   //     Note that these maps are typically configured to fully correct
   //       the color shading of the lens, but to only PARTIALLY correct
   //       the vignetting of the lens.  They also might be a mixture of
@@ -119,7 +119,7 @@ class IShot {
   //     In general, Gcam's AE is aware of how much vignetting will be
   //       left in the shot, and exposes with this in mind.
   virtual void BeginMeteringFrames(
-      const BurstSpec& metering_burst_spec) = 0;             // Required.
+      const BurstSpec& metering_burst_spec) = 0;  // Required.
 
   // - yuv_id and raw_id: These are unique IDs associated with each image. The
   //     client must ensure that memory associated remains valid until it
@@ -127,15 +127,12 @@ class IShot {
   //     unique across all image types and be non-negative. The constant
   //     gcam::kInvalidImageId is reserved for the null image when the
   //     parameter can be invalid and will not receive a callback.
-  virtual bool AddMeteringFrame(
-      const FrameMetadata& metadata,
-      // At least one of 'yuv' or 'raw' must be valid.
-      int64_t yuv_id,
-      const YuvWriteView& yuv,
-      int64_t raw_id,
-      const RawWriteView& raw,
-      // May be invalid if raw != nullptr.
-      const SpatialGainMap& sgm) = 0;
+  virtual bool AddMeteringFrame(const FrameMetadata& metadata,
+                                // At least one of 'yuv' or 'raw' must be valid.
+                                int64_t yuv_id, const YuvWriteView& yuv,
+                                int64_t raw_id, const RawWriteView& raw,
+                                // May be invalid if raw != nullptr.
+                                const SpatialGainMap& sgm) = 0;
 
   // Raw-only wrapper, for clients that don't need the old YUV pipeline.
   inline bool AddMeteringFrame(const FrameMetadata& metadata, int64_t raw_id,
@@ -198,12 +195,8 @@ class IShot {
   //     compared to each other (without mixing the values from the ISP's
   //     algorithm with the values from Gcam's algorithm).
   //   SPATIAL GAIN MAPS:
-  //     The LSC (lens shading correction) map used at capture time is
-  //     required.  The improved (predicted/revised/recommended) map is
-  //     optional, but if provided, the final color quality of the shot
-  //     might improve.  Gcam owns these objects after this call, and will
-  //     delete them when it's finished with them.  (Note: Gcam does not use
-  //     the 'ideal' LSC map yet; coming soon.)
+  //     The lens shading correction (LSC) maps for the raw payload
+  //     frames, corresponding to the full active area.
   //   PERSISTENCE:
   //     Upon the return of each function, the following objects are
   //     done being used by Gcam, are no longer needed, and can be freed
@@ -238,7 +231,7 @@ class IShot {
       // The remaining parameters describe the viewfinder frame on which the
       // AE results will be based.
       const FrameMetadata& metadata,
-      const RawWriteView& raw,        //  Must be valid.
+      const RawWriteView& raw,  //  Must be valid.
       const SpatialGainMap& sgm) = 0;
 
   // For non-ZSL shots.
@@ -268,11 +261,9 @@ class IShot {
   // for that image ID. IDs must be globally unique across all image types and
   // be non-negative. The constant gcam::kInvalidImageId is reserved for invalid
   // images, in which case the client will not receive a callback.
-  virtual bool AddPayloadFrame(
-      const FrameMetadata& metadata,   // Required.
-      int64_t raw_id,
-      const RawWriteView& raw,
-      const SpatialGainMap& sgm) = 0;  // Required.
+  virtual bool AddPayloadFrame(const FrameMetadata& metadata,  // Required.
+                               int64_t raw_id, const RawWriteView& raw,
+                               const SpatialGainMap& sgm) = 0;  // Required.
 
   // Add metadata for an arbitrary set of frames, logged to file and MakerNote.
   // Generally these frames are not part of any burst. This extra metadata is
@@ -283,9 +274,9 @@ class IShot {
 
   // Call EndPayloadFrames once all payload frames have been submitted.
   virtual bool EndPayloadFrames(
-      const ClientExifMetadata*       client_exif_metadata,     // Optional.
-      const std::vector<std::string>* general_warnings,         // Optional.
-      const std::vector<std::string>* general_errors) = 0;      // Optional.
+      const ClientExifMetadata* client_exif_metadata,       // Optional.
+      const std::vector<std::string>* general_warnings,     // Optional.
+      const std::vector<std::string>* general_errors) = 0;  // Optional.
 
   // Step 6:
   // Call gcam::EndShotCapture.
@@ -305,14 +296,15 @@ class IShot {
   //   returned memory - use delete for InterleavedImageU8*, RawImage*,
   //   YuvImage*, and delete[] for a JPG or DNG encoded to memory.
 
-  // Returns the burst_id of the shot.
-  virtual int burst_id() const = 0;
+  // Returns a unique id for this shot. No two IShot's will have the same id
+  // over the same instantiation of the Gcam object.
+  virtual int shot_id() const = 0;
 
   virtual SaveInfo* save() = 0;
 
-  virtual const Tuning& tuning() = 0;
-  virtual const ShotParams& shot_params() = 0;
-  virtual const StaticMetadata& static_metadata() = 0;
+  virtual const Tuning& tuning() const = 0;
+  virtual const ShotParams& shot_params() const = 0;
+  virtual const StaticMetadata& static_metadata() const = 0;
 };
 
 }  // namespace gcam

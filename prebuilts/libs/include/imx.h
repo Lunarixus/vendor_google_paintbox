@@ -37,6 +37,7 @@ typedef enum {
   IMX_TIMEOUT, /* Request timed out (e.g. while waiting for interrupt) */
   IMX_NOT_FOUND, /* Resource not found */
   IMX_TYPE_MISMATCH, /* Type doesn't match */
+  IMX_OVERFLOW,  /* Data transfer/stream overflow; typically with MIPI Input */
 } ImxError;
 
 /* Data types.  Corresponding validation routine is "numeric_type_valid()". */
@@ -219,7 +220,8 @@ typedef enum {
   IMX_NO_RESOURCES_DESCRIPTION = 0,
   IMX_ALL_RESOURCES_DESCRIPTION,
   IMX_NUMBER_OF_RESOURCES_DESCRIPTION,
-  IMX_SPECIFIC_RESOURCES_DESCRIPTION
+  IMX_SPECIFIC_RESOURCES_DESCRIPTION,
+  IMX_AVAILABLE_RESOURCES_DESCRIPTION,
 } ImxResourceDescriptionMode;
 
 /* Describes how the resources assigned to a device will be used for the
@@ -254,17 +256,21 @@ typedef enum {
  * and specific ids when requesting resources.
  * Allowed combinations are:
  *       core resources                         io resources
- * IMX_ALL_RESOURCES_DESCRIPTION          IMX_ALL_RESOURCES_DESCRIPTION
- * IMX_NO_RESOURCES_DESCRIPTION           IMX_ALL_RESOURCES_DESCRIPTION
  * IMX_ALL_RESOURCES_DESCRIPTION          IMX_NO_RESOURCES_DESCRIPTION
  *
- * IMX_NUMBER_OF_RESOURCES_DESCRIPTION    IMX_NUMBER_OF_RESOURCES_DESCRIPTION
- * IMX_NUMBER_OF_RESOURCES_DESCRIPTION    IMX_NO_RESOURCES_DESCRIPTION
+ * IMX_NO_RESOURCES_DESCRIPTION           IMX_ALL_RESOURCES_DESCRIPTION
  * IMX_NO_RESOURCES_DESCRIPTION           IMX_NUMBER_OF_RESOURCES_DESCRIPTION
- *
- * IMX_SPECIFIC_RESOURCES_DESCRIPTION     IMX_SPECIFIC_RESOURCES_DESCRIPTION
- * IMX_SPECIFIC_RESOURCES_DESCRIPTION     IMX_NO_RESOURCES_DESCRIPTION
  * IMX_NO_RESOURCES_DESCRIPTION           IMX_SPECIFIC_RESOURCES_DESCRIPTION
+ *
+ * IMX_NUMBER_OF_RESOURCES_DESCRIPTION    IMX_NO_RESOURCES_DESCRIPTION
+ * IMX_NUMBER_OF_RESOURCES_DESCRIPTION    IMX_NUMBER_OF_RESOURCES_DESCRIPTION
+ *
+ * IMX_SPECIFIC_RESOURCES_DESCRIPTION     IMX_NO_RESOURCES_DESCRIPTION
+ * IMX_SPECIFIC_RESOURCES_DESCRIPTION     IMX_SPECIFIC_RESOURCES_DESCRIPTION
+ *
+ * IMX_AVAILABLE_RESOURCES_DESCRIPTION    IMX_NO_RESOURCES_DESCRIPTION
+ * IMX_AVAILABLE_RESOURCES_DESCRIPTION    IMX_ALL_RESOURCES_DESCRIPTION
+ * IMX_AVAILABLE_RESOURCES_DESCRIPTION    IMX_NUMBER_OF_RESOURCES_DESCRIPTION
  *
  * device_path selects the physical device that the virtual device is created
  * on. A device_path of NULL selects the default device.
@@ -307,14 +313,6 @@ ImxError ImxGetDefaultDeviceWithOptions(ImxDeviceHandle *device_handle_ptr,
                                         int num_simulator_options,
                                         char **simulator_options);
 
-/* Creates a device with all available core and mipi resources. Note that
- * resources that are shared between mipi and core use (such as some DMA
- * channels, interrupts) will be assigned to mipi use only (until b/30854077
- * is fixed).
- */
-ImxError ImxGetDeviceWithAllMipiAndCoreResources(
-    ImxDeviceHandle *device_handle_ptr);
-
 /* Creates a device with resources as specified in device_descr
  * device_descr device description, includes resource required for this device.
  * device_descr is not modified in this function; however, the resource
@@ -329,6 +327,15 @@ ImxError ImxGetDeviceWithOptions(
     int num_simulator_options,
     char **simulator_options,  /* modified */
     ImxDeviceHandle *device_handle_ptr  /* out */);
+
+/* Sets the command line options (i.e. gFlags FLAG_... variables) for use
+ * by IPU compiler, runtime (and simulator, if present).
+ * options array contains a list of individual options, specified as
+ * --<key>=<value>
+ */
+ImxError ImxSetCommandLineOptions(
+    char **options,  /* modified */
+    int num_options);
 
 typedef void (*ImxDumpCallback)(const char *);
 
@@ -553,7 +560,7 @@ ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
 
 /* Saves a copy of compiled_graph (and related structures) to file(s) in the
  * directory save_dir_path. Currently, multiple files are saved: the
- * precompiled graph configuration (save_dir_path/file_name and binary pISA
+ * precompiled graph configuration (save_dir_path/file_name) and binary pISA
  * files (*.bpisa in save_dir_path) for the stencil-processor program kernels.
  */
 /* TODO(ahalambi): Change this API (or provide a new one) that returns a

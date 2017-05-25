@@ -160,26 +160,18 @@ class ReadOnlyTImageView {
   ReadOnlyTImageView() = default;
 
   // Interprets external memory passed in via 'base_pointer' as a read-only
-  // image view. The resulting view does not take ownership of the memory
-  // and hence, 'allocator' does nothing.
-  // TODO(jiawen): Remove allocator from views - they shouldn't have them
-  // anyway, only Images need them.
+  // image view. The resulting view does not take ownership of the memory.
   ReadOnlyTImageView(
       int width, int height, int num_channels, SampleType* base_pointer,
-      size_t row_padding,
-      TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
-
-  // Access to the memory allocator for the samples.
-  TImageSampleAllocator* allocator() const { return allocator_; }
-
+      size_t row_padding);
   virtual ~ReadOnlyTImageView();
 
   ReadOnlyTImageView& operator=(const ReadOnlyTImageView& other);
 
   // Width, height, number of channels and layout of the image:
-  int width() const { return strides_.width; }
-  int height() const { return strides_.height; }
-  int num_channels() const { return strides_.num_channels; }
+  int width() const { return strides_.width_; }
+  int height() const { return strides_.height_; }
+  int num_channels() const { return strides_.num_channels_; }
   static constexpr TImageLayout sample_layout() { return layout; }
 
   // Addressing pixels and samples:
@@ -220,9 +212,9 @@ class ReadOnlyTImageView {
   explicit inline operator bool() const { return *this != nullptr; }
 
   T* base_pointer() const { return base_pointer_; }
-  size_t x_stride() const { return strides_.x_stride; }
-  size_t y_stride() const { return strides_.y_stride; }
-  size_t c_stride() const { return strides_.c_stride; }
+  size_t x_stride() const { return strides_.x_stride_; }
+  size_t y_stride() const { return strides_.y_stride_; }
+  size_t c_stride() const { return strides_.c_stride_; }
   size_t sizeof_sample_type() const { return sizeof(SampleType); }
   int row_padding() const { return strides_.row_padding(); }
 
@@ -324,13 +316,7 @@ class ReadOnlyTImageView {
   ReadOnlyTImageView(const TImageStrides<layout>& strides,
                      SampleType* base_pointer);
 
-  // Do not make the Swap() function public. The function must only be
-  // called by ReadWriteTImageView<layout, T>::Swap().  Application code
-  // calling Swap() on a ReadOnlyImageView could result in object slicing.
-  void Swap(ReadOnlyTImageView* other);
-
   TImageStrides<layout> strides_ = TImageStrides<layout>(0, 0, 0, 0);
-  TImageSampleAllocator* allocator_ = nullptr;
   SampleType* base_pointer_ = nullptr;
 };
 
@@ -361,9 +347,7 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   ReadWriteTImageView() : ReadOnlyView() {}
 
   ReadWriteTImageView(int width, int height, int num_channels,
-         SampleType* base_pointer, size_t row_padding,
-         TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
-
+                      SampleType* base_pointer, size_t row_padding);
   ~ReadWriteTImageView() override;
 
   ReadWriteTImageView& operator=(const ReadWriteTImageView& other);
@@ -448,14 +432,8 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   ReadWriteTImageView(const TImageStrides<layout>& strides,
                       SampleType* base_pointer);
 
-  // Do not make the Swap() function public. The function must only be
-  // called by TImage<layout, T>::Swap().  Application code calling Swap()
-  // on a ReadWriteImageView could result in object slicing.
-  void Swap(ReadWriteTImageView* other) { ReadOnlyView::Swap(other); }
-
   using ReadOnlyView::strides_;
   using ReadOnlyView::base_pointer_;
-  using ReadOnlyView::allocator_;
 };
 
 // An image whose samples are of type T.
@@ -490,7 +468,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // base_pointer. The base_pointer will be released in the destructor using the
   // allocator.
   TImage(int width, int height, int num_channels, size_t row_padding,
-         SampleType *base_pointer,
+         SampleType* base_pointer,
          TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
   // Deep copy constructor - creates a new image by copying an existing
@@ -502,6 +480,12 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // original image."
   // TODO(ruiduoy): This constructor should be refactored to the one taking
   // view as input.
+  // TODO(jiawen): Get rid of the allocator parameter altogether and make the
+  // copy constructor a true copy, including the allocator. An optional
+  // allocator makes downstream code hard to reason about and is not available
+  // to operator =. In the proposed design, if the client wants to use a custom
+  // allocator for a new image and only copy the contents, they should allocate
+  // a TImage explicitly then call call CopyContents(src_view, dst_image).
   TImage(const TImage& other, TImageSampleAllocator* allocator = nullptr);
 
   TImage() = default;
@@ -532,29 +516,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   using ReadWriteView::sample_iterator;
   using ReadOnlyView::sample_array_size;
 
-  // Removing padding from an image, and cropping an image:
-  //
-  // RemovePadding() re-allocates and compacts the sample memory of the
-  // image, removing any padding.
-  //
-  // Crop(x0, y0, x1, y1) is equivalent to
-  //    FastCrop(x0, 01, x1, y1); RemovePadding();
-  //
   using ReadOnlyView::FastCrop;
-  void Crop(int x0, int y0, int x1, int y1);
-  void RemovePadding();
-
-  // DestructiveResize() resizes the image so that it has the specified
-  // width, height, number of channels, row padding and initial sample values.
-  // As the name of the function implies, the previous contents of the image
-  // are not preserved.
-  void DestructiveResize(int width, int height, int num_channels,
-                         TImageInit init = kInitUndefined,
-                         size_t row_padding = 0);
-
-  // Swap() swaps the contents of two images, including width, height,
-  // number of channels, sample memory and allocators.
-  virtual void Swap(TImage* other);
 
   // Filling and copying pixels.
   using ReadWriteView::Fill;
@@ -566,15 +528,19 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // Test if the the sample memory for this image view includes padding.
   using ReadOnlyView::SamplesAreCompact;
 
+  // Access to the memory allocator for the samples.
+  TImageSampleAllocator* allocator() const { return allocator_; }
+
  private:
   using ReadOnlyView::strides_;
   using ReadOnlyView::base_pointer_;
-  using ReadOnlyView::allocator_;
 
   T* AllocateMemory(size_t num_samples) const;
   void ReleaseMemory();
 
-  SampleType* memory_ = nullptr;  // Owned
+  SampleType* memory_ = nullptr;  // Owned.
+  // 'allocator_' cannot be nullptr.
+  TImageSampleAllocator* allocator_ = TImageDefaultSampleAllocator();
 };
 
 // An iterator for looping over the samples in an image view in the most
@@ -728,8 +694,6 @@ typedef TImage<float, kChannelContiguous>
 // Implementation of template class TImageStrides<layout>, with specializations
 // for kPixelContiguous and kChannelContiguous layouts.
 
-// TODO(jiawen): Make this class immutable by getting rid of Reset().
-// CopyAndCompactSamples should return a new TImageStrides.
 template <TImageLayout layout>
 class TImageStrides {
  public:
@@ -742,137 +706,82 @@ class TImageStrides {
   int inner_limit() const;
   int row_padding() const;  // Row padding is in samples, not bytes.
 
-  TImageStrides(const TImageStrides &other) = default;
+  TImageStrides(const TImageStrides& other) = default;
+  TImageStrides& operator=(const TImageStrides& other) = default;
 
-  void Reset(int width, int height, int num_channels, int row_padding);
-
-  // Copies the samples stored in *old_base_pointer to *new_base_pointer,
-  // and compacts them by eliminating any padding.  new_base_pointer must
-  // point to an array with room for at least (width * height * num_channels)
-  // samples of type T.  After the samples have been copied, x_stride,
-  // y_stride and c_stride are adjusted to reflect the sample layout in
-  // *new_base_pointer.
-  template <typename T>
-  void CopyAndCompactSamples(const T* old_base_pointer, T* new_base_pointer);
-
-  int width;
-  int height;
-  int num_channels;
-  size_t x_stride;
-  size_t y_stride;
-  size_t c_stride;
-  size_t num_samples;
+  int width_;
+  int height_;
+  int num_channels_;
+  size_t x_stride_;
+  size_t y_stride_;
+  size_t c_stride_;
+  size_t num_samples_;
 };
 
 template <>
 class TImageStrides<kPixelContiguous> {
  public:
-  TImageStrides(int width, int height, int num_channels, int row_padding) {
-    Reset(width, height, num_channels, row_padding);
-  }
+  TImageStrides(int width, int height, int num_channels, int row_padding)
+      : width_(width),
+        height_(height),
+        num_channels_(num_channels),
+        x_stride_(num_channels),
+        y_stride_(x_stride_ * width + row_padding),
+        c_stride_(1),
+        num_samples_(y_stride_ * height) {}
 
   TImageStrides(const TImageStrides &other) = default;
+  TImageStrides& operator=(const TImageStrides& other) = default;
 
-  void Reset(int new_width, int new_height, int new_num_channels,
-             int new_row_padding) {
-    width = new_width;
-    height = new_height;
-    num_channels = new_num_channels;
-    x_stride = new_num_channels;
-    y_stride = x_stride * new_width + new_row_padding;
-    c_stride = 1;
-    num_samples = y_stride * new_height;
-  }
-
-  size_t outer_stride() const { return y_stride; }
-  size_t middle_stride() const { return x_stride; }
-  size_t inner_stride() const { return c_stride; }
-  int outer_limit() const { return height; }
-  int middle_limit() const { return width; }
-  int inner_limit() const { return num_channels; }
+  size_t outer_stride() const { return y_stride_; }
+  size_t middle_stride() const { return x_stride_; }
+  size_t inner_stride() const { return c_stride_; }
+  int outer_limit() const { return height_; }
+  int middle_limit() const { return width_; }
+  int inner_limit() const { return num_channels_; }
   int row_padding() const {
-    return static_cast<int>(y_stride - x_stride * width);
+    return static_cast<int>(y_stride_ - x_stride_ * width_);
   }
 
-  template <typename T>
-  void CopyAndCompactSamples(const T* old_base_pointer, T* new_base_pointer) {
-    size_t new_y_stride = width * num_channels;
-    size_t new_bytes_per_row = new_y_stride * sizeof(T);
-    T* new_row = new_base_pointer;
-    const T* old_row = old_base_pointer;
-    for (int y = 0; y < height; ++y) {
-      memcpy(new_row, old_row, new_bytes_per_row);
-      new_row += new_y_stride;
-      old_row += y_stride;
-    }
-    x_stride = num_channels;
-    y_stride = new_y_stride;
-    c_stride = 1;
-  }
-
-  int width;
-  int height;
-  int num_channels;
-  size_t x_stride;
-  size_t y_stride;
-  size_t c_stride;
-  size_t num_samples;
+  int width_;
+  int height_;
+  int num_channels_;
+  size_t x_stride_;
+  size_t y_stride_;
+  size_t c_stride_;
+  size_t num_samples_;
 };
 
 template <>
 class TImageStrides<kChannelContiguous> {
  public:
-  TImageStrides(int width, int height, int num_channels, int row_padding) {
-    Reset(width, height, num_channels, row_padding);
-  }
+  TImageStrides(int width, int height, int num_channels, int row_padding)
+      : width_(width),
+        height_(height),
+        num_channels_(num_channels),
+        x_stride_(1),
+        y_stride_(width + row_padding),
+        c_stride_(y_stride_ * height),
+        num_samples_(c_stride_ * num_channels) {}
 
   TImageStrides(const TImageStrides &other) = default;
+  TImageStrides& operator=(const TImageStrides& other) = default;
 
-  void Reset(int new_width, int new_height, int new_num_channels,
-             int new_row_padding) {
-    width = new_width;
-    height = new_height;
-    num_channels = new_num_channels;
-    x_stride = 1;
-    y_stride = width + new_row_padding;
-    c_stride = y_stride * new_height;
-    num_samples = c_stride * new_num_channels;
-  }
+  size_t outer_stride() const { return c_stride_; }
+  size_t middle_stride() const { return y_stride_; }
+  size_t inner_stride() const { return x_stride_; }
+  int outer_limit() const { return num_channels_; }
+  int middle_limit() const { return height_; }
+  int inner_limit() const { return width_; }
+  int row_padding() const { return static_cast<int>(y_stride_ - width_); }
 
-  size_t outer_stride() const { return c_stride; }
-  size_t middle_stride() const { return y_stride; }
-  size_t inner_stride() const { return x_stride; }
-  int outer_limit() const { return num_channels; }
-  int middle_limit() const { return height; }
-  int inner_limit() const { return width; }
-  int row_padding() const { return static_cast<int>(y_stride - width); }
-
-  template <typename T>
-  void CopyAndCompactSamples(const T* old_base_pointer, T* new_base_pointer) {
-    size_t new_c_stride = width * height;
-    size_t new_y_stride = width;
-    size_t new_bytes_per_row = new_y_stride * sizeof(T);
-    for (int c = 0; c < num_channels; ++c) {
-      T* new_row = new_base_pointer + c * new_c_stride;
-      const T* old_row = old_base_pointer + c * c_stride;
-      for (int y = 0; y < height; ++y) {
-        memcpy(new_row, old_row, new_bytes_per_row);
-        new_row += new_y_stride;
-        old_row += y_stride;
-      }
-    }
-    x_stride = 1;
-    y_stride = new_y_stride;
-    c_stride = new_c_stride;
-  }
-
-  int width;
-  int height;
-  int num_channels;
-  size_t x_stride;
-  size_t y_stride;
-  size_t c_stride;
-  size_t num_samples;
+  int width_;
+  int height_;
+  int num_channels_;
+  size_t x_stride_;
+  size_t y_stride_;
+  size_t c_stride_;
+  size_t num_samples_;
 };
 
 //-----------------------------------------------------------------------------
@@ -995,7 +904,6 @@ template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
     const ReadOnlyTImageView& other)
     : strides_(other.strides_),
-      allocator_(other.allocator_),
       base_pointer_(other.base_pointer_) {}
 
 template <typename T, TImageLayout layout>
@@ -1009,24 +917,21 @@ template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
     const TImageStrides<layout>& strides,
     SampleType* base_pointer) : strides_(strides),
-                                allocator_(nullptr),
                                 base_pointer_(base_pointer) {}
 
 template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
     int width, int height, int num_channels, SampleType* base_pointer,
-    size_t row_padding, TImageSampleAllocator* allocator)
+    size_t row_padding)
     : ReadOnlyTImageView(
           TImageStrides<layout>(width, height, num_channels, row_padding),
           base_pointer) {
-  allocator_ = allocator;
 }
 
 template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>& ReadOnlyTImageView<T, layout>::
     operator=(const ReadOnlyTImageView<T, layout>& other) {
   strides_ = other.strides_;
-  allocator_ = other.allocator_;
   base_pointer_ = other.base_pointer_;
   return *this;
 }
@@ -1049,8 +954,8 @@ template <typename T, TImageLayout layout> inline
 typename ReadOnlyTImageView<T, layout>::ConstSampleIterator
 ReadOnlyTImageView<T, layout>::sample_iterator(int c) const {
   auto tmp_strides = strides_;
-  tmp_strides.num_channels = 1;
-  const T* tmp_base_pointer = base_pointer_ + c * strides_.c_stride;
+  tmp_strides.num_channels_ = 1;
+  const T* tmp_base_pointer = base_pointer_ + c * strides_.c_stride_;
   return ConstSampleIterator(tmp_strides, tmp_base_pointer, c);
 }
 
@@ -1062,11 +967,11 @@ void ReadOnlyTImageView<T, layout>::FastCrop(int x0, int y0, int x1, int y1) {
 
   x0 = std::max(x0, 0);
   y0 = std::max(y0, 0);
-  x1 = std::min(x1, strides_.width);
-  y1 = std::min(y1, strides_.height);
-  base_pointer_ += x0 * strides_.x_stride + y0 * strides_.y_stride;
-  strides_.width  = std::max(0, x1 - x0);
-  strides_.height = std::max(0, y1 - y0);
+  x1 = std::min(x1, strides_.width_);
+  y1 = std::min(y1, strides_.height_);
+  base_pointer_ += x0 * strides_.x_stride_ + y0 * strides_.y_stride_;
+  strides_.width_  = std::max(0, x1 - x0);
+  strides_.height_ = std::max(0, y1 - y0);
 }
 
 template <typename T, TImageLayout layout>
@@ -1082,13 +987,7 @@ bool ReadOnlyTImageView<T, layout>::SamplesAreCompact() const {
 
 template <typename T, TImageLayout layout>
 inline size_t ReadOnlyTImageView<T, layout>::sample_array_size() const {
-  return strides_.num_samples * sizeof(T);
-}
-
-template <typename T, TImageLayout layout>
-void ReadOnlyTImageView<T, layout>::Swap(ReadOnlyTImageView* other) {
-  std::swap(strides_, other->strides_);
-  std::swap(base_pointer_, other->base_pointer_);
+  return strides_.num_samples_ * sizeof(T);
 }
 
 //-----------------------------------------------------------------------------
@@ -1112,11 +1011,10 @@ ReadWriteTImageView<T, layout>::ReadWriteTImageView(
 template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>::ReadWriteTImageView(
     int width, int height, int num_channels, SampleType* base_pointer,
-    size_t row_padding, TImageSampleAllocator* allocator)
+    size_t row_padding)
     : ReadWriteTImageView(
           TImageStrides<layout>(width, height, num_channels, row_padding),
           base_pointer) {
-  allocator_ = allocator;
 }
 
 template <typename T, TImageLayout layout>
@@ -1126,7 +1024,6 @@ template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>& ReadWriteTImageView<T, layout>::
     operator=(const ReadWriteTImageView<T, layout>& other) {
   strides_ = other.strides_;
-  allocator_ = other.allocator_;
   base_pointer_ = other.base_pointer_;
   return *this;
 }
@@ -1146,8 +1043,8 @@ template <typename T, TImageLayout layout> inline
 typename ReadWriteTImageView<T, layout>::SampleIterator
 ReadWriteTImageView<T, layout>::sample_iterator(int c) const {
   auto tmp_strides = strides_;
-  tmp_strides.num_channels = 1;
-  T* tmp_base_pointer = base_pointer_ + c * ReadOnlyView::strides_.c_stride;
+  tmp_strides.num_channels_ = 1;
+  T* tmp_base_pointer = base_pointer_ + c * ReadOnlyView::strides_.c_stride_;
   return SampleIterator(tmp_strides, tmp_base_pointer, c);
 }
 
@@ -1265,15 +1162,16 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
           TImageStrides<layout>(width, height, num_channels, row_padding),
           nullptr) {
   allocator_ = allocator;
-  assert(strides_.width >= 0);
-  assert(strides_.height >= 0);
-  assert(strides_.num_channels >= 1);
+  assert(allocator_);
+  assert(strides_.width_ >= 0);
+  assert(strides_.height_ >= 0);
+  assert(strides_.num_channels_ >= 1);
 
-  memory_ = AllocateMemory(strides_.num_samples);
+  memory_ = AllocateMemory(strides_.num_samples_);
   base_pointer_ = memory_;
 
   if (init == kInitZero) {
-    memset(base_pointer_, 0, strides_.num_samples * sizeof(SampleType));
+    memset(base_pointer_, 0, strides_.num_samples_ * sizeof(SampleType));
   }
 }
 
@@ -1285,20 +1183,23 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
           TImageStrides<layout>(width, height, num_channels, row_padding),
           base_pointer) {
   allocator_ = allocator;
-  assert(strides_.width >= 0);
-  assert(strides_.height >= 0);
-  assert(strides_.num_channels >= 1);
+  assert(allocator_);
+  assert(strides_.width_ >= 0);
+  assert(strides_.height_ >= 0);
+  assert(strides_.num_channels_ >= 1);
   memory_ = base_pointer_;
 }
 
 template <typename T, TImageLayout layout>
-TImage<T, layout>::TImage(const TImage& other,
-                          TImageSampleAllocator* allocator)
+TImage<T, layout>::TImage(const TImage& other, TImageSampleAllocator* allocator)
     : ReadWriteView(other.strides_, nullptr) {
-  allocator_ = allocator ? allocator : other.allocator();
+  // If the user specified an allocator, then use it. Otherwise, use the
+  // allocator from 'other'.
+  allocator_ = allocator ? allocator : other.allocator_;
+  assert(allocator_);
   if (other) {
-    memory_ = AllocateMemory(strides_.num_samples);
-    memcpy(memory_, other.memory_, strides_.num_samples * sizeof(SampleType));
+    memory_ = AllocateMemory(strides_.num_samples_);
+    memcpy(memory_, other.memory_, strides_.num_samples_ * sizeof(SampleType));
     base_pointer_ = memory_ + (other.base_pointer_ - other.memory_);
   } else {
     memory_ = nullptr;
@@ -1308,27 +1209,31 @@ TImage<T, layout>::TImage(const TImage& other,
 
 template <typename T, TImageLayout layout>
 TImage<T, layout>::TImage(TImage&& other) : TImage() {
-  if (this != &other) {
-    *this = nullptr;
-    strides_ = other.strides_;
-    base_pointer_ = other.base_pointer_;
-    memory_ = other.memory_;
-    allocator_ = other.allocator_;
-    other.base_pointer_ = nullptr;
-    other = nullptr;
-  }
+  strides_ = other.strides_;
+  base_pointer_ = other.base_pointer_;
+  memory_ = other.memory_;
+  allocator_ = other.allocator_;
+
+  other.strides_ = TImageStrides<layout>(0, 0, 0, 0);
+  other.base_pointer_ = nullptr;
+  other.memory_ = nullptr;
+  other.allocator_ = TImageDefaultSampleAllocator();
 }
 
 template <typename T, TImageLayout layout>
 TImage<T, layout>& TImage<T, layout>::operator=(TImage&& other) {
   if (this != &other) {
-    *this = nullptr;
+    ReleaseMemory();
+
     strides_ = other.strides_;
     base_pointer_ = other.base_pointer_;
     memory_ = other.memory_;
     allocator_ = other.allocator_;
+
+    other.strides_ = TImageStrides<layout>(0, 0, 0, 0);
     other.base_pointer_ = nullptr;
-    other = nullptr;
+    other.memory_ = nullptr;
+    other.allocator_ = TImageDefaultSampleAllocator();
   }
   return *this;
 }
@@ -1336,12 +1241,15 @@ TImage<T, layout>& TImage<T, layout>::operator=(TImage&& other) {
 template <typename T, TImageLayout layout>
 TImage<T, layout>& TImage<T, layout>::operator=(const TImage& other) {
   if (this != &other) {
-    *this = nullptr;
+    ReleaseMemory();
+
     strides_ = other.strides_;
     allocator_ = other.allocator_;
+    assert(allocator_);
     if (other) {
-      memory_ = AllocateMemory(strides_.num_samples);
-      memcpy(memory_, other.memory_, strides_.num_samples * sizeof(SampleType));
+      memory_ = AllocateMemory(strides_.num_samples_);
+      memcpy(memory_, other.memory_,
+             strides_.num_samples_ * sizeof(SampleType));
       base_pointer_ = memory_ + (other.base_pointer_ - other.memory_);
     } else {
       memory_ = nullptr;
@@ -1361,62 +1269,9 @@ TImage<T, layout>& TImage<T, layout>::operator=(std::nullptr_t) {
   ReleaseMemory();
   base_pointer_ = nullptr;
   memory_ = nullptr;
-  allocator_ = nullptr;
+  allocator_ = TImageDefaultSampleAllocator();
   strides_ = TImageStrides<layout>(0, 0, 0, 0);
   return *this;
-}
-
-template <typename T, TImageLayout layout>
-void TImage<T, layout>::Crop(int x0, int y0, int x1, int y1) {
-  FastCrop(x0, y0, x1, y1);
-  RemovePadding();
-}
-
-template <typename T, TImageLayout layout>
-void TImage<T, layout>::RemovePadding() {
-  // Early out if there's no padding and we own the sample memory.
-  size_t new_num_samples =
-      strides_.width * strides_.height * strides_.num_channels;
-
-  if (new_num_samples == strides_.num_samples) {
-    return;
-  }
-
-  // Allocate new memory, copy the samples.
-  SampleType* new_memory = AllocateMemory(new_num_samples);
-  strides_.CopyAndCompactSamples(base_pointer_, new_memory);
-
-  // Fix up memory pointer, base pointer and total number of samples.
-  ReleaseMemory();
-  memory_ = new_memory;
-  base_pointer_ = new_memory;
-  strides_.num_samples = new_num_samples;
-}
-
-template <typename T, TImageLayout layout>
-void TImage<T, layout>::DestructiveResize(
-    int width, int height, int num_channels,
-    TImageInit init, size_t row_padding) {
-  ReleaseMemory();
-
-  strides_.Reset(width, height, num_channels, row_padding);
-  assert(strides_.width >= 0);
-  assert(strides_.height >= 0);
-  assert(strides_.num_channels >= 1);
-
-  memory_ = AllocateMemory(strides_.num_samples);
-  base_pointer_ = memory_;
-
-  if (init == kInitZero) {
-    memset(base_pointer_, 0, strides_.num_samples * sizeof(SampleType));
-  }
-}
-
-template <typename T, TImageLayout layout>
-void TImage<T, layout>::Swap(TImage* other) {
-  ReadWriteView::Swap(other);
-  std::swap(allocator_, other->allocator_);
-  std::swap(memory_, other->memory_);
 }
 
 template <typename T, TImageLayout layout>
@@ -1428,7 +1283,7 @@ T* TImage<T, layout>::AllocateMemory(size_t num_samples) const {
 template <typename T, TImageLayout layout>
 void TImage<T, layout>::ReleaseMemory() {
   if (*this) {
-    allocator_->Deallocate(memory_, strides_.num_samples * sizeof(SampleType));
+    allocator_->Deallocate(memory_, strides_.num_samples_ * sizeof(SampleType));
     memory_ = nullptr;
   }
 }

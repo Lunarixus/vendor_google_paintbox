@@ -84,8 +84,7 @@ private:
     public:
         GcamFinalImageCallback(std::weak_ptr<PipelineBlock> block);
         virtual ~GcamFinalImageCallback() = default;
-    private:
-        void Run(int burst_id, gcam::YuvImage* yuv_result, gcam::InterleavedImageU8* rgb_result,
+        void Run(const gcam::IShot* shot, gcam::YuvImage* yuv_result, gcam::InterleavedImageU8* rgb_result,
                 gcam::GcamPixelFormat pixel_format) const override;
         std::weak_ptr<PipelineBlock> mBlock;
     };
@@ -170,6 +169,8 @@ private:
 
     // TODO: Remove reference to source capture block. b/34854987
     std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;
+
+    gcam::ShotCallbacks mShotCallbacks;
 };
 
 } // namespace pbcamera

@@ -153,8 +153,6 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     }
 
     auto shotCapture = std::make_shared<ShotCapture>();
-    shotCapture->burstId = outputRequest.metadata.requestId;
-
 
     auto sourceCaptureBlock = mSourceCaptureBlock.lock();
     if (sourceCaptureBlock != nullptr) {
@@ -213,6 +211,8 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     gcam::ShotParams shotParams;
     shotParams.ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
     shotParams.ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
+    shotParams.ae.target_width = mStaticMetadata->activeArraySize[2];
+    shotParams.ae.target_height = mStaticMetadata->activeArraySize[3];
     shotParams.ae.process_bayer_for_payload = true;
     // TODO: When we support capture requests with timestamps, we may want to change this to
     // the index of the frame that has the closest timestamp.
@@ -228,12 +228,19 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
 
     // camera_id is always 0 because we only set 1 static metadata in GCAM for current camera
     // which could be rear or front camera.
-    gcam::IShot* shot = mGcam->StartShotCapture(/*camera_id*/0, shotCapture->burstId,
-            shotParams, /*postview_params*/nullptr, /*debug_save_params*/nullptr);
+    gcam::IShot* shot = mGcam->StartShotCapture(
+            /*camera_id*/0,
+            shotParams,
+            mShotCallbacks,
+            kGcamFinalImageFormat,
+            gcam::PostviewParams(),
+            /*image_saver_params*/nullptr);
     if (shot == nullptr) {
         ALOGE("%s: Failed to start a shot capture.", __FUNCTION__);
         return -ENODEV;
     }
+
+    shotCapture->burstId = shot->shot_id();
 
     // Begin payload frame with an empty burst spec for ZSL.
     gcam::BurstSpec burstSpec;
@@ -729,6 +736,15 @@ status_t HdrPlusProcessingBlock::initGcam() {
             std::make_unique<GcamInputImageReleaseCallback>(shared_from_this());
     mGcamFinalImageCallback =
             std::make_unique<GcamFinalImageCallback>(shared_from_this());
+    mShotCallbacks = {
+            /*base_frame_callback*/nullptr,
+            /*postview_callback*/nullptr,
+            /*merge_raw_image_callback*/nullptr,
+            /*merged_dng_callback*/nullptr,
+            /*final_image_callback*/mGcamFinalImageCallback.get(),
+            /*jpeg_callback*/nullptr,
+            /*progress_callback*/nullptr,
+            /*finished_callback*/nullptr};
 
     // Set up gcam init params.
     gcam::InitParams initParams;
@@ -743,8 +759,6 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.min_payload_frames = kGcamMinPayloadFrames;
     initParams.payload_frame_copy_mode = kGcamPayloadFrameCopyMode;
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
-    initParams.final_image_callback = mGcamFinalImageCallback.get();
-    initParams.final_image_pixel_format = kGcamFinalImageFormat;
     initParams.correct_blacklevel = kGcamCorrectBlackLevel;
     initParams.detect_flare = kGcamDetectFlare;
 
@@ -753,11 +767,6 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.merge_queue_empty_callback = nullptr;
     initParams.finish_queue_empty_callback = nullptr;
     initParams.background_ae_results_callback = nullptr;
-    initParams.postview_callback = nullptr;
-    initParams.merged_dng_callback = nullptr;
-    initParams.jpeg_callback = nullptr;
-    initParams.progress_callback = nullptr;
-    initParams.finished_callback = nullptr;
 
     char *use_ipu = std::getenv("USE_IPU");
     if (use_ipu != nullptr && strcmp(use_ipu, "true") == 0) {
@@ -828,15 +837,15 @@ HdrPlusProcessingBlock::GcamFinalImageCallback::GcamFinalImageCallback(
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {
 }
 
-void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(int burst_id, gcam::YuvImage* yuv_result,
+void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(const gcam::IShot* shot, gcam::YuvImage* yuv_result,
             gcam::InterleavedImageU8* rgb_result, gcam::GcamPixelFormat pixel_format) const {
-    ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, burst_id);
+    ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, shot->shot_id());
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamFinalImage(burst_id, yuv_result, rgb_result, pixel_format);
+        block->onGcamFinalImage(shot->shot_id(), yuv_result, rgb_result, pixel_format);
     } else {
         ALOGE("%s: Gcam sent a final image for request %d but block is destroyed.",
-                __FUNCTION__, burst_id);
+                __FUNCTION__, shot->shot_id());
     }
 
     if (yuv_result != nullptr) delete yuv_result;

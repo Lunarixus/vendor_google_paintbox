@@ -127,7 +127,12 @@ struct InitParams {
 
   // The minimum number of frames in a payload burst.
   // Must be >= kMinPayloadFrames.
-  // This limit does *not* apply for ZSL shots.
+  // This parameter mainly determines the minimum number of frames that will
+  //   be requested for a non-ZSL shot. For ZSL shots, the client may provide
+  //   fewer frames.
+  // If either a ZSL or non-ZSL payload burst are provided to gcam with fewer
+  //   frames, gcam will issue a warning (in both cases), but still process the
+  //   shot to the best of its ability.
   int min_payload_frames;
 
   // The maximum number of frames in a payload burst.
@@ -219,6 +224,10 @@ struct InitParams {
   //   executes.)
   bool simultaneous_merge_and_finish;
 
+  // Whether temporal binning is enabled for low-light shots. See
+  // go/temporal-binning-doc.
+  bool temporal_binning_enabled;
+
   // Thread priority levels for various Gcam operations.
   //
   // By default, capture inherits the priority of the parent thread, and merge
@@ -283,32 +292,8 @@ struct InitParams {
   BackgroundAeResultsCallback* background_ae_results_callback;
 
   // Required: called whenever Gcam is finished with an input image.
-  // This comprises viewfinder, metering, aux metering, and payload frames.
+  // This comprises viewfinder, metering, and payload frames.
   ImageReleaseCallback* image_release_callback;
-
-  // Optional: called when Gcam generates a postview image.
-  // If set, PostviewParams must not be nullptr when calling
-  // gcam::BeginPayloadFrames().
-  ImageCallback* postview_callback;
-
-  // Optional: called by the raw pipeline when a merged DNG is available.
-  EncodedBlobCallback* merged_dng_callback;
-
-  // Optional: called when the final uncompressed image is available.
-  // If final_image_callback is set, final_image_pixel_format must not be
-  // gcam::GcamPixelFormat::kUnknown.
-  // Guaranteed to be called before the final JPEG callback below.
-  GcamPixelFormat final_image_pixel_format;
-  ImageCallback* final_image_callback;
-
-  // Optional: called when the final JPEG is available.
-  EncodedBlobCallback* jpeg_callback;
-
-  // Optional: called as the pipeline makes progress.
-  ProgressCallback* progress_callback;
-
-  // Optional: called when a burst is finished.
-  BurstCallback* finished_callback;
 };
 
 InitParams GetRandomInitParams();

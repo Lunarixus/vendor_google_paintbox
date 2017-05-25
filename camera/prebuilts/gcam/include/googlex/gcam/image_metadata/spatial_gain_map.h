@@ -52,15 +52,16 @@ class SpatialGainMap {
  public:
   static const int kNumCh = 4;  // RGGB.
 
+  SpatialGainMap() = default;
   SpatialGainMap(int w, int h, bool is_precise = false,
                  bool has_extra_vignetting_applied = false);
   explicit SpatialGainMap(const InterleavedReadViewF& gain_map);
-  SpatialGainMap(const SpatialGainMap& src);
-  SpatialGainMap() = default;
-  SpatialGainMap(SpatialGainMap&& other) = default;
 
+  SpatialGainMap(const SpatialGainMap& src) = default;
+  SpatialGainMap(SpatialGainMap&& other) = default;
   SpatialGainMap& operator=(SpatialGainMap&& other) = default;
-  SpatialGainMap& operator=(const SpatialGainMap& other);
+  SpatialGainMap& operator=(const SpatialGainMap& other) = default;
+
   inline bool operator==(std::nullptr_t) const {
     return gain_map_ == nullptr;
   }
@@ -239,6 +240,7 @@ class SpatialGainMap {
 // Just to get started, you can use something like:
 //   GenParameterizedSpatialGainMap(17, 13, 1.0f, 3.0f, 2.0f);
 SpatialGainMap GenSpatialGainMap_Flat();
+SpatialGainMap GenSpatialGainMap_Typical();
 SpatialGainMap GenSpatialGainMap_Glass();
 SpatialGainMap GenSpatialGainMap_Glass_ReducedLSC();
 SpatialGainMap GenSpatialGainMap_GalaxyNexus();

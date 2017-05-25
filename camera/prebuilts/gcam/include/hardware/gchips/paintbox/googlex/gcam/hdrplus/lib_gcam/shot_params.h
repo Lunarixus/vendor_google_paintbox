@@ -5,12 +5,11 @@
 // unnecessarily, since any included headers also become part of the API.
 
 #include <string>
-#include <vector>
 
 #include "googlex/gcam/ae/ae_shot_params.h"
 #include "googlex/gcam/base/log_level.h"
-#include "googlex/gcam/base/pixel_rect.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/init_params.h"
+#include "googlex/gcam/image/icc_profile.h"
 #include "googlex/gcam/image_metadata/awb_info.h"
 #include "googlex/gcam/image_metadata/flash.h"
 #include "googlex/gcam/image_metadata/image_rotation.h"
@@ -124,34 +123,25 @@ struct ShotParams {
   float   previous_viewfinder_tet;  // Required if (flash_mode == kFlashAuto).
   AwbInfo previous_viewfinder_wb;   // Optional.
 
-  // How to rotate the raw image for proper on-screen display.  This image
-  //   rotation applies to debugging images written to disk, and also
-  //   determines the EXIF rotation tag saved in the final JPG.
-  // The uncompressed final image returned (programatically) by Gcam is not
-  //   rotated, unless 'manually_rotate_final_image' is true.  The raw input
-  //   images are never rotated when saved to disk.
+  // How to rotate the raw image for proper on-screen display. This field
+  //   is used to set the orientation metadata written to JPG EXIF and DNG.
+  // If 'manually_rotate_final_jpg' is true, this describes how the image pixels
+  //   should be rotated before JPG encoding.
+  // Note that all of Gcam's debugging image output, the postview, and the
+  //   uncompressed final image are unrotated, i.e. they maintain the original
+  //   orientation of the payload images used to generate them.
   ImageRotation image_rotation;
 
-  // Whether Gcam should manually rotate the content of the final image to be
+  // Whether Gcam should manually rotate the content of the final JPG to be
   //   in the proper orientation, as specified in the 'image_rotation'
   //   parameter.  (The default value is false.)
-  // This applies even if you are not writing a JPG, or using
-  //   ClientExifMetadata. If the image returned is a jpeg-blob-in-memory, then
-  //   the pixels will actually be rotated before encoding, and the EXIF
+  // If so, the pixels will be physically rotated before encoding, and the EXIF
   //   orientation tag, if specified, will be reset.
   // Manually rotating the image incurs a performance penalty, and it should
   //   be avoided if possible.
-  // NOTE: *** This flag does not affect the postview image. ***
-  bool manually_rotate_final_image;
-
-  // Whether Gcam should manually rotate the content of the postview image to
-  //   be in the proper orientation as specified in the 'image_rotation'
-  //   parameter.  (The default value is false.)
-  // Manually rotating the image incurs a performance penalty, and it should
-  //   be avoided if possible, particularly since time-to-postview affects the
-  //   user experience of photo-taking latency.
-  // NOTE: *** This flag does not affect the final image. ***
-  bool manually_rotate_postview_image;
+  // NOTE: *** This doesn't affect the postview or final YUV/RGB image
+  //           returned in memory to the caller, only the encoded JPG. ***
+  bool manually_rotate_final_jpg;
 
   // If base_frame_override_index is non-negative, then Gcam will override the
   //   selection of the base frame index with this value.  This will lead to an
@@ -159,6 +149,18 @@ struct ShotParams {
   //   or if the specified frame is not of the required type (e.g., for an HDR
   //   burst the base frame must be of type kShortExp).
   int base_frame_override_index;
+
+  // Whether to output the merged raw result at *full* uncropped resolution,
+  //   corresponding to StaticMetadata::frame_raw_max_{width,height}. This
+  //   is required to meet the Android Camera2 spec for RAW.
+  // If so, and if a crop region was specified (e.g. due to digital zoom), then
+  //   pixels outside the crop region will be filled in with the estimated RGGB
+  //   black levels. Incoming frames are cropped before align and merge, so the
+  //   image content outside the crop region has already been lost.
+  // This setting only affects the merged raw and DNG output. The postview, and
+  //   final YUV and JPG output are unaffected.
+  // Default: true.
+  bool full_sized_merged_output;
 
   // Whether to encode the merged raw image to DNG and push the encoded blob
   //   through InitParam::merged_dng_callback. This setting is only relevant if
@@ -172,9 +174,6 @@ struct ShotParams {
   //   supported compression method, and the one configured by the DNG SDK. It
   //   compresses 10-bit 12MP images from 24mb down to about 10mb, at the
   //   expense of about 60% longer encoding time.
-  // Although LJ92-compressed DNG's are supported by most software that read
-  //   DNG's, there are annoying compatability problems (e.g. Adobe Lightroom
-  //   for Android).
   // Default: false.
   bool compress_merged_dng;
 
@@ -187,7 +186,7 @@ struct ShotParams {
   int final_jpg_quality;
 
   // Whether to generate a thumbnail for the final JPG, if one was not already
-  //   passed in via ClientExifMetadata::thumbnail.
+  //   passed in via ClientExifMetadata::{rgb,yuv}_thumbnail.
   // Default: true.
   bool generate_jpg_thumbnail;
 
@@ -218,6 +217,11 @@ struct ShotParams {
 
   // White balance mode specified by the app.
   WhiteBalanceMode wb_mode;
+
+  // ICC profile override, specifying the output color space, overriding the
+  //   device tuning when not equal to IccProfile::kInvalid.
+  // Default: IccProfile::kInvalid.
+  IccProfile icc_profile_override;
 };
 
 // Generate random ShotParams.

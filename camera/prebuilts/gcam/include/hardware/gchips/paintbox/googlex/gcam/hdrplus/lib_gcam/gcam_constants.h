@@ -3,6 +3,11 @@
 
 // This header is part of the public Gcam API; try not to include any headers
 // unnecessarily, since any included headers also become part of the API.
+//
+// NOTE: These constants are intentionally "const" and not "constexpr" because
+// they need to be exposed to other languages via SWIG. If they were constexpr,
+// SWIG would have expose them as a runtime function call rather than as actual
+// constant.
 
 #include <cstdint>
 
@@ -53,8 +58,9 @@ const int kRawPixelMaxValue = 1023;  // 10 bit data.
 const int kSensorIdPrimary   = 0;
 const int kSensorIdSecondary = 1;
 
-// This value must never be provided by the caller as a burst_id.
-const int kInvalidBurstId = -1;
+// A shot should never have this value as its shot_id. It denotes an error has
+// occurred on the shot.
+const int kInvalidShotId = -1;
 
 // Constants to represent an image id that is ignored (e.g., When an input
 // image can be null.).

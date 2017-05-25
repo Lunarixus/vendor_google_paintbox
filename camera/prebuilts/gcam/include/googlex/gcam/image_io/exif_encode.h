@@ -24,8 +24,8 @@ namespace gcam {
 bool EncodeGcamExif(int image_width,
                     int image_height,
                     const ExifMetadata& exif_data,
-                    uint8_t** out_buffer,             // Output.
-                    uint32_t* out_buffer_num_bytes);  // Output.
+                    uint8_t** out_buffer,              // Output.
+                    uint32_t* out_buffer_size_bytes);  // Output.
 
 }  // namespace gcam
 

@@ -9,9 +9,12 @@
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_log_data.h"
 #include "googlex/gcam/image/pixel_format.h"
 #include "googlex/gcam/image/t_image.h"
+#include "googlex/gcam/image_metadata/exif_metadata.h"
+#include "googlex/gcam/image_raw/raw.h"
 
 namespace gcam {
 
+class IShot;
 class YuvImage;
 struct AeResults;
 
@@ -30,11 +33,19 @@ struct AeResults;
 //   that the JNI native layer adds a global reference that is released once the
 //   callback is called).
 
-// Called when a burst is fully complete.
+// Called after the base frame is selected.
+class BaseFrameCallback {
+ public:
+  virtual ~BaseFrameCallback() = default;
+  virtual void Run(const IShot* shot, int base_frame_index) const = 0;
+};
+
+// Called when a burst is fully complete. This callback gives the client an
+// opportunity to retrieve user data before the shot object is deleted.
 class BurstCallback {
  public:
   virtual ~BurstCallback() = default;
-  virtual void Run(int burst_id, const ShotLogData& stats) const = 0;
+  virtual void Run(const IShot* shot, const ShotLogData& stats) const = 0;
 };
 
 // Called after various events.
@@ -53,30 +64,8 @@ class MemoryStateCallback {
                    int64_t peak_memory_with_new_shot_bytes) const = 0;
 };
 
-// This callback notifies the client that Gcam is finished with a YuvImage*
-//   or RawImage* that the client passed in to it (...a metering frame,
-//   payload frame, or viewfinder frame) and is in the process of deleting it.
-// If the image memory pointed to by the YuvImage* or RawImage* was not
-//   created by calling the C "new" operator -- for example, if it is aliased
-//   to a resource (buffer) in the graphics subsystem -- then upon receiving
-//   this callback, the client should use the identifying information (burst_id,
-//   frame_type, frame_index, pointer itself, or data stored in the callback
-//   object) to identify the resource, and free it.
-// Otherwise - if the image memory pointed to by the image was created
-//   by calling the C "new" operator - then upon receiving this callback, the
-//   client doesn't have to do anything.
-// IMPORTANT: The client should NOT call "delete yuv" or "delete raw" in
-//   this callback, as Gcam takes care of this (...that's what triggers
-//   the release callback to be called, in fact).
-// If you need to attach arbitrary data to the image, for use at release time,
-//   you can set 'YuvImage::user_data_' or 'RawImage::user_data_' before
-//   passing the frame to Gcam, and it will be propagated back to you here.
-// Note: 'frame_index' indicates the zero-based index of the frame within the
-//   appropriate burst (metering or payload).
-// For viewfinder frames, which are part of a stream rather than a concise
-//   burst, burst_id will be kInvalidBurstId, and frame_index will be set
-//   to the value of 'request_.frame_number' of the 'ViewfinderFrame' object
-//   that was used by the caller to pass this image in to Gcam.
+// This callback notifies the client that Gcam no longer holds a reference to
+//   image with the given id. The image can now be released.
 class ImageReleaseCallback{
  public:
   virtual ~ImageReleaseCallback() = default;
@@ -84,12 +73,12 @@ class ImageReleaseCallback{
 };
 
 // Called when an image encoded in a blob of memory (DNG or JPG) is ready.
-// At the end, be sure to call "delete[] data".
+// At the end, be sure to call "delete[] data" for DNG, or "free(data)" for JPG.
 class EncodedBlobCallback {
  public:
   virtual ~EncodedBlobCallback() = default;
-  virtual void Run(int burst_id, uint8_t* data, unsigned int bytes, int width,
-                   int height) const = 0;
+  virtual void Run(const IShot* shot, uint8_t* data, unsigned int bytes,
+                   int width, int height) const = 0;
 };
 
 // Called at various points while processing a burst, reporting a rough
@@ -97,7 +86,7 @@ class EncodedBlobCallback {
 class ProgressCallback {
  public:
   virtual ~ProgressCallback() = default;
-  virtual void Run(int burst_id, float progress) const = 0;
+  virtual void Run(const IShot* shot, float progress) const = 0;
 };
 
 // Callback to deliver an AeResults struct that was produced by Gcam in the
@@ -108,64 +97,69 @@ class BackgroundAeResultsCallback {
   virtual void Run(AeResults results) const = 0;
 };
 
+// Called when the merged raw image is ready.
+// At the end, be sure to call "delete merged".
+class RawImageCallback {
+ public:
+  virtual ~RawImageCallback() = default;
+  virtual void Run(const IShot* shot, const ExifMetadata& metadata,
+                   RawImage* merged) const = 0;
+};
+
 // Called when the final uncompressed image is ready.
+// The final image is unrotated, i.e. it matches the orientation of the payload
+//   images used to generate it.
 // Only one of the two image containers (yuv_result or rgb_result)
 //   will be valid, depending on the pixel_format that was requested.
 // At the end, be sure to call "delete yuv_result" and "delete rgb_result".
 class ImageCallback {
  public:
   virtual ~ImageCallback() = default;
-  virtual void Run(int burst_id,
+  virtual void Run(const IShot* shot,
                    YuvImage* yuv_result,
                    InterleavedImageU8* rgb_result,
                    GcamPixelFormat pixel_format) const = 0;
 };
 
-// Postview: Settings for how Gcam should generate the postview image.
-//
-// The size of the returned postview image is determined by 'target_width_'
-// and 'target_height_':
-//   - If you specify just one (and set the other to zero): the contents (~crop
-//     area) of the postview, and its aspect ratio, will match the final image.
-//   - If you specify both, but the aspect ratio of the requested postview does
-//     not exactly match that of the final image, the postview contents will
-//     show a vertical or horizontal crop (relative to the final image).
-//     This emits a warning unless 'suppress_crop_warning_' is set to true.
-//
-// By default, postview for HDR scenes does not have local tonemapping applied.
-// To enable local tonemapping, for a higher fidelity rendition at the
-// expense of speed, set the flag 'tonemap_hdr_scenes_' to true.
-//
-// Furthermore, by default, postview does not apply the "true long" exposure,
-// even for HDR bursts that include such an exposure. To use the true long
-// exposure to improve postview, by applying low-frequency color transfer, set
-// the flag 'apply_true_long_' to true. This option generally slows down
-// time-to-postview, since it requires waiting for the true long exposure
-// (typically the last payload frame) to arrive, then doing a little more
-// processing. Note that since low-frequency color transfer is part of HDR local
-// tonemapping, the 'apply_true_long_' setting will only take effect if
-// 'tonemap_hdr_scenes_' is also true, and if the scene warranted it.
-//
-// The postview is returned in a format controlled by pixel_format_.
-class PostviewParams {
- public:
-  PostviewParams() {}
-  PostviewParams(GcamPixelFormat pixel_format, int target_width,
-                 int target_height, bool suppress_crop_warning,
-                 bool tonemap_hdr_scenes, bool apply_true_long)
-      : pixel_format_(pixel_format),
-        target_width_(target_width),
-        target_height_(target_height),
-        suppress_crop_warning_(suppress_crop_warning),
-        tonemap_hdr_scenes_(tonemap_hdr_scenes),
-        apply_true_long_(apply_true_long) {}
+// A collection of pointers to callback objects. All callbacks are optional
+// (may be set to nullptr).
+struct ShotCallbacks {
+  // Invoked when the base frame has been selected. The base frame index is
+  // zero-based and corresponds to the order frames were *passed to Gcam* via
+  // AddPayloadFrame(), which in may be different than the order of their
+  // timestamps.
+  BaseFrameCallback* base_frame_callback = nullptr;
 
-  GcamPixelFormat pixel_format_ = GcamPixelFormat::kUnknown;
-  int target_width_ = 0;
-  int target_height_ = 0;
-  bool suppress_crop_warning_ = false;
-  bool tonemap_hdr_scenes_ = false;  // [faster, lower quality]
-  bool apply_true_long_ = false;     // [faster, worse color]
+  // Invoked when Gcam generates a postview image.
+  // If not nullptr, PostviewParams must also not be nullptr when calling
+  // Gcam::StartShotCapture().
+  ImageCallback* postview_callback = nullptr;
+
+  // Invoked when the merged raw image is available.
+  // At the moment, only RawBufferLayout::kRaw16 output is supported.
+  // Guaranteed to be called before 'merged_dng_callback' below.
+  RawImageCallback* merged_raw_image_callback = nullptr;
+
+  // Invoked by the raw pipeline when a merged DNG is available.
+  EncodedBlobCallback* merged_dng_callback = nullptr;
+
+  // Invoked when the final uncompressed image is available.
+  // If not nullptr, final_image_pixel_format must not be
+  // GcamPixelFormat::kUnknown when calling Gcam::StartShotCapture().
+  //
+  // Guaranteed to be invoked before the final JPEG callback below.
+  ImageCallback* final_image_callback = nullptr;
+
+  // Invoked when the final JPEG is available.
+  EncodedBlobCallback* jpeg_callback = nullptr;
+
+  // Invoked as the pipeline makes progress.
+  ProgressCallback* progress_callback = nullptr;
+
+  // Invoked when the shot is finished. This callback will not be invoked if
+  // the shot is aborted or fails during capture or background processing. After
+  // this notification, the IShot will be deleted.
+  BurstCallback* finished_callback = nullptr;
 };
 
 }  // namespace gcam
