@@ -93,7 +93,12 @@ status_t EaselManagerClient::resume() {
     }
 
     SCOPE_PROFILER_TIMER("Resume Easel");
-    return mEaselControl.resume();
+    status_t res = mEaselControl.resume();
+    if (res == -EBUSY) {
+        return -EUSERS;
+    }
+
+    return res;
 }
 
 status_t EaselManagerClient::convertCameraId(uint32_t cameraId,
