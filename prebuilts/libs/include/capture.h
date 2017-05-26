@@ -32,6 +32,8 @@ struct CaptureStreamConfig {
   const unsigned height;
   // Bits used for each pixel, e.g. 10 for Raw 10.
   const unsigned bits_per_pixel;
+  // Whether buffer allocation is aligned to 64bits bus width.
+  const bool bus_aligned;
 };
 
 // Capture configuration for one frame
@@ -56,6 +58,7 @@ enum class CaptureError {
   TIMEOUT,  // Request timed out (e.g. while waiting for interrupt).
   RESOURCE_NOT_FOUND,  // Resource not found.
   TYPE_MISMATCH,  // Type doesn't match.
+  DATA_OVERFLOW,  // Data transfer/stream overflow; typically with MIPI Input.
   MUX_ERROR,  // MIPI mux error.
   THREAD_ERROR,  // Capture background thread error.
   ALREADY_INITED,  // Service already initialized.
@@ -127,6 +130,9 @@ class CaptureFrameBuffer {
   // Unlocks the buffer.
   // data_type the data_type of the specified buffer.
   virtual CaptureError UnlockFrameData(int data_type) const = 0;
+
+  // Returns the row stride in bytes.
+  virtual uint64_t GetRowStrideBytes(int data_type) const = 0;
 
  protected:
   CaptureFrameBuffer();
