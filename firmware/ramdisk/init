@@ -43,7 +43,7 @@ export HL_IPU_SAVE_LOAD_PRECOMPILED_GRAPH=load
 export HL_IPU_VERIFY_PRECOMPILED_GRAPH=nodes
 # GLOG_v controls libimageprocessor logging. Set to warning here.
 # To show verbosed log, please set GLOG_v=0 or GLOG_v=1
-export GLOG_v=-1
+export GLOG_v=-2
 # LOG_LEVEL controls overall logging level. Set to debug to dump timing report.
 # LOG_LEVEL overrides GLOG_v if LOG_LEVEL is higher than GLOG_v.
 export LOG_LEVEL=DEBUG
