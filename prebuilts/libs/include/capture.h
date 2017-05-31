@@ -199,6 +199,14 @@ class CaptureService {
   // Clears the pending capture requests.
   virtual void ClearPendingRequests() = 0;
 
+  // Pauses the current capturing.
+  // Waits until the outstanding capture is finished.
+  // Enqueued request will not be cleared.
+  virtual void Pause() = 0;
+
+  // Resumes the capturing, returns the error code.
+  virtual CaptureError Resume() = 0;
+
  protected:
   CaptureService();
 
