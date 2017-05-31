@@ -38,6 +38,7 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libm)/libm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
