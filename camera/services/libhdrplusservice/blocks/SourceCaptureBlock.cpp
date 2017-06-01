@@ -542,7 +542,9 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             // TODO (b/37850485): if we switch to Capture mode too quickly,
             // capture service gets into a bad state
             if (capturedBufferCount++ == STABLE_BUFFER_COUNT) {
+                mParent->mCaptureService->Pause();
                 EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
+                mParent->mCaptureService->Resume();
             }
 
             int64_t syncedEaselTimeNs = 0;
