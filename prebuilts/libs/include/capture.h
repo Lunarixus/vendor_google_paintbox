@@ -9,7 +9,6 @@
 #include <mutex>
 
 #include "imx.h"
-#include "mipi_mux.h"
 
 // Head file for Easel Mipi Capture API (go/easel-capture-api)
 
@@ -21,6 +20,13 @@
   TypeName(const TypeName&) = delete;      \
   TypeName& operator=(const TypeName&) = delete
 #endif  // DISALLOW_COPY_AND_ASSIGN
+
+// Definition of ports of Easel MIPI RX
+enum class MipiRxPort {
+  RX0 = 0,
+  RX1,
+  RX2,
+};
 
 // Capture configuration for one IPU MIPI stream
 struct CaptureStreamConfig {
