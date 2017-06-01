@@ -39,7 +39,6 @@ PRODUCT_PACKAGES += \
     libgcam \
     libhdrplusservice \
     libimageprocessor \
-    libmipimux \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \

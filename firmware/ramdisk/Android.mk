@@ -45,7 +45,6 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libmipimux)/libmipimux.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libnl)/libnl.so \
