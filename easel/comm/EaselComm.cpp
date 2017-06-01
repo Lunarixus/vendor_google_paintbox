@@ -413,6 +413,10 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
 }
 
 int EaselCommServer::open(int service_id, __unused long timeout_ms) {
+    if (!mClosed) {
+        return -EBUSY;
+    }
+
     mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
     if (mEaselCommFd == -1)
         return -errno;
@@ -422,6 +426,8 @@ int EaselCommServer::open(int service_id, __unused long timeout_ms) {
         mEaselCommFd = -1;
         return ret;
     }
+    mClosed = false;
+
     return 0;
 }
 
