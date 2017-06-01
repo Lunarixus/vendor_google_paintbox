@@ -22,21 +22,24 @@ LogClient::~LogClient() {
 }
 
 int LogClient::start() {
-  if (mState != LogClientState::STOPPED) {
-    return -EBUSY;
+  {
+    std::lock_guard<std::mutex> lock(mClientGuard);
+    if (mState != LogClientState::STOPPED) {
+      return -EBUSY;
+    }
+    mState = LogClientState::STARTING;
   }
 
-  mState = LogClientState::STARTING;
-  mReceivingThread = std::thread(&LogClient::log, this);
+  mReceivingThread = std::thread(&LogClient::receiveLogThread, this);
 
   return 0;
 }
 
 void LogClient::stop() {
+  std::unique_lock<std::mutex> lock(mClientGuard);
   if (mState == LogClientState::STOPPING || mState == LogClientState::STOPPED) {
     return;
   }
-  std::unique_lock<std::mutex> lock(mClientGuard);
   mStarted.wait(lock, [this]{return mState == LogClientState::STARTED;});
   mState = LogClientState::STOPPING;
   mCommClient.close();
@@ -46,66 +49,53 @@ void LogClient::stop() {
   mState = LogClientState::STOPPED;
 }
 
-// Running in mReceivingThread
-void LogClient::log() {
+// Running in mReceivingThread.
+// mCommClient is opened async to save camera boot time.
+void LogClient::receiveLogThread() {
   if (mState != LogClientState::STARTING) {
     return;
   }
 
-  int ret = 0;
   {
-    // Open easel comm client in thread to save camera boot time.
+    int ret = 0;
     std::lock_guard<std::mutex> lock(mClientGuard);
     ret = mCommClient.open(EaselComm::EASEL_SERVICE_LOG);
-    mState = LogClientState::STARTED;
-  }
-
-  mStarted.notify_one();
-
-  if (ret != 0) {
-    ALOGE("open easelcomm client error (%d, %d), exiting", ret, errno);
-    mState = LogClientState::STOPPED;
-    return;
-  }
-
-  EaselComm::EaselMessage msg;
-  char textBuf[LOGGER_ENTRY_MAX_PAYLOAD];
-  while (mState == LogClientState::STARTED) {
-    int ret = mCommClient.receiveMessage(&msg);
     if (ret != 0) {
-      if (errno != ESHUTDOWN) {
-        ALOGE("receiveMessage error (%d, %d), exiting", ret, errno);
-      } else {
-        ALOGI("server shutdown, exiting");
+      ALOGE("open easelcomm client error (%d, %d)", ret, errno);
+    } else {
+      ret = mCommClient.startMessageHandlerThread(
+          [this](EaselComm::EaselMessage *msg) {
+        char textBuf[LOGGER_ENTRY_MAX_PAYLOAD];
+
+        LogMessage* logMsg = reinterpret_cast<LogMessage*>(msg->message_buf);
+
+        log_id_t logId = logMsg->log_id;
+        char* log = logMsg->log;
+
+        LogEntry entry = parseEntry(log, logMsg->len);
+
+        // Logs PID, TID and text for easel.
+        // Every easel log will have a prefix of EASEL
+        // on the first line for debugging purpose.
+        // If text is too long, it may gets truncated.
+        // TODO(cjluo): Handle realtime if needed.
+        snprintf(textBuf, LOGGER_ENTRY_MAX_PAYLOAD - (entry.text - log),
+            "EASEL (PID %d TID %d): %s",
+            static_cast<int>(logMsg->pid),
+            static_cast<int>(logMsg->tid), entry.text);
+
+        __android_log_buf_write(logId, entry.prio, entry.tag, textBuf);
+      });
+      if (ret != 0) {
+        ALOGE("could not start log thread error (%d)", ret);
       }
-      break;
     }
-
-    if (msg.message_buf == nullptr) {
-      continue;
-    }
-
-    LogMessage* logMsg = reinterpret_cast<LogMessage*>(msg.message_buf);
-
-    log_id_t logId = logMsg->log_id;
-    char* log = logMsg->log;
-
-    LogEntry entry = parseEntry(log, logMsg->len);
-
-    // Logs PID, TID and text for easel.
-    // Every easel log will have a prefix of EASEL
-    // on the first line for debugging purpose.
-    // If text is too long, it may gets truncated.
-    // TODO(cjluo): Handle realtime if needed.
-    snprintf(textBuf, LOGGER_ENTRY_MAX_PAYLOAD - (entry.text - log),
-        "EASEL (PID %d TID %d): %s",
-        static_cast<int>(logMsg->pid),
-        static_cast<int>(logMsg->tid), entry.text);
-
-    __android_log_buf_write(logId, entry.prio, entry.tag, textBuf);
-
-    free(msg.message_buf);
   }
+
+  // Mark status to be started regardless of ret value,
+  // so it could be properly stopped.
+  mState = LogClientState::STARTED;
+  mStarted.notify_one();
 }
 
 }  // namespace EaselLog

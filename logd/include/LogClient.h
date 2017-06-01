@@ -29,7 +29,8 @@ class LogClient {
   void stop();
 
  private:
-  void log();
+  // Opens Logging communication and starts receiving logs.
+  void receiveLogThread();
 
   EaselCommClient mCommClient;
   std::thread mReceivingThread;
@@ -37,7 +38,7 @@ class LogClient {
   std::mutex mClientGuard;
   // Condition when mCommClient is opened
   std::condition_variable mStarted;
-  std::atomic<LogClientState> mState;
+  LogClientState mState;
 };
 
 }  // namespace EaselLog
