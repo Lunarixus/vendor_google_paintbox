@@ -16,6 +16,8 @@ fi
 # 3) Flash the new ramdisk to phone.
 adb wait-for-device root
 adb wait-for-device
+adb shell "echo 1 > /sys/devices/virtual/misc/mnh_sm/stage_fw"
+adb shell "cat /sys/devices/virtual/misc/mnh_sm/poweroff"
 adb shell "setprop camera.hdrplus.donotpoweroneasel 1"
 adb shell "killall cameraserver"
 adb shell "/data/nativetest/$1/$1"
