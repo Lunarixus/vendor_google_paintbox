@@ -12,7 +12,8 @@
 #include "LogEntry.h"
 
 #define LOG_LEVEL_ENV "LOG_LEVEL"
-#define LOG_CONSOLE_ENV "LOG_TO_CONSOLE"
+#define LOG_DEST_ENV "LOG_DEST"
+#define LOG_FILE "LOG_FILE"
 #define LOG_LEVEL_DEFAULT ANDROID_LOG_INFO
 
 static std::vector<std::string> PRIO_LIST = {
@@ -57,23 +58,42 @@ static int getLogLevel() {
   return PRIO_MAP[level];
 }
 
-static bool getLogToConsole() {
-  return getEnv(LOG_CONSOLE_ENV) == "true";
+static LogDest getLogDest() {
+  std::string dest = getEnv(LOG_DEST_ENV);
+  if (dest == "CONSOLE") {
+    return LogDest::CONSOLE;
+  } else if (dest == "FILE") {
+    return LogDest::FILE;
+  } else {
+    return LogDest::LOGCAT;
+  }
 }
 
 LogBufferEasel::LogBufferEasel()
-    : mLogLevel(getLogLevel()), mLogToConsole(getLogToConsole()) {
-  mCommServer.open(EaselComm::EASEL_SERVICE_LOG);
+    : mLogLevel(getLogLevel()), mLogDest(getLogDest()) {
+  std::string logFilePath = getEnv(LOG_FILE);
+  if (mLogDest == LogDest::FILE && !logFilePath.empty()) {
+    mLogFile = fopen(logFilePath.c_str(), "w+");
+  }
+
+  if (mLogDest == LogDest::LOGCAT) {
+    mCommServer.open(EaselComm::EASEL_SERVICE_LOG);
+  }
 }
 
 LogBufferEasel::~LogBufferEasel() {
-  mCommServer.close();
+  if (mLogDest == LogDest::LOGCAT) {
+    mCommServer.close();
+  }
+
+  if (mLogFile != nullptr) {
+    fclose(mLogFile);
+  }
 }
 
 int LogBufferEasel::log(
       log_id_t log_id, log_time realtime, uid_t uid, pid_t pid, pid_t tid,
       const char* msg, unsigned short len) {
-
   if (msg == nullptr || len == 0) {
     return 0;
   }
@@ -83,19 +103,7 @@ int LogBufferEasel::log(
     return 0;
   }
 
-  if (mLogToConsole) {
-    LogEntry entry = parseEntry(msg, len);
-    if (prio >= ANDROID_LOG_ERROR) {
-      fprintf(stderr, "%luus <%s> PID %d TID %d %s %s\n",
-          realtime.usec(), PRIO_LIST[prio].c_str(),
-          pid, tid, entry.tag, entry.text);
-    } else {
-      printf("%luus <%s> PID %d TID %d %s %s\n",
-          realtime.usec(), PRIO_LIST[prio].c_str(),
-          pid, tid, entry.tag, entry.text);
-    }
-    return len;
-  } else {
+  if (mLogDest == LogDest::LOGCAT) {
     LogMessage logMessage(log_id, realtime, uid, pid, tid, msg, len);
 
     EaselComm::EaselMessage easelMsg;
@@ -107,6 +115,18 @@ int LogBufferEasel::log(
     if (ret != 0) {
       fprintf(stderr, "Could not send log errno %d.\n", errno);
     }
-    return len;
+  } else {
+    LogEntry entry = parseEntry(msg, len);
+    FILE *f;
+    if (mLogDest == LogDest::FILE && mLogFile != nullptr) {
+      f = mLogFile;
+    } else {
+      f = (prio >= ANDROID_LOG_ERROR) ? stderr : stdout;
+    }
+    fprintf(f, "%lu(us) <%s> PID %d TID %d %s %s\n",
+        realtime.usec(), PRIO_LIST[prio].c_str(),
+        pid, tid, entry.tag, entry.text);
+    fflush(f);
   }
+  return len;
 }
