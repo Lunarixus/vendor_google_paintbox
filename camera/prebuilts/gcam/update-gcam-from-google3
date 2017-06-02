@@ -125,7 +125,7 @@ mkdir -p ${TMP_PCG_FULL_PATH}
 ${GOOGLE3_PCG_GEN_SH} \
   --build_for_easel=0 \
   --build_for_pbserver \
-  --image_set=0042_19700118_164050_527_5frames \
+  --image_set=0042_19700118_164050_527 \
   --num_frames=5 \
   --synthetic_exposures=2 \
   --pcg_output_dir=${TMP_PCG_FULL_PATH}
@@ -182,8 +182,9 @@ cp ${GOOGLE3_IMX_OUT_FULL_PATH} ${ANDROID_IMX_OUT_FULL_PATH}
 cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 
 # Copy PCG
+mkdir -p ${ANDROID_PCG_FULL_PATH}
 rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
-cp -r ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
+cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
 
 # Rebuild prebuilts, so there's no surprises when trying to relink
 
