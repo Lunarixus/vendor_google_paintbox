@@ -57,10 +57,11 @@ EaselLog::LogClient gLogClient;
 // Mutex to protect the current state of EaselControlClient
 std::mutex state_mutex;
 enum ControlState {
+    INIT,        // Unknown initial state
     SUSPENDED,   // Suspended
     RESUMED,     // Powered, but no EaselCommClient channel
     ACTIVATED,   // Powered, EaselCommClient channel is active
-} state = SUSPENDED;
+} state = INIT;
 
 // EaselThermalMonitor instance
 EaselThermalMonitor thermalMonitor;
@@ -381,6 +382,43 @@ int teardownEaselConn()
     return 0;
 }
 
+int startThermalMonitor()
+{
+    int ret = thermalMonitor.start();
+    if (ret) {
+        ALOGE("failed to start EaselThermalMonitor (%d)\n", ret);
+    }
+
+    return ret;
+}
+
+int stopThermalMonitor()
+{
+    int ret = thermalMonitor.stop();
+    if (ret) {
+        ALOGE("%s: failed to stop EaselThermalMonitor (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
+int startLogClient()
+{
+    int ret = gLogClient.start();
+    if (ret) {
+        ALOGE("Failed to start LogClient (%d)\n", ret);
+    }
+
+    return ret;
+}
+
+int stopLogClient()
+{
+    gLogClient.stop();
+
+    return 0;
+}
+
 int switchState(enum ControlState nextState)
 {
     int ret = 0;
@@ -398,10 +436,15 @@ int switchState(enum ControlState nextState)
             switch (state) {
                 case ControlState::ACTIVATED:
                     ret = sendDeactivateCommand();
+                    ret |= stopThermalMonitor();
+                    ret |= stopLogClient();
                     ret |= teardownEaselConn();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     break;
                 case ControlState::RESUMED:
+                case ControlState::INIT:
+                    ret |= stopThermalMonitor();
+                    ret |= stopLogClient();
                     ret |= teardownEaselConn();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     break;
@@ -420,6 +463,12 @@ int switchState(enum ControlState nextState)
                     ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                     if (!ret) {
                         ret = setupEaselConn();
+                    }
+                    if (!ret) {
+                        ret = startLogClient();
+                    }
+                    if (!ret) {
+                        ret = startThermalMonitor();
                     }
                     break;
                 case ControlState::ACTIVATED:
@@ -440,6 +489,12 @@ int switchState(enum ControlState nextState)
                     ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                     if (!ret) {
                         ret = setupEaselConn();
+                        if (!ret) {
+                            ret = startLogClient();
+                        }
+                        if (!ret) {
+                            ret = startThermalMonitor();
+                        }
                         if (!ret) {
                             ret = sendActivateCommand();
                         }
@@ -629,30 +684,16 @@ int EaselControlClient::stopMipi(enum EaselControlClient::Camera camera)
 
 // Called when the camera app is opened
 int EaselControlClient::resume() {
-    int ret;
+    int ret = 0;
 
     ALOGD("%s\n", __FUNCTION__);
-
-    ret = thermalMonitor.start();
-    if (ret) {
-        ALOGE("failed to start EaselThermalMonitor (%d)\n", ret);
-        return ret;
-    }
 
     ret = switchState(ControlState::RESUMED);
     if (ret) {
         ALOGE("Failed to resume Easel (%d)\n", ret);
-        return ret;
     }
 
-    // Starts logging client.
-    ret = gLogClient.start();
-    if (ret) {
-        ALOGE("Failed to start LogClient (%d)\n", ret);
-        return ret;
-    }
-
-    return 0;
+    return ret;
 }
 
 // Called when the camera app is closed
@@ -661,17 +702,9 @@ int EaselControlClient::suspend() {
 
     ALOGD("%s\n", __FUNCTION__);
 
-    // Stops logging client before suspend.
-    gLogClient.stop();
-
     ret = switchState(ControlState::SUSPENDED);
     if (ret) {
         ALOGE("%s: failed to suspend Easel (%d)\n", __FUNCTION__, ret);
-    }
-
-    ret = thermalMonitor.stop();
-    if (ret) {
-        ALOGE("%s: failed to stop EaselThermalMonitor (%d)\n", __FUNCTION__, ret);
     }
 
     return ret;
@@ -696,6 +729,11 @@ int EaselControlClient::open() {
         return ret;
     }
 
+    ret = switchState(ControlState::SUSPENDED);
+    if (ret) {
+        ALOGE("%s: failed to suspend Easel (%d)\n", __FUNCTION__, ret);
+    }
+
     return ret;
 }
 
@@ -717,6 +755,12 @@ void EaselControlClient::close() {
     if (ret) {
         ALOGE("%s: failed to suspend Easel (%d)\n", __FUNCTION__, ret);
     }
+
+    {
+        std::lock_guard<std::mutex> state_lock(state_mutex);
+        state = ControlState::INIT;
+    }
+
 
     stateMgr.close();
     thermalMonitor.close();
