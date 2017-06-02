@@ -4,6 +4,7 @@
 // This header is part of the public Gcam API; try not to include any headers
 // unnecessarily, since any included headers also become part of the API.
 
+#include <cassert>
 #include <cstdint>
 #include <vector>
 
@@ -23,7 +24,7 @@ const float kMinMotionScore = 0.0f;
 const float kMaxMotionScore = 100.0f;
 const float kInvalidMotionScore = 999.0f;
 
-// AE results for a given AE mode (single, short, long).
+// AE results for a given AE mode (short/long).
 struct AeModeResult {
   // The TET (total exposure time, which is the product of exposure time, in
   //   milliseconds, with analog and digital gain factors) recommended by this
@@ -65,16 +66,9 @@ struct AeModeResult {
 // Extra information returned with AeResults, for debugging, logging, and
 // internal use.
 struct AeDebugInfo {
-  // Indicates if the scene is HDR or not.
-  // Note that this will be 'true' even when the scene is too high-contrast
-  //   for our HDR technique to handle (i.e. when run_hdr is 'false').
-  bool scene_is_hdr = false;
-
-  // How long it took to run AE for the HDR cases (kHdrShort,
-  //   kHdrLong), and the non-HDR case (kSingle), respectively, in
-  //   seconds.
+  // How long it took to run AE for the HDR cases (kHdrShort and kHdrLong,
+  //   in parallel), in seconds.
   float exec_time_dual_ae_sec = 0;
-  float exec_time_single_ae_sec = 0;
 
   // The original AE results from each AE instance.
   AeModeResult original_result[kAeTypeCount];
@@ -93,9 +87,6 @@ struct AeResults {
   // TODO(hasinoff): Replace this state with a Check() function.
   bool valid = false;
 
-  // Would Gcam use HDR on the scene?
-  bool run_hdr = false;
-
   // An absolute measure of the brightness of the scene.
   // Based on the kHdrShort AE instance, which we generally use as the
   //   standard value for the scene.
@@ -111,15 +102,24 @@ struct AeResults {
            debug.original_result[kHdrShort].tet;
   }
 
-  // Final HDR ratio, after adjustments are made - or 1.0 if scene is LDR.
+  // Final HDR ratio, after adjustments are made.
   float FinalHdrRatio() const {
-    return run_hdr ? final_tet[kHdrLong] / final_tet[kHdrShort] : 1.0f;
+    float final_hdr_ratio = final_tet[kHdrLong] / final_tet[kHdrShort];
+    assert(final_hdr_ratio >= 1.0f);
+    return final_hdr_ratio;
+  }
+
+  // Returns the final desired TET after HDR+ processing. This is the TET
+  // requested by AE at the end of the Finish pipeline, including the
+  // exposure/gains at the sensor, and the additional global digital gain to be
+  // applied by Finish.
+  float GetDesiredFinalTet() const {
+    return final_tet[kHdrShort];
   }
 
   // The predicted average brightness [0..255] of the Gcam shot.
   // This corresponds to the expected simple average pixel value for the scene
-  //   exposed at debug.final_tet[kHdrLong]. kSingle isn't an option
-  //   because it doesn't always run. kHdrLong is preferred over
+  //   exposed at debug.final_tet[kHdrLong].  kHdrLong is preferred over
   //   kHdrShort since a larger fraction of the pixels almost always come
   //   primarily from the long exposure.
   // It is recommended that the caller use this value, together with
@@ -152,7 +152,7 @@ struct AeResults {
     return motion_score >= kMinMotionScore && motion_score <= kMaxMotionScore;
   }
 
-  // The final TET for the 3 instances of AE, after any adjustments.
+  // The final TET for the 2 instances of AE, after any adjustments.
   // Use this to capture the scene.
   // There are three possible adjustments relative to the original TET:
   //   1. Exposure compensation is applied.
@@ -162,8 +162,6 @@ struct AeResults {
   //      max_hdr_ratio.
   //   3. For ZSL capture, we need to clamp the AE results to be at least as
   //      bright as the TET used to capture the base frame.
-  // Note that final_tet[kSingle] might sometimes be 0 (invalid), unless you set
-  //   the 'force_single_ae' flag.
   float final_tet[kAeTypeCount] = {0};
 
   // The AeShotParams that were used when running AE.

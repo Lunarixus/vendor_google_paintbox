@@ -941,11 +941,13 @@ typedef enum halide_target_feature_t {
     halide_target_feature_trace_stores = 44, ///< Trace all stores done by the pipeline. Equivalent to calling Func::trace_stores on every non-inlined Func.
     halide_target_feature_trace_realizations = 45, ///< Trace all realizations done by the pipeline. Equivalent to calling Func::trace_realizations on every non-inlined Func.
     halide_target_feature_cuda_capability61 = 46,  ///< Enable CUDA compute capability 6.1 (Pascal)
+    halide_target_feature_hvx_v65 = 47, ///< Enable Hexagon v65 architecture.
+    halide_target_feature_hvx_v66 = 48, ///< Enable Hexagon v66 architecture.
     // Begin Google Paintbox modification
-    halide_target_feature_ipu = 47, ///< Enable the IPU runtime
-    halide_target_feature_ipu_fp32 = 48, ///< Enable the IPU 32-bit floating point support
+    halide_target_feature_ipu = 49, ///< Enable the IPU runtime
+    halide_target_feature_ipu_fp32 = 50, ///< Enable the IPU 32-bit floating point support
     // End Google Paintbox modification
-    halide_target_feature_end = 49 ///< A sentinel. Every target is considered to have this feature, and setting this feature does nothing.
+    halide_target_feature_end = 51 ///< A sentinel. Every target is considered to have this feature, and setting this feature does nothing.
 } halide_target_feature_t;
 
 /** This function is called internally by Halide in some situations to determine

@@ -156,7 +156,9 @@ class SpatialGainMap {
       case 1: return (InterpolatedReadRggb(fx, fy, 1) +
                       InterpolatedReadRggb(fx, fy, 2)) * 0.5f;
       case 2: return InterpolatedReadRggb(fx, fy, 3);
-      default: assert(false); return 0.0f;
+      default:
+        assert(false);
+        return 0.0f;
     }
   }
 
@@ -199,14 +201,19 @@ class SpatialGainMap {
   // SGMs to disk.  (On Glass, we also had some glue code that wrote to a
   // different (device-specific) format, and those files were named
   // "lsc_payload.bin".
-  void SerializeToBuffer(std::vector<uint8_t>* buf) const;
+  //
+  // Returns a vector of size 0 if *this is nullptr.
+  std::vector<uint8_t> SerializeToBuffer() const;
 
   // Creates a SpatialGainMap from a binary blob.
   // Note that this is the new, "right" way to load SGMs.
   // (On Glass, the glue code used to write to a different (device-specific)
   //   format, and those files were named "lsc_payload.bin" and read in via
   //   LoadLsc() in mock_input.cc.)
-  static SpatialGainMap CreateFromBuffer(const uint8_t* buffer, int byte_count);
+  //
+  // As part of the libgcam public API, we explicitly take as input a
+  // std::vector and not an absl::Span.
+  static SpatialGainMap CreateFromBuffer(const std::vector<uint8_t>& buffer);
 
   inline bool has_extra_vignetting_applied() const {
     return has_extra_vignetting_applied_;

@@ -88,19 +88,19 @@ T GetSaturationCenterValueX2(T min_val, T max_val) {
   return min_val + max_val;
 }
 
-class ColorSatSubParams {
+class ColorSatParams {
  public:
   static const int kLutSize = (128 * (128 + 1) / 2);
 
-  ColorSatSubParams();
-  ~ColorSatSubParams();
+  ColorSatParams();
+  ~ColorSatParams();
 
   // Copy constructors.
-  ColorSatSubParams(const ColorSatSubParams& src) {
+  ColorSatParams(const ColorSatParams& src) {
     lut_ = nullptr;
     CopyFrom(src);
   }
-  ColorSatSubParams& operator=(const ColorSatSubParams& src) {
+  ColorSatParams& operator=(const ColorSatParams& src) {
     CopyFrom(src);
     return *this;
   }
@@ -137,7 +137,7 @@ class ColorSatSubParams {
   // UsesVibrance() returns true).
   inline int16_t ReadLut(int index) const {
     assert(UsesVibrance());
-    assert(lut_);
+    assert(lut_ != nullptr);
     assert(index >= 0 && index < kLutSize);
     return lut_[index];
   }
@@ -190,13 +190,7 @@ class ColorSatSubParams {
     return ((((max_val >> 1) * ((max_val >> 1) + 1)) >> 1) + (min_val >> 1));
   }
 
-  void CopyFrom(const ColorSatSubParams& src);
-};
-
-// Per-device configurable tuning for color saturation in the final image.
-struct ColorSatParams {
-  ColorSatSubParams ldr;  // Params for color saturation in non-HDR scenes.
-  ColorSatSubParams hdr;  // Params for color saturation in HDR scenes.
+  void CopyFrom(const ColorSatParams& src);
 };
 
 }  // namespace gcam

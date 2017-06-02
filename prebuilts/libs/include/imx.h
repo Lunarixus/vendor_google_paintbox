@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-/* Error return values */
+/* Error return values. The order is from generic to specific failure types. */
 typedef enum {
   IMX_SUCCESS = 0,
   IMX_FAILURE, /* Generic failure */
@@ -984,6 +984,28 @@ ImxError ImxFinalizeBuffers(
  * transfers) must already be provided before invoking this function.
  */
 ImxError ImxExecuteJob(
+    ImxJobHandle job /* modified */);
+
+/* Non-blocking call to execute the input job in a background thread.
+ * The background thread loads IPU device configuration, starts the
+ * execution and waits for completion of the job.
+ * All late-bound configuration information (such as DRAM buffers for DMA
+ * transfers) must already be provided before invoking this function.
+ *
+ * Note: ImxExecuteJobAsync and ImxExecuteJobWait must be used in pairs.
+ * After a call to ImxExecuteJobAsync, ImxExecuteJobWait must be called
+ * before the next ImxExecuteJobAsync.
+ */
+ImxError ImxExecuteJobAsync(
+    ImxJobHandle job /* modified */);
+
+/* Waits for the previous asynchronous execution of the job to complete.
+ *
+ * Note: ImxExecuteJobAsync and ImxExecuteJobWait must be used in pairs.
+ * After a call to ImxExecuteJobAsync, ImxExecuteJobWait must be called
+ * before the next ImxExecuteJobAsync.
+ */
+ImxError ImxExecuteJobWait(
     ImxJobHandle job /* modified */);
 
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
