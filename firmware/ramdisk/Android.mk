@@ -154,6 +154,7 @@ $(LOCAL_BUILT_MODULE): \
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
 	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
+	@chmod +w $(dir $@)/$(EASEL_LIB)/libgcam.so
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*
 
