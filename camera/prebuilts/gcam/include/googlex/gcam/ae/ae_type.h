@@ -7,7 +7,7 @@
 namespace gcam {
 
 enum AeType {
-  kSingle = 0,  // Single exposure, trained to handle all scenes.
+  kSingle = 0,  // DEPRECATED.
   kHdrShort,    // The ideal exposure to ensure capturing most highlights.
   kHdrLong,     // The ideal exposure for the midtones and shadows.
   kAeTypeCount

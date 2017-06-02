@@ -46,6 +46,7 @@ enum GcamInputFrameType {
   kPayloadFrame,
   kPayloadAuxFrame,  // Deprecated.
   kViewfinderFrame,
+  kOutputFrame,
 };
 
 enum class Stage : int {
