@@ -5,6 +5,13 @@
 
 #include "easelcomm.h"
 
+// Destination about logging
+enum class LogDest {
+  LOGCAT,   // Log to Android logcat through PCIE.
+  CONSOLE,  // Log to console.
+  FILE,     // Log to file specified by LOG_FILE environment variable.
+};
+
 // LogBuffer implementation through easel PCIE.
 class LogBufferEasel final : public LogBufferInterface {
  public:
@@ -16,7 +23,8 @@ class LogBufferEasel final : public LogBufferInterface {
  private:
   EaselCommServer mCommServer;
   const int mLogLevel;
-  const bool mLogToConsole;
+  const LogDest mLogDest;
+  FILE* mLogFile;
 };
 
 #endif  // PAINTBOX_LOG_BUFFER_EASEL_H
