@@ -221,13 +221,7 @@ class IShot {
   // This call also updates the logging (shot_log_data_) with the new AE
   //   results, under the assumption you'll actually use these AE results to
   //   capture the shot.
-  // force_single_ae: If true, then all 3 AE modes (single, short, long) will
-  //   always run (whereas, normally, short and long always run, but single only
-  //   runs sometimes).  This costs slightly more CPU (on average), but will
-  //   make sure that the 'single_tet' field in the returned struct is always
-  //   valid.
   virtual AeResults ComputeAeResults(
-      const bool force_single_ae,
       // The remaining parameters describe the viewfinder frame on which the
       // AE results will be based.
       const FrameMetadata& metadata,

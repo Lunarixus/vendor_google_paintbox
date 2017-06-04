@@ -75,17 +75,21 @@ private:
         GcamInputImageReleaseCallback(std::weak_ptr<PipelineBlock> block);
         virtual ~GcamInputImageReleaseCallback() = default;
     private:
-        void Run(const int64_t image_id) const override;
+        void Run(const int64_t image_id) override;
         std::weak_ptr<PipelineBlock> mBlock;
     };
 
     // Callback invoked when Gcam finishes a final processed image.
-    class GcamFinalImageCallback : public gcam::ImageCallback {
+    class GcamFinalImageCallback : public gcam::FinalImageCallback {
     public:
         GcamFinalImageCallback(std::weak_ptr<PipelineBlock> block);
         virtual ~GcamFinalImageCallback() = default;
-        void Run(const gcam::IShot* shot, gcam::YuvImage* yuv_result, gcam::InterleavedImageU8* rgb_result,
-                gcam::GcamPixelFormat pixel_format) const override;
+        virtual void Run(const gcam::IShot* shot,
+            const gcam::YuvReadView& yuv_view,
+            const gcam::InterleavedReadViewU8& rgb_view,
+            gcam::YuvImage* yuv_result,
+            gcam::InterleavedImageU8* rgb_result,
+            gcam::GcamPixelFormat pixel_format) override;
         std::weak_ptr<PipelineBlock> mBlock;
     };
 

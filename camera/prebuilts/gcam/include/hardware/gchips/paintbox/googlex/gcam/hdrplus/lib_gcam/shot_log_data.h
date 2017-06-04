@@ -35,15 +35,13 @@ struct ShotLogData {
   void Print(LogLevel log_level) const;
   void SerializeToString(std::string* str) const;
 
-  // Did the shot trigger the HDR or non-HDR code path?
-  bool hdr_was_used;
+  // How many synthetic exposures were used during local tonemapping.
+  int synthetic_exposure_count;
 
   // These values, in the [0..1000] range, that tell us how confident the AE
   //   algorithm was in its output for the 3 TETs.  A higher value is more
   //   confident.
-  // A value of -1 indicates that that type of AE was not run executed.
-  //   (This can happen for 'ae_confidence_single_exposure' when hdr_was_used
-  //   is true).
+  // A value of -1 indicates that that type of AE was not executed.
   float ae_confidence_short_exposure;
   float ae_confidence_long_exposure;
   float ae_confidence_single_exposure;
@@ -63,16 +61,12 @@ struct ShotLogData {
   // The first is the "ideal" compression factor that we would apply to the
   //   scene, if we had no limitations, and just wanted to force-compress
   //   the scene to fit in an LDR photograph.  This value is usually around
-  //   1 for LDR scenes, and above ~1.5 for HDR scenes.  (Technically, this
-  //   value is computed by taking the ideal long TET divided by the ideal
-  //   short TET.)
+  //   1 for LDR scenes, and higher (up to 8 or even higher) for strongly HDR
+  //   scenes.  (Technically, this value is computed by taking the ideal long
+  //   TET divided by the ideal short TET.)
   // The second is the "actual" compression factor that we (effectively)
   //   applied.  This is sometimes equal to the "ideal", and sometimes
-  //   (for various technical and artistic reasons) it is less.
-  // Expected values:
-  //   hdr_was_used    ideal_range_compression   actual_range_compression
-  //    false          ~[1 .. ~1.5] or [~6.5+]            1.0
-  //    true               [~1.5 ... ~6.5]         [~1.5 ... ~3.5]
+  //   (due to technical limitations) it is less.
   float ideal_range_compression;
   float actual_range_compression;
 
@@ -84,8 +78,6 @@ struct ShotLogData {
   // If the ideal TET of the short or long exposure were adjusted, how were
   //   they adjusted?  These values tell you how they were scaled.  The values
   //   can be below 1 (dimmed), 1 (no adjustment) or above 1 (brightened).
-  // If 'hdr_was_used' is false, then these values are not applicable, and
-  //   will both be -1.
   float short_exp_adjustment_factor;
   float long_exp_adjustment_factor;
 
