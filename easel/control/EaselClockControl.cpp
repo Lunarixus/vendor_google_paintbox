@@ -30,9 +30,9 @@
 #define PCIE_POWER_MODE_L1_2_ENABLE     (1 << 1)
 #define PCIE_POWER_MODE_AXI_CG_ENABLE   (1 << 2)
 
-#define LPDDR_MIN_FREQ 132
+#define LPDDR_MIN_FREQ 33
 
-static const int fspIndexToFrequency[] = {132, 800, 2400, 1600};
+static const int fspIndexToFrequency[] = {33, 400, 2400, 1600};
 static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
 
@@ -46,17 +46,17 @@ int EaselClockControl::setMode(enum Mode mode)
 
     switch (mode) {
         case Mode::Bypass:
-            ALOGI("%s: Bypass Mode (132/200/100)\n", __FUNCTION__);
+            ALOGI("%s: Bypass Mode (33/200/100)\n", __FUNCTION__);
             //setIpuClockGating(true);
             EaselClockControl::setSys200Mode();
             setAxiClockGating(true);
             break;
 
         case Mode::Capture:
-            ALOGI("%s: Capture Mode (800/200/200)\n", __FUNCTION__);
+            ALOGI("%s: Capture Mode (400/200/200)\n", __FUNCTION__);
             setIpuClockGating(false);
             setAxiClockGating(false);
-            setFrequency(Subsystem::LPDDR, 800);
+            setFrequency(Subsystem::LPDDR, 400);
             setFrequency(Subsystem::IPU, 200);
             setFrequency(Subsystem::CPU, 200);
             break;
