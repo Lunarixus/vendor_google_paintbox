@@ -272,6 +272,13 @@ status_t PipelineCaptureFrameBuffer::allocate(
         return res;
     }
 
+    // Check there is only 1 plane.
+    if (mRequestedConfig.image.planes.size() != 1) {
+        ALOGE("%s: Requested %ld planes, only support 1 plane.", __FUNCTION__,
+                mRequestedConfig.image.planes.size());
+        return -EINVAL;
+    }
+
     mCaptureFrameBuffer = bufferFactory->Create();
     if (mCaptureFrameBuffer == nullptr) {
         ALOGE("%s: Failed to allocate a capture frame buffer.", __FUNCTION__);
@@ -279,6 +286,18 @@ status_t PipelineCaptureFrameBuffer::allocate(
     }
 
     mAllocatedConfig = mRequestedConfig;
+
+    // Update stride
+    const std::vector<int> dataTypes = mCaptureFrameBuffer->GetDataTypeList();
+    if (dataTypes.size() != 1) {
+        ALOGE("%s: This buffer has %lu data types. Only 1 is supported.", __FUNCTION__,
+                dataTypes.size());
+        return -EINVAL;
+    }
+
+    // Assume only 1 plane.
+    mAllocatedConfig.image.planes[0].stride =
+            mCaptureFrameBuffer->GetRowStrideBytes(dataTypes[0]);
     return 0;
 }
 
