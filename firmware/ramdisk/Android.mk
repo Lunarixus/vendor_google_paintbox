@@ -109,6 +109,9 @@ $(LOCAL_BUILT_MODULE): EASEL_BIN := prebuilt/system/bin/
 $(LOCAL_BUILT_MODULE): EASEL_LIB := prebuilt/system/lib64/
 $(LOCAL_BUILT_MODULE): EASEL_PCG := prebuilt/data/paintbox/compiled_graph/
 
+# Max size of easel ramdisk is set to 34MB
+$(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 35651584
+
 $(LOCAL_BUILT_MODULE): \
 	$(PREBUILT_BIN_MODULES) \
 	$(BIN_MODULES) \
@@ -168,3 +171,5 @@ $(LOCAL_BUILT_MODULE): \
 	$(PRIVATE_GEN_CPIO) $(dir $@)/files.txt > $(dir $@)/initramfs.cpio
 
 	$(PRIVATE_MKIMAGE) $(dir $@)/initramfs.cpio $@
+
+	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
