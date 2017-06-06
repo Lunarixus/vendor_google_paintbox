@@ -137,7 +137,13 @@ status_t HdrPlusClient::configureStreams(const pbcamera::InputConfiguration &inp
         return NO_INIT;
     }
 
-    return mMessengerToService.configureStreams(inputConfig, outputConfigs);
+    status_t res = mMessengerToService.configureStreams(inputConfig, outputConfigs);
+    if (res == OK) {
+        int64_t offset = inputConfig.isSensorInput ? inputConfig.sensorMode.timestampOffsetNs : 0;
+        mApEaselMetadataManager.setApTimestampOffset(offset);
+    }
+
+    return res;
 }
 
 status_t HdrPlusClient::setZslHdrPlusMode(bool enabled) {
