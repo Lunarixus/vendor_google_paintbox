@@ -110,7 +110,8 @@ status_t PipelineStream::createInput(const SensorMode &sensorMode, int numBuffer
     }
 
     std::vector<CaptureStreamConfig> captureStreamConfigs = {
-            { dataType, sensorMode.pixelArrayWidth, sensorMode.pixelArrayHeight, bitsPerPixel }};
+            { dataType, sensorMode.pixelArrayWidth, sensorMode.pixelArrayHeight, bitsPerPixel,
+              capture_service_consts::kBusAlignedStreamConfig }};
 
     MipiRxPort mipiRxPort;
     switch (sensorMode.cameraId) {

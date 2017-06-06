@@ -113,7 +113,8 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
         // Create a capture service.
         std::vector<CaptureStreamConfig> captureStreamConfigs;
         captureStreamConfigs.push_back({ dataType, sensorMode->pixelArrayWidth,
-                sensorMode->pixelArrayHeight, bitsPerPixel});
+                sensorMode->pixelArrayHeight, bitsPerPixel,
+                capture_service_consts::kBusAlignedStreamConfig });
         CaptureConfig config = { mipiRxPort,
                 capture_service_consts::kMainImageVirtualChannelId,
                 capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
