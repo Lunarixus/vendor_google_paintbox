@@ -65,10 +65,16 @@ struct AeModeResult {
 // Extra information returned with AeResults, for debugging, logging, and
 // internal use.
 struct AeDebugInfo {
+  // Indicates if the scene is HDR or not.
+  // Note that this will be 'true' even when the scene is too high-contrast
+  //   for our HDR technique to handle (i.e. when run_hdr is 'false').
+  bool scene_is_hdr = false;
+
   // How long it took to run AE for the HDR cases (kHdrShort,
   //   kHdrLong), and the non-HDR case (kSingle), respectively, in
   //   seconds.
   float exec_time_dual_ae_sec = 0;
+  float exec_time_single_ae_sec = 0;
 
   // The original AE results from each AE instance.
   AeModeResult original_result[kAeTypeCount];
@@ -87,6 +93,9 @@ struct AeResults {
   // TODO(hasinoff): Replace this state with a Check() function.
   bool valid = false;
 
+  // Would Gcam use HDR on the scene?
+  bool run_hdr = false;
+
   // An absolute measure of the brightness of the scene.
   // Based on the kHdrShort AE instance, which we generally use as the
   //   standard value for the scene.
@@ -102,11 +111,9 @@ struct AeResults {
            debug.original_result[kHdrShort].tet;
   }
 
-  // Final HDR ratio, after adjustments are made.
+  // Final HDR ratio, after adjustments are made - or 1.0 if scene is LDR.
   float FinalHdrRatio() const {
-    float final_hdr_ratio = final_tet[kHdrLong] / final_tet[kHdrShort];
-    assert(final_hdr_ratio >= 1.0f);
-    return final_hdr_ratio;
+    return run_hdr ? final_tet[kHdrLong] / final_tet[kHdrShort] : 1.0f;
   }
 
   // The predicted average brightness [0..255] of the Gcam shot.

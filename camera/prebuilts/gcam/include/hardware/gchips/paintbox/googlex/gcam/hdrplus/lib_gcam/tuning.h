@@ -446,9 +446,6 @@ struct RawFinishParams {
   // 1.0 means no change, 1.15 means +15%, etc.
   float green_saturation;
 
-  // Parameters for color saturation to apply during finish.
-  ColorSatParams saturation;
-
   // Biases to apply to the final RGB output color.
   // The values are normalized, so 1.0 corresponds to kRawFinishWhiteLevel.
   //   They can be positive or negative.  A value of -0.01, for example, would
@@ -863,24 +860,19 @@ struct Tuning {
   RawMergeParams    raw_merge_params;
   RawFinishParams   raw_finish_params;
   ColorSatParams  output_color_sat_yuv;
+  ColorSatParams  output_color_sat_raw;
 
-  // If true, then we will ignore any black (optically shielded) pixels
-  //   specified in StaticMetadata (or their overrides in
-  //   'black_pixel_area_override').
-  // Initial black levels for each frame come normally come from
-  //   FrameMetadata::black_levels_bayer[], but if black pixel areas are
-  //   specified, and we're not ignoring them via this flag, then we'll use
-  //   the black pixels, instead, to determine the initial black levels for
-  //   each frame.
-  // In either case, the resulting black levels might then be slightly refined
-  //   (see 'max_black_level_offset').
-  bool            ignore_black_pixels;
-
-  // If this rectangle is valid, it overrides 'optically_black_regions' in
-  //   StaticMetadata.
-  // This rectangle must not overlap the active area, and in general only
-  //   corresponds to a subset of the non-active pixels.
+  // Rectangle indicating optically shielded pixels on the the image sensor,
+  //   providing a reference for black level compensation. This rectangle must
+  //   not overlap the active area, and in general only corresponds to a subset
+  //   of the non-active pixels.
   // The rectangle is defined in the coordinates of the full pixel array.
+  // If this rectangle is non-empty, Gcam will use the pixels identified by the
+  //   rectangle to estimate black levels, overriding black levels reported in
+  //   metadata and StaticMetadata::optically_black_regions.
+  // NOTE: This tuning overrides StaticMetadata::optically_black_regions, but it
+  //   should only be necessary for older devices, or devices with untrustworthy
+  //   metadata.
   PixelRect       black_pixel_area_override;
 
   // [DEPRECATED]
@@ -934,18 +926,21 @@ struct Tuning {
     return max_exposure_time_ms * max_overall_gain;
   }
   float GetMaxTet(const ShotParams& shot_params) const;
-
-  inline const ColorSatParams& GetColorSatAdj(bool raw) const {
-    if (raw) {
-      return raw_finish_params.saturation;
+  // Note that this uses 'process_bayer_for_payload', because we're basically
+  // always interested whether the *payload* would be raw or YUV -- not the
+  // metering burst.  (Even in AE, we're consuming metering frames, but we're
+  // trying to find a TET appropriate for the payload burst, so we use the
+  // payload burst's 'process_bayer' flag.  And in Finish() and FinishRaw(),
+  // of course, we're working on payload frames, so we use the same.)
+  inline const ColorSatSubParams& GetColorSatAdj(
+      AeType mode, bool process_bayer_for_payload) const {
+    if (process_bayer_for_payload) {
+      return (mode == kSingle) ? output_color_sat_raw.ldr
+                               : output_color_sat_raw.hdr;
     } else {
-      return output_color_sat_yuv;
+      return (mode == kSingle) ? output_color_sat_yuv.ldr
+                               : output_color_sat_yuv.hdr;
     }
-  }
-
-  inline const ColorSatSubParams& GetColorSatAdj(AeType mode, bool raw) const {
-    const ColorSatParams &color_sat = GetColorSatAdj(raw);
-    return (mode == kSingle) ? color_sat.ldr : color_sat.hdr;
   }
 
   inline float GetMaxOverallGain(bool process_bayer_for_payload) const {

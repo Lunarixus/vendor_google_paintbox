@@ -10,7 +10,6 @@
 #include "googlex/gcam/image/pixel_format.h"
 #include "googlex/gcam/image/t_image.h"
 #include "googlex/gcam/image_metadata/exif_metadata.h"
-#include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_raw/raw.h"
 
 namespace gcam {
@@ -38,7 +37,7 @@ struct AeResults;
 class BaseFrameCallback {
  public:
   virtual ~BaseFrameCallback() = default;
-  virtual void Run(const IShot* shot, int base_frame_index) = 0;
+  virtual void Run(const IShot* shot, int base_frame_index) const = 0;
 };
 
 // Called when a burst is fully complete. This callback gives the client an
@@ -46,14 +45,14 @@ class BaseFrameCallback {
 class BurstCallback {
  public:
   virtual ~BurstCallback() = default;
-  virtual void Run(const IShot* shot, const ShotLogData& stats) = 0;
+  virtual void Run(const IShot* shot, const ShotLogData& stats) const = 0;
 };
 
 // Called after various events.
 class SimpleCallback {
  public:
   virtual ~SimpleCallback() = default;
-  virtual void Run() = 0;
+  virtual void Run() const = 0;
 };
 
 // Called when future peak memory (both without and with a new shot) may have
@@ -62,7 +61,7 @@ class MemoryStateCallback {
  public:
   virtual ~MemoryStateCallback() = default;
   virtual void Run(int64_t peak_memory_bytes,
-                   int64_t peak_memory_with_new_shot_bytes) = 0;
+                   int64_t peak_memory_with_new_shot_bytes) const = 0;
 };
 
 // This callback notifies the client that Gcam no longer holds a reference to
@@ -70,7 +69,7 @@ class MemoryStateCallback {
 class ImageReleaseCallback{
  public:
   virtual ~ImageReleaseCallback() = default;
-  virtual void Run(const int64_t image_id) = 0;
+  virtual void Run(const int64_t image_id) const = 0;
 };
 
 // Called when an image encoded in a blob of memory (DNG or JPG) is ready.
@@ -79,7 +78,7 @@ class EncodedBlobCallback {
  public:
   virtual ~EncodedBlobCallback() = default;
   virtual void Run(const IShot* shot, uint8_t* data, unsigned int bytes,
-                   int width, int height) = 0;
+                   int width, int height) const = 0;
 };
 
 // Called at various points while processing a burst, reporting a rough
@@ -87,7 +86,7 @@ class EncodedBlobCallback {
 class ProgressCallback {
  public:
   virtual ~ProgressCallback() = default;
-  virtual void Run(const IShot* shot, float progress) = 0;
+  virtual void Run(const IShot* shot, float progress) const = 0;
 };
 
 // Callback to deliver an AeResults struct that was produced by Gcam in the
@@ -95,69 +94,31 @@ class ProgressCallback {
 class BackgroundAeResultsCallback {
  public:
   virtual ~BackgroundAeResultsCallback() = default;
-  virtual void Run(AeResults results) = 0;
+  virtual void Run(AeResults results) const = 0;
 };
 
 // Called when the merged raw image is ready.
-// When the callback is invoked (via Run), iff the client provided a
-// preallocated buffer in which to store the merged raw image, then:
-//   - 'preallocated_merged_image_view' will contain (a view of) the merged
-//     result.
-//   - 'merged_image' will be nullptr.
-//   - The release callback for the preallocated buffer will be called once
-//     Run() completes.
-// Otherwise:
-//   - 'preallocated_merged_image_view' will be nullptr.
-//   - 'merged_image' will contain the merged result.
-//   - The client must call "delete merged_image" when it is finished with the
-//     image.
+// At the end, be sure to call "delete merged".
 class RawImageCallback {
  public:
   virtual ~RawImageCallback() = default;
   virtual void Run(const IShot* shot, const ExifMetadata& metadata,
-                   const RawReadView& preallocated_merged_image_view,
-                   RawImage* merged_image) = 0;
+                   RawImage* merged) const = 0;
 };
 
 // Called when the final uncompressed image is ready.
 // The final image is unrotated, i.e. it matches the orientation of the payload
 //   images used to generate it.
-// Only one of the four image views/image pointers (preallocated_yuv_image_view,
-//   preallocated_rgb_image_view, yuv_image, rgb_image) will be valid, depending
-//   on the pixel_format requested and whether the client passed a preallocated
-//   output buffer.
-// If the memory for the final image was preallocated by the client, then
-//   'preallocated_yuv_image_view' or 'preallocated_rgb_image_view' will
-//   contain the result. In this case, after the callback completes, gcam will
-//   then invoke the release callback for the preallocated buffer.
-// If the client did not preallocate a buffer, gcam will allocate the buffer
-//   'yuv_image' or 'rgb_image'. It is the client's responsibility to call
-//   'delete yuv_image' or 'delete rgb_image'.
-class FinalImageCallback {
- public:
-  virtual ~FinalImageCallback() = default;
-  virtual void Run(const IShot* shot,
-                   const YuvReadView& preallocated_yuv_image_view,
-                   const InterleavedReadViewU8& preallocated_rgb_image_view,
-                   YuvImage* yuv_image, InterleavedImageU8* rgb_image,
-                   GcamPixelFormat pixel_format) = 0;
-};
-
-// TODO(ruiduoy): Get the client pass in a write view for the postview too.
-//   This will let us unify {Postview,Final}Callback
-// Called when the postview image is ready.
-// The postview image is unrotated, i.e. it matches the orientation of the
-//   payload image used to generate it.
 // Only one of the two image containers (yuv_result or rgb_result)
 //   will be valid, depending on the pixel_format that was requested.
 // At the end, be sure to call "delete yuv_result" and "delete rgb_result".
-class PostviewCallback {
+class ImageCallback {
  public:
-  virtual ~PostviewCallback() = default;
+  virtual ~ImageCallback() = default;
   virtual void Run(const IShot* shot,
                    YuvImage* yuv_result,
                    InterleavedImageU8* rgb_result,
-                   GcamPixelFormat pixel_format) = 0;
+                   GcamPixelFormat pixel_format) const = 0;
 };
 
 // A collection of pointers to callback objects. All callbacks are optional
@@ -172,7 +133,7 @@ struct ShotCallbacks {
   // Invoked when Gcam generates a postview image.
   // If not nullptr, PostviewParams must also not be nullptr when calling
   // Gcam::StartShotCapture().
-  PostviewCallback* postview_callback = nullptr;
+  ImageCallback* postview_callback = nullptr;
 
   // Invoked when the merged raw image is available.
   // At the moment, only RawBufferLayout::kRaw16 output is supported.
@@ -187,7 +148,7 @@ struct ShotCallbacks {
   // GcamPixelFormat::kUnknown when calling Gcam::StartShotCapture().
   //
   // Guaranteed to be invoked before the final JPEG callback below.
-  FinalImageCallback* final_image_callback = nullptr;
+  ImageCallback* final_image_callback = nullptr;
 
   // Invoked when the final JPEG is available.
   EncodedBlobCallback* jpeg_callback = nullptr;

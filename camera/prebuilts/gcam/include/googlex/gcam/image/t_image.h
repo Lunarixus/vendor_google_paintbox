@@ -1160,7 +1160,7 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
                           TImageSampleAllocator* allocator)
     : ReadWriteView(
           TImageStrides<layout>(width, height, num_channels, row_padding),
-          /*base_pointer=*/nullptr) {
+          nullptr) {
   allocator_ = allocator;
   assert(allocator_);
   assert(strides_.width_ >= 0);

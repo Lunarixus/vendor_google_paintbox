@@ -233,12 +233,6 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
             shotParams,
             mShotCallbacks,
             kGcamFinalImageFormat,
-            /*final_yuv_id=*/gcam::kInvalidImageId,
-            /*final_output_yuv_view=*/gcam::YuvWriteView(),
-            /*final_rgb_id=*/gcam::kInvalidImageId,
-            /*final_output_rgb_view=*/gcam::InterleavedWriteViewU8(),
-            /*merged_raw_id=*/gcam::kInvalidImageId,
-            /*merged_raw_view=*/gcam::RawWriteView(),
             gcam::PostviewParams(),
             /*image_saver_params*/nullptr);
     if (shot == nullptr) {
@@ -828,7 +822,7 @@ HdrPlusProcessingBlock::GcamInputImageReleaseCallback::GcamInputImageReleaseCall
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {
 }
 
-void HdrPlusProcessingBlock::GcamInputImageReleaseCallback::Run(const int64_t image_id) {
+void HdrPlusProcessingBlock::GcamInputImageReleaseCallback::Run(const int64_t image_id) const {
     ALOGV("%s: Gcam released an image (id %" PRId64 ").", __FUNCTION__, image_id);
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
@@ -843,13 +837,8 @@ HdrPlusProcessingBlock::GcamFinalImageCallback::GcamFinalImageCallback(
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {
 }
 
-void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(
-        const gcam::IShot* shot,
-        const gcam::YuvReadView&,
-        const gcam::InterleavedReadViewU8&,
-        gcam::YuvImage* yuv_result,
-        gcam::InterleavedImageU8* rgb_result,
-        gcam::GcamPixelFormat pixel_format) {
+void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(const gcam::IShot* shot, gcam::YuvImage* yuv_result,
+            gcam::InterleavedImageU8* rgb_result, gcam::GcamPixelFormat pixel_format) const {
     ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, shot->shot_id());
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
