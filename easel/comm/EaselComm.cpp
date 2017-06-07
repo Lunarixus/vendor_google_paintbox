@@ -371,6 +371,10 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
     return 0;
 }
 
+bool EaselComm::isConnected() {
+    return !mClosed;
+}
+
 /*
  * Open communications, register the Easel service ID.
  */

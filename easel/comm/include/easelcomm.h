@@ -199,6 +199,11 @@ public:
     int startMessageHandlerThread(
             std::function<void(EaselMessage *msg)> callback);
 
+    /*
+     * Returns true if communication is connected, else false.
+     */
+    bool isConnected();
+
 protected:
     EaselComm();
     virtual ~EaselComm();
