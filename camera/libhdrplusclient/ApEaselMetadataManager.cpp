@@ -28,7 +28,7 @@
 namespace android {
 
 ApEaselMetadataManager::ApEaselMetadataManager(size_t maxNumFrameHistory) :
-        mMaxNumFrameHistory(maxNumFrameHistory) {
+        mMaxNumFrameHistory(maxNumFrameHistory), mApTimestampOffsetNs(0) {
 }
 
 ApEaselMetadataManager::~ApEaselMetadataManager() {
@@ -299,6 +299,11 @@ static status_t fillMetadataArrayArray(std::array<std::array<T, SIZE2>, SIZE1> *
     } while(0)
 
 
+void ApEaselMetadataManager::setApTimestampOffset(int64_t timestampOffsetNs) {
+    Mutex::Autolock l(mLock);
+    mApTimestampOffsetNs = timestampOffsetNs;
+}
+
 status_t ApEaselMetadataManager::convertAndReturnStaticMetadata(
         std::shared_ptr<pbcamera::StaticMetadata> *staticMetadataDest,
         const std::shared_ptr<CameraMetadata> &staticMetadataSrc) {
@@ -438,11 +443,13 @@ bool ApEaselMetadataManager::tryAddingApEaselMetadataLocked(
     // Easel start exposure time is the Easel vsync time - frame exposure time.
     int64_t easelStartExpTime = easelTimestamp - exposureTime;
 
-    ALOGV("%s: easelStartExpTime %" PRId64 " apTimestamp %" PRId64 " exposureTime %" PRId64,
-            __FUNCTION__, easelStartExpTime, apTimestamp, exposureTime);
+    ALOGV("%s: easelStartExpTime %" PRId64 " apTimestamp %" PRId64 " exposureTime %" PRId64
+            " apTimestampOffset %" PRId64, __FUNCTION__, easelStartExpTime, apTimestamp,
+            exposureTime, mApTimestampOffsetNs);
 
     // Check if they are within the tolerence.
-    if (llabs(apTimestamp - easelStartExpTime) <= kApEaselTimestampDiffToleranceNs) {
+    if (llabs(apTimestamp - mApTimestampOffsetNs - easelStartExpTime) <=
+            kApEaselTimestampDiffToleranceNs) {
         // They match so create an entry in mApTimestampToMetadataMap.
         std::shared_ptr<pbcamera::FrameMetadata> pbFrameMetadata;
         status_t res = convertAndReturnPbFrameMetadata(&pbFrameMetadata, cameraMetadata);

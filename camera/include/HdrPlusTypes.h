@@ -145,6 +145,10 @@ struct SensorMode {
     // Sensor output pixel clock.
     uint32_t outputPixelClkHz;
 
+    // Sensor timestamp offset due to gyro calibration. When comparing timestamps between AP and
+    // Easel, this offset should be subtracted from AP timestamp.
+    int64_t timestampOffsetNs;
+
     // Sensor output format as defined in android_pixel_format.
     int format;
 

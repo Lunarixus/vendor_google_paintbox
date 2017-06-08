@@ -89,6 +89,17 @@ public:
     status_t getCameraMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
             int64_t apTimestampNs);
 
+    /*
+     * Set AP timestamp offset.
+     *
+     * AP timestamps in camera metadata may have an offset due to gyro calibration. When comparing
+     * timestamps between AP and Easel, this offset should be subtracted from the sensor timestamp
+     * in camera metadata.
+     *
+     * apTimestampOffset is the offset added to the sensor timestamp in camera metadata.
+     */
+    void setApTimestampOffset(int64_t apTimestampOffset);
+
     // Clear all managed CameraMetadata and Easel timestamps.
     void clear();
 
@@ -129,6 +140,10 @@ private:
 
     // Map from AP timestamps to its matching ApEaselMetadata.
     std::map<int64_t, ApEaselMetadata> mApTimestampToMetadataMap;
+
+    // AP timestamp offset added to the sensor timestamp. This needs to be subtracted from AP
+    // timestamp when comparing AP and Easel timestamps.
+    int64_t mApTimestampOffsetNs;
 };
 
 } // namespace android
