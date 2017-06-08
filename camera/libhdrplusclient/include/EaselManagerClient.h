@@ -147,6 +147,9 @@ private:
     // If Easel control client is opened. Protected by mEaselControlLock.
     bool mEaselControlOpened;
 
+    // If Easel is resumed. Protected by mEaselControlLock.
+    bool mEaselResumed;
+
     // If Easel is activated. Protected by mEaselControlLock.
     bool mEaselActivated;
 
