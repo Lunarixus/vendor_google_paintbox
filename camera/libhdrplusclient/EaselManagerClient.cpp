@@ -9,7 +9,9 @@
 
 namespace android {
 
-EaselManagerClient::EaselManagerClient() : mEaselControlOpened(false), mEaselActivated(false) {
+EaselManagerClient::EaselManagerClient() : mEaselControlOpened(false),
+                                           mEaselResumed(false),
+                                           mEaselActivated(false) {
     mIsEaselPresent = ::isEaselPresent();
     ALOGI("%s: Easel is %s", __FUNCTION__, mIsEaselPresent ? "present" : "not present");
 }
@@ -46,6 +48,7 @@ status_t EaselManagerClient::open() {
     }
 
     mEaselControlOpened = true;
+    mEaselResumed = false;
     return res;
 }
 
@@ -81,7 +84,10 @@ status_t EaselManagerClient::suspendLocked() {
     deactivateLocked();
 
     SCOPE_PROFILER_TIMER("Suspend Easel");
-    return mEaselControl.suspend();
+    status_t res = mEaselControl.suspend();
+
+    mEaselResumed = false;
+    return res;
 }
 
 status_t EaselManagerClient::resume() {
@@ -92,13 +98,20 @@ status_t EaselManagerClient::resume() {
         return NO_INIT;
     }
 
-    SCOPE_PROFILER_TIMER("Resume Easel");
-    status_t res = mEaselControl.resume();
-    if (res == -EBUSY) {
+    if (mEaselResumed) {
+        ALOGD("%s: Easel is already resumed.", __FUNCTION__);
         return -EUSERS;
     }
 
-    return res;
+    SCOPE_PROFILER_TIMER("Resume Easel");
+    status_t res = mEaselControl.resume();
+    if (res) {
+        ALOGE("%s: Resume Easel failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    mEaselResumed = true;
+    return OK;
 }
 
 status_t EaselManagerClient::convertCameraId(uint32_t cameraId,
