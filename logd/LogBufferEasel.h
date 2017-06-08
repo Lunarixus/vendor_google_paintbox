@@ -23,7 +23,7 @@ class LogBufferEasel final : public LogBufferInterface {
  private:
   EaselCommServer mCommServer;
   const int mLogLevel;
-  const LogDest mLogDest;
+  LogDest mLogDest;
   FILE* mLogFile;
 };
 
