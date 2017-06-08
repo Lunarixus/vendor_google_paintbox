@@ -240,6 +240,17 @@ void easelConnThread()
 {
     int ret;
 
+    // Wait for state manager to reach ACTIVE state, which means that Easel is
+    // powered and is executing firmware. This is separate from Activated state,
+    // which means EaselControlServer is running in HDR+ mode.
+    ALOGD("%s: Waiting for active state", __FUNCTION__);
+    ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
+    if (ret) {
+        ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
+        setConnStateAndNotify(CONN_STATE_FAILED);
+        return;
+    }
+
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
     ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     if (ret) {
