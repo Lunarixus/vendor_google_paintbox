@@ -106,8 +106,7 @@ void *msgHandlerThread() {
         int ret = easel_conn.receiveMessage(&msg);
         if (ret) {
             if (errno != ESHUTDOWN)
-                fprintf(stderr,
-                        "easelcontrol: receiveMessage error, exiting\n");
+                ALOGE("easelcontrol: receiveMessage error, exiting");
             break;
         }
 
@@ -163,8 +162,7 @@ void *msgHandlerThread() {
                 write(fd, buf, strlen(buf));
                 close(fd);
             } else {
-                fprintf(stderr,
-                        "easelcontrol: could not open power management sysfs file\n");
+                ALOGE("easelcontrol: could not open power management sysfs file");
             }
 
             break;
@@ -196,7 +194,7 @@ void *msgHandlerThread() {
         }
 
         default:
-            fprintf(stderr, "ERROR: unrecognized command %d\n", h->command);
+            ALOGE("ERROR: unrecognized command %d\n", h->command);
             assert(0);
         }
 
@@ -221,12 +219,16 @@ int initializeServer() {
 #ifdef MOCKEASEL
     easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
 #endif
-    easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    if (ret) {
+        ALOGE("%s: failed to open easel_conn (%d)", __FUNCTION__, ret);
+        return ret;
+    }
 
 #ifndef MOCKEASEL
     ret = easel_conn.initialHandshake();
     if (ret) {
-        fprintf(stderr, "easelcontrol: Failed to handshake with client\n");
+        ALOGE("%s: Failed to handshake with client (%d)", __FUNCTION__, ret);
         return ret;
     }
 #endif
