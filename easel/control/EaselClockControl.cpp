@@ -47,9 +47,9 @@ int EaselClockControl::setMode(enum Mode mode)
     switch (mode) {
         case Mode::Bypass:
             ALOGI("%s: Bypass Mode (33/200/100)\n", __FUNCTION__);
-            //setIpuClockGating(true);
-            EaselClockControl::setSys200Mode();
+            setIpuClockGating(true);
             setAxiClockGating(true);
+            EaselClockControl::setSys200Mode();
             break;
 
         case Mode::Capture:
@@ -244,6 +244,8 @@ int EaselClockControl::setSys200Mode()
 int EaselClockControl::setIpuClockGating(bool enable)
 {
     char buf[32];
+
+    ALOGI("%s: %d\n", __FUNCTION__, enable);
 
     snprintf(buf, 32, "%d", enable);
     return writeSysFile((char*)IPU_CLOCK_GATING_SYS_FILE, buf, 32);
