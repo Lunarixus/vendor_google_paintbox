@@ -41,6 +41,8 @@ static void fill_kbuf(easelcomm_kbuf_desc *buf_desc,
     // message_id should be passed to kbuf_desc no matter it is a DMA or MSG
     // transfer or just to discard DMA tranfser
     buf_desc->message_id = message_id;
+    // Assign default timeout to infinite
+    buf_desc->wait.timeout_ms = -1;
 
     if (msg == nullptr || fill_type == KBUF_FILL_UNUSED) {
         buf_desc->buf = nullptr;
@@ -49,6 +51,9 @@ static void fill_kbuf(easelcomm_kbuf_desc *buf_desc,
         buf_desc->buf_size = 0;
         return;
     }
+
+    // Assign timeout
+    buf_desc->wait.timeout_ms = msg->timeout_ms;
 
     switch (fill_type) {
         case KBUF_FILL_MSG:
@@ -141,12 +146,14 @@ const char *handshakeSeq[kHandshakeSeqNum] = {
 };
 
 static int composeHandshake(EaselComm::EaselMessage *msg, int seq) {
+    const int32_t timeoutMsHandshake = 1000;    // Wait for 1 sec
     assert(msg != nullptr);
     assert((seq >= 0) && (seq < kHandshakeSeqNum));
 
     msg->message_buf = (void *)handshakeSeq[seq];
     msg->message_buf_size = kHandshakeSignalLen;
     msg->dma_buf = nullptr;
+    msg->timeout_ms = timeoutMsHandshake;
     return 0;
 }
 
@@ -214,6 +221,9 @@ int EaselComm::sendMessageReceiveReply(
     kmsg_desc.need_reply = msg->need_reply;
     assert(msg->need_reply == true);
     kmsg_desc.in_reply_to = 0;
+    // Wait for timeout_ms
+    kmsg_desc.wait.timeout_ms = msg->timeout_ms;
+
     ret = sendAMessage(mEaselCommFd, &kmsg_desc, msg);
     if (ret)
         return ret;
@@ -292,6 +302,8 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
     msg->dma_buf = nullptr;
     msg->dma_buf_size = 0;
 
+    // Wait for timeout_ms
+    kmsg_desc.wait.timeout_ms = msg->timeout_ms;
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_WAITMSG, &kmsg_desc) == -1) {
         /*
          * If close() method was called by another thread in parallel the
