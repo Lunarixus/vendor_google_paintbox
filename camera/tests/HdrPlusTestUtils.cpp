@@ -18,6 +18,7 @@
 #include <log/log.h>
 
 #include <chrono>
+#include <vector>
 #include <inttypes.h>
 
 #include "HdrPlusTestUtils.h"

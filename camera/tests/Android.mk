@@ -21,7 +21,6 @@ LOCAL_SRC_FILES:= \
     HdrPlusTestUtils.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-    libcamera_client \
     libcutils \
     libdng_sdk \
     libhdrplusclient \
