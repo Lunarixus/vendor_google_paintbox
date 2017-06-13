@@ -69,11 +69,12 @@ public:
         size_t dma_buf_size;       // size of the DMA buffer transfer
         EaselMessageId message_id; // message ID
         bool need_reply;           // true if originator is waiting on a reply
+        int32_t timeout_ms;
         EaselMessage(): message_buf_size(0),
                         dma_buf(nullptr), dma_buf_fd(-1),
                         dma_buf_type(EASELCOMM_DMA_BUFFER_USER),
                         dma_buf_size(0),
-                        message_id(0), need_reply(false) {};
+                        message_id(0), need_reply(false), timeout_ms(-1) {};
     };
 
     /*
