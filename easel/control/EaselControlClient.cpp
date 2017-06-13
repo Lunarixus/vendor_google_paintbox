@@ -264,7 +264,7 @@ void easelConnThread()
     ALOGI("%s: waiting for handshake\n", __FUNCTION__);
     ret = easel_conn.initialHandshake();
     if (ret) {
-        ALOGE("%s: Failed to handshake with server", __FUNCTION__);
+        ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
         setConnStateAndNotify(CONN_STATE_FAILED);
         return;
     }
@@ -519,7 +519,7 @@ int EaselControlClient::activate() {
         ALOGE("%s: failed to activate Easel (%d)\n", __FUNCTION__, ret);
     }
 
-    return 0;
+    return ret;
 }
 
 int EaselControlClient::deactivate() {
