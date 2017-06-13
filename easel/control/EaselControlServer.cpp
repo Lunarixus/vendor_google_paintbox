@@ -33,6 +33,10 @@
 #define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
 #define KERNEL_SUSPEND_STRING      "mem"
 
+// sysfs files that contain wafer information
+#define WAFER_UPPER_PATH  "/sys/firmware/devicetree/base/chosen/wafer_upper"
+#define WAFER_LOWER_PATH  "/sys/firmware/devicetree/base/chosen/wafer_lower"
+
 namespace {
 // Our EaselComm server object.  Mock uses the the network version.
 #ifdef MOCKEASEL
@@ -121,7 +125,7 @@ void *msgHandlerThread() {
         EaselControlImpl::MsgHeader *h =
             (EaselControlImpl::MsgHeader *)msg.message_buf;
 
-        ALOGI("Received command %d\n", h->command);
+        ALOGI("Received command %d", h->command);
 
         switch(h->command) {
         case EaselControlImpl::CMD_ACTIVATE: {
@@ -134,7 +138,7 @@ void *msgHandlerThread() {
 
             ret = thermalMonitor.start();
             if (ret) {
-                ALOGE("failed to start EaselThermalMonitor (%d)\n", ret);
+                ALOGE("failed to start EaselThermalMonitor (%d)", ret);
             }
 
             break;
@@ -146,7 +150,7 @@ void *msgHandlerThread() {
 
             ret = thermalMonitor.stop();
             if (ret) {
-                ALOGE("%s: failed to stop EaselThermalMonitor (%d)\n", __FUNCTION__, ret);
+                ALOGE("%s: failed to stop EaselThermalMonitor (%d)", __FUNCTION__, ret);
             }
 
             EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
@@ -194,7 +198,7 @@ void *msgHandlerThread() {
         }
 
         default:
-            ALOGE("ERROR: unrecognized command %d\n", h->command);
+            ALOGE("ERROR: unrecognized command %d", h->command);
             assert(0);
         }
 
@@ -238,6 +242,40 @@ int initializeServer() {
     return ret;
 }
 
+void printWaferId()
+{
+    // Send command to suspend the kernel
+    FILE *fp = fopen(WAFER_LOWER_PATH, "rb");
+    char buf[8];
+    uint32_t upper, lower;
+
+    if (!fp) {
+        return;
+    }
+
+    if (fread(buf, 1, 4, fp) < 4) {
+        fclose(fp);
+        return;
+    }
+    fclose(fp);
+
+    fp = fopen(WAFER_UPPER_PATH, "rb");
+    if (!fp) {
+        return;
+    }
+
+    if (fread(buf+4, 1, 4, fp) < 4) {
+        fclose(fp);
+        return;
+    }
+    fclose(fp);
+
+    upper = (buf[4] << 24) | (buf[5] << 16) | (buf[6] << 8) | buf[7];
+    lower = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+
+    ALOGI("%s: Wafer Id 0x%08x%08x", __FUNCTION__, upper, lower);
+}
+
 } // anonymous namespace
 
 int EaselControlServer::open() {
@@ -250,9 +288,11 @@ int EaselControlServer::open() {
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {
-        ALOGE("failed to open EaselThermalMonitor (%d)\n", ret);
+        ALOGE("failed to open EaselThermalMonitor (%d)", ret);
         return ret;
     }
+
+    printWaferId();
 
     return 0;
 }
