@@ -1160,9 +1160,9 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
                           TImageSampleAllocator* allocator)
     : ReadWriteView(
           TImageStrides<layout>(width, height, num_channels, row_padding),
-          nullptr) {
+          /*base_pointer=*/nullptr) {
   allocator_ = allocator;
-  assert(allocator_);
+  assert(allocator_ != nullptr);
   assert(strides_.width_ >= 0);
   assert(strides_.height_ >= 0);
   assert(strides_.num_channels_ >= 1);
@@ -1183,7 +1183,7 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
           TImageStrides<layout>(width, height, num_channels, row_padding),
           base_pointer) {
   allocator_ = allocator;
-  assert(allocator_);
+  assert(allocator_ != nullptr);
   assert(strides_.width_ >= 0);
   assert(strides_.height_ >= 0);
   assert(strides_.num_channels_ >= 1);
@@ -1196,7 +1196,7 @@ TImage<T, layout>::TImage(const TImage& other, TImageSampleAllocator* allocator)
   // If the user specified an allocator, then use it. Otherwise, use the
   // allocator from 'other'.
   allocator_ = allocator ? allocator : other.allocator_;
-  assert(allocator_);
+  assert(allocator_ != nullptr);
   if (other) {
     memory_ = AllocateMemory(strides_.num_samples_);
     memcpy(memory_, other.memory_, strides_.num_samples_ * sizeof(SampleType));
@@ -1245,7 +1245,7 @@ TImage<T, layout>& TImage<T, layout>::operator=(const TImage& other) {
 
     strides_ = other.strides_;
     allocator_ = other.allocator_;
-    assert(allocator_);
+    assert(allocator_ != nullptr);
     if (other) {
       memory_ = AllocateMemory(strides_.num_samples_);
       memcpy(memory_, other.memory_,

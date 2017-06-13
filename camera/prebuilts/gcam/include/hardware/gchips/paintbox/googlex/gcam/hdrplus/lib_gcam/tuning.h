@@ -19,6 +19,7 @@
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_proc/color_saturation.h"
+#include "googlex/gcam/image_proc/row_artifacts.h"
 #include "googlex/gcam/image_raw/raw.h"
 #include "googlex/gcam/tonemap/tonemap_yuv.h"
 
@@ -189,32 +190,6 @@ struct SensorNoiseModel {
     // with gain.
     return scale_a > 0.0f && offset_a >= 0.0f && offset_b >= 0.0f;
   }
-};
-
-// Describes a filter with a transfer function H(z) = Y(z)/X(z), where
-// Y(z) = b0 + b1*z^-1 + b2*z^-2, and X(z) = 1 + a1*z^-1 + a2*z^-2
-struct SecondOrderFilter {
-  float b0, b1, b2;
-  float a1, a2;
-};
-
-// Describes a periodic row artifact to be suppressed.
-struct RowPattern {
-  // Filter for passing the artifact. The filters are applied in sequence (so as
-  // to construct a fourth order filter).
-  std::array<SecondOrderFilter, 2> filter;
-
-  // The gain of the filter at f = 1/period (measured as a fraction of the
-  // sample rate).
-  float gain_at_period;
-
-  // The period of the artifact, in pixels.
-  float period;
-
-  // The expected peak amplitude of the artifact, in normalized pixel values
-  // [0, 1]. If the amplitude is larger than this, the filter response is
-  // ignored.
-  float amplitude;
 };
 
 // Description of the row noise found in raw/linear images captured by a
@@ -445,6 +420,9 @@ struct RawFinishParams {
   //   tuning of the 3D LUT.
   // 1.0 means no change, 1.15 means +15%, etc.
   float green_saturation;
+
+  // Parameters for color saturation to apply during finish.
+  ColorSatParams saturation;
 
   // Biases to apply to the final RGB output color.
   // The values are normalized, so 1.0 corresponds to kRawFinishWhiteLevel.
@@ -859,20 +837,25 @@ struct Tuning {
   HotPixelParams    hot_pixel_params;
   RawMergeParams    raw_merge_params;
   RawFinishParams   raw_finish_params;
-  ColorSatParams  output_color_sat_yuv;
-  ColorSatParams  output_color_sat_raw;
+  ColorSatParams    output_color_sat_yuv;
 
-  // Rectangle indicating optically shielded pixels on the the image sensor,
-  //   providing a reference for black level compensation. This rectangle must
-  //   not overlap the active area, and in general only corresponds to a subset
-  //   of the non-active pixels.
+  // If true, then we will ignore any black (optically shielded) pixels
+  //   specified in StaticMetadata (or their overrides in
+  //   'black_pixel_area_override').
+  // Initial black levels for each frame come normally come from
+  //   FrameMetadata::black_levels_bayer[], but if black pixel areas are
+  //   specified, and we're not ignoring them via this flag, then we'll use
+  //   the black pixels, instead, to determine the initial black levels for
+  //   each frame.
+  // In either case, the resulting black levels might then be slightly refined
+  //   (see 'max_black_level_offset').
+  bool            ignore_black_pixels;
+
+  // If this rectangle is valid, it overrides 'optically_black_regions' in
+  //   StaticMetadata.
+  // This rectangle must not overlap the active area, and in general only
+  //   corresponds to a subset of the non-active pixels.
   // The rectangle is defined in the coordinates of the full pixel array.
-  // If this rectangle is non-empty, Gcam will use the pixels identified by the
-  //   rectangle to estimate black levels, overriding black levels reported in
-  //   metadata and StaticMetadata::optically_black_regions.
-  // NOTE: This tuning overrides StaticMetadata::optically_black_regions, but it
-  //   should only be necessary for older devices, or devices with untrustworthy
-  //   metadata.
   PixelRect       black_pixel_area_override;
 
   // [DEPRECATED]
@@ -926,20 +909,12 @@ struct Tuning {
     return max_exposure_time_ms * max_overall_gain;
   }
   float GetMaxTet(const ShotParams& shot_params) const;
-  // Note that this uses 'process_bayer_for_payload', because we're basically
-  // always interested whether the *payload* would be raw or YUV -- not the
-  // metering burst.  (Even in AE, we're consuming metering frames, but we're
-  // trying to find a TET appropriate for the payload burst, so we use the
-  // payload burst's 'process_bayer' flag.  And in Finish() and FinishRaw(),
-  // of course, we're working on payload frames, so we use the same.)
-  inline const ColorSatSubParams& GetColorSatAdj(
-      AeType mode, bool process_bayer_for_payload) const {
-    if (process_bayer_for_payload) {
-      return (mode == kSingle) ? output_color_sat_raw.ldr
-                               : output_color_sat_raw.hdr;
+
+  inline const ColorSatParams& GetColorSatAdj(bool raw) const {
+    if (raw) {
+      return raw_finish_params.saturation;
     } else {
-      return (mode == kSingle) ? output_color_sat_yuv.ldr
-                               : output_color_sat_yuv.hdr;
+      return output_color_sat_yuv;
     }
   }
 

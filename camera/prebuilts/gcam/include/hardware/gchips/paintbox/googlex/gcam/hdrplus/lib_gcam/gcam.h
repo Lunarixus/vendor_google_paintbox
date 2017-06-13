@@ -236,11 +236,6 @@ class Gcam {
   // - This function should be called continuously during viewfinding, but not
   //     every viewfinder frame needs to be passed in, e.g. this may be done at
   //     a reduced duty cycle.
-  // - force_single_ae: If true, then all 3 AE modes (single, short, long) will
-  //     always run (whereas, normally, short and long always run, but single
-  //     only runs sometimes).  This costs slightly more CPU (on average), but
-  //     will make sure that the 'single_tet' field in the returned struct is
-  //     always valid.
   // - raw_id: Unique ID associated with each image. The client must ensure that
   //     memory associated remains valid until it receives a release callback
   //     for that image ID. IDs must be globally unique across all image types
@@ -270,7 +265,6 @@ class Gcam {
   //   AddMeteringFrame and AddPayloadFrame, which both call it).
   void AddViewfinderFrame(
       int camera_id,
-      const bool force_single_ae,
       const FrameMetadata& metadata,
       const AeShotParams& ae_shot_params,
       int64_t raw_id,
@@ -338,10 +332,51 @@ class Gcam {
   // Postview images:
   //   If shot_callbacks.postview_callback is not set to nullptr, then
   //   postview_params.pixel_format must not be GcamPixelFormat::kUnknown.
+  //
+  // Output images:
+  //   - The caller can request a merged raw image callback and/or a final
+  //     image callback here. For each of these, they have the option of either
+  //     preallocating the buffer (passing a WriteView of it in here), or not
+  //     (in which case gcam will allocate the image and the client will delete
+  //     the image in the callback). The preallocated buffer support was added
+  //     primarily for PaintBox. If a preallocated buffer is used for either of
+  //     the callbacks, the client needs to make sure the preallocated buffer is
+  //     valid untill the image release callback is called for that buffer.
+  //  -  If merged_raw_view is valid, shot_callbacks.merged_raw_image_callback
+  //     must be specified, and merged_raw_id must be valid. This view (of a
+  //     client-allocated image) must be large enough to fit the raw output. An
+  //     image view with dimensions greater or equal to
+  //     StaticMetadata::frame_raw_max_{width, height} is guaranteed to fit the
+  //     result.
+  //   - If final_output_{yuv, rgb}_view is valid,
+  //     shot_callbacks.final_image_callback must be specified, and
+  //     final_{yuv, rgb}_id must be valid. These views (of client-allocated
+  //     images) must be large enough to fit the output. An image view with
+  //     dimensions greater or equal to shot_params.ae.target_{width, height}
+  //     is guaranteed to fit the result.
+  //  -  Note that if a preallocated buffer is specified, an output image
+  //     can potentially have smaller dimensions than the client-provided write
+  //     view, due to cropping. The dimensions of the view returned in the
+  //     callback will reflect the actual dimensions of the result.
+  //  -  If a preallocated buffer is not specified but either
+  //     shot_callbacks.final_image_callback or
+  //     shot_callbacks.merged_raw_image_callback is specified, gcam will
+  //     allocate the output image buffer and pass the ownership to the client.
+  //     The client is responsible for deleting the output image.
   IShot* StartShotCapture(int camera_id,
                           const ShotParams& shot_params,
                           const ShotCallbacks& shot_callbacks,
                           GcamPixelFormat final_image_pixel_format,
+                          // (Optional) preallocated buffer for
+                          // final_image_callback.
+                          int64_t final_yuv_id,
+                          const YuvWriteView& final_output_yuv_view,
+                          int64_t final_rgb_id,
+                          const InterleavedWriteViewU8& final_output_rgb_view,
+                          // (Optional) preallocated buffer for
+                          // merged_raw_callback.
+                          int64_t merged_raw_id,
+                          const RawWriteView& merged_raw_view,
                           PostviewParams postview_params,
                           // Optional:
                           const ImageSaverParams* image_saver_params);
