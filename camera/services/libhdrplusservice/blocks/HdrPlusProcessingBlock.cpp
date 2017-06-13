@@ -162,7 +162,7 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
 
     // Start a HDR+ shot.
-    status_t res = IssueShotCapture(shotCapture, inputs);
+    status_t res = IssueShotCapture(shotCapture, inputs, outputRequest);
     if (res != 0) {
         ALOGE("%s: Issuing a HDR+ capture failed: %s (%d).", __FUNCTION__, strerror(-res), res);
 
@@ -191,8 +191,35 @@ status_t HdrPlusProcessingBlock::flushLocked() {
     return 0;
 }
 
+status_t HdrPlusProcessingBlock::calculateCropRect(
+    int32_t inputCropX, int32_t inputCropY, int32_t inputCropW, int32_t inputCropH,
+    int32_t outputW, int32_t outputH, int32_t *outputCropX, int32_t *outputCropY,
+    int32_t *outputCropW, int32_t *outputCropH) {
+
+    if (outputCropX == nullptr || outputCropY == nullptr || outputCropW == nullptr ||
+        outputCropH == nullptr) {
+        return -EINVAL;
+    }
+
+    if (inputCropW * outputH > outputW * inputCropH) {
+        // If the input crop aspect ratio is larger than output resolution.
+        *outputCropH = inputCropH;
+        *outputCropY = inputCropY;
+        *outputCropW = outputW * inputCropH / outputH;
+        *outputCropX = (inputCropW - *outputCropW) / 2 + inputCropX;
+    } else {
+        // If the input crop aspect ratio is smaller than or equal to output resolution.
+        *outputCropW = inputCropW;
+        *outputCropX = inputCropX;
+        *outputCropH = outputH * inputCropW / outputW;
+        *outputCropY = (inputCropH - *outputCropH) / 2 + inputCropY;
+    }
+
+    return 0;
+}
+
 status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
-        const std::vector<Input> &inputs) {
+        const std::vector<Input> &inputs, const OutputRequest &outputRequest) {
     if (mGcam == nullptr) {
         ALOGE("%s: GCAM is not initialized.", __FUNCTION__);
         return -ENODEV;
@@ -208,11 +235,36 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         return -EINVAL;
     }
 
+    if (outputRequest.buffers.size() != 1) {
+        ALOGE("%s: Number of output buffers (%zu) not supported. Only support 1.", __FUNCTION__,
+                outputRequest.buffers.size());
+        return -EINVAL;
+    }
+
+    // Get the crop region.
+    int32_t outputCropX, outputCropY, outputCropW, outputCropH;
+
+    // TODO: Consider digital zoom crop region instead of using full active array area. b/36492953
+    status_t res = calculateCropRect(0, 0, mStaticMetadata->activeArraySize[2],
+            mStaticMetadata->activeArraySize[3], outputRequest.buffers[0]->getWidth(),
+            outputRequest.buffers[0]->getHeight(),
+            &outputCropX, &outputCropY, &outputCropW, &outputCropH);
+    if (res != 0) {
+        ALOGE("%s: Failed to get crop region: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
     gcam::ShotParams shotParams;
     shotParams.ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
     shotParams.ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
-    shotParams.ae.target_width = mStaticMetadata->activeArraySize[2];
-    shotParams.ae.target_height = mStaticMetadata->activeArraySize[3];
+    shotParams.ae.target_width = outputRequest.buffers[0]->getWidth();
+    shotParams.ae.target_height = outputRequest.buffers[0]->getHeight();
+    shotParams.ae.crop.x0 = static_cast<float>(outputCropX) / mStaticMetadata->activeArraySize[2];
+    shotParams.ae.crop.x1 = static_cast<float>(outputCropW + outputCropX) /
+                            mStaticMetadata->activeArraySize[2];
+    shotParams.ae.crop.y0 = static_cast<float>(outputCropY) / mStaticMetadata->activeArraySize[3];
+    shotParams.ae.crop.y1 = static_cast<float>(outputCropH + outputCropY) /
+                            mStaticMetadata->activeArraySize[3];
     shotParams.ae.process_bayer_for_payload = true;
     // TODO: When we support capture requests with timestamps, we may want to change this to
     // the index of the frame that has the closest timestamp.
