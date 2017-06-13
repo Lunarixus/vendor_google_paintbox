@@ -668,8 +668,16 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     }
 
     // Check numbers of face information match.
-    if (metadata->faceIds.size() != metadata->faceRectangles.size() ||
-        metadata->faceIds.size() != metadata->faceScores.size()) {
+    if (metadata->faceRectangles.size() != metadata->faceScores.size()) {
+        ALOGE("%s: The numbers of face information don't match: face rectangles: %zu, "
+                "face scores: %zu.", __FUNCTION__, metadata->faceRectangles.size(),
+                metadata->faceScores.size());
+        return -EINVAL;
+    }
+
+    // If face detection mode is full, check the number of face IDs.
+    if (metadata->faceDetectMode == ANDROID_STATISTICS_FACE_DETECT_MODE_FULL &&
+        metadata->faceIds.size() != metadata->faceRectangles.size()) {
         ALOGE("%s: The numbers of face information don't match: face IDs: %zu, "
                 "face rectangles: %zu, face scores: %zu.", __FUNCTION__,
                 metadata->faceIds.size(), metadata->faceRectangles.size(),
