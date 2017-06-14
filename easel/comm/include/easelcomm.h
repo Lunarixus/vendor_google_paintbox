@@ -213,6 +213,7 @@ protected:
     int mEaselCommFd;
     std::thread mHandlerThread;
     bool mClosed;
+    std::mutex mStatusMutex;  // Guards mClosed.
 
     /*
      * Thread function for mHandlerThread.
