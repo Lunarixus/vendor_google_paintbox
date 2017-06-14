@@ -260,12 +260,19 @@ void easelConnThread()
         return;
     }
 
+    setConnStateAndNotify(CONN_STATE_OPENED);
+
 #ifndef MOCKEASEL
     ALOGI("%s: waiting for handshake\n", __FUNCTION__);
     ret = easel_conn.initialHandshake();
     if (ret) {
-        ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
-        setConnStateAndNotify(CONN_STATE_FAILED);
+        if (ret == -ESHUTDOWN) {
+            ALOGD("%s: connection was closed during handshake", __FUNCTION__);
+            setConnStateAndNotify(CONN_STATE_CLOSED);
+        } else {
+            ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
+            setConnStateAndNotify(CONN_STATE_FAILED);
+        }
         return;
     }
     ALOGI("%s: handshake done\n", __FUNCTION__);
@@ -286,8 +293,6 @@ void easelConnThread()
             ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
         }
     }
-
-    setConnStateAndNotify(CONN_STATE_OPENED);
 
     handleMessages();
 
