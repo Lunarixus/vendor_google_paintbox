@@ -46,14 +46,14 @@ int EaselClockControl::setMode(enum Mode mode)
 
     switch (mode) {
         case Mode::Bypass:
-            ALOGI("%s: Bypass Mode (33/200/100)\n", __FUNCTION__);
+            ALOGI("%s: Bypass Mode (33/200/100)", __FUNCTION__);
             setIpuClockGating(true);
             setAxiClockGating(true);
             EaselClockControl::setSys200Mode();
             break;
 
         case Mode::Capture:
-            ALOGI("%s: Capture Mode (400/200/200)\n", __FUNCTION__);
+            ALOGI("%s: Capture Mode (400/200/200)", __FUNCTION__);
             setIpuClockGating(false);
             setAxiClockGating(false);
             setFrequency(Subsystem::LPDDR, 400);
@@ -62,7 +62,7 @@ int EaselClockControl::setMode(enum Mode mode)
             break;
 
         case Mode::Functional:
-            ALOGI("%s: Functional Mode (2400/425/950)\n", __FUNCTION__);
+            ALOGI("%s: Functional Mode (2400/425/950)", __FUNCTION__);
             setIpuClockGating(false);
             setAxiClockGating(false);
             setFrequency(Subsystem::LPDDR, 2400);
@@ -71,7 +71,7 @@ int EaselClockControl::setMode(enum Mode mode)
             break;
 
         default:
-            ALOGE("Invalid operating mode %d\n", mode);
+            ALOGE("Invalid operating mode %d", mode);
             return -EINVAL;
     }
 
@@ -95,7 +95,7 @@ int EaselClockControl::getFrequency(enum Subsystem system)
         case Subsystem::LPDDR:
             return getLpddrFrequency();
         default:
-            ALOGE("Invalid subsystem %d\n", system);
+            ALOGE("Invalid subsystem %d", system);
             return -EINVAL;
     }
 }
@@ -112,7 +112,7 @@ int EaselClockControl::setFrequency(enum Subsystem system, int freq)
         case Subsystem::LPDDR:
             return setLpddrFrequency(freq);
         default:
-            ALOGE("Invalid subsystem %d\n", system);
+            ALOGE("Invalid subsystem %d", system);
             return -EINVAL;
     }
 }
@@ -125,18 +125,18 @@ int EaselClockControl::getLpddrFrequency()
 
     ret = readSysFile((char*)LPDDR_SYS_FILE, buf, 32);
     if (ret) {
-        ALOGE("could not read lpddr frequency (%d)\n", ret);
+        ALOGE("could not read lpddr frequency (%d)", ret);
         return ret;
     }
 
     ret = sscanf(buf, "FSP%d", &fspIndex);
     if (ret != 1) {
-        ALOGE("bad format for lpddr frequency\n");
+        ALOGE("bad format for lpddr frequency");
         return -EINVAL;
     }
 
     if (fspIndex >= ARRAY_SIZE(fspIndexToFrequency)) {
-        ALOGE("invalid lpddr frequency\n");
+        ALOGE("invalid lpddr frequency");
         return -EINVAL;
     }
 
@@ -245,7 +245,7 @@ int EaselClockControl::setIpuClockGating(bool enable)
 {
     char buf[32];
 
-    ALOGI("%s: %d\n", __FUNCTION__, enable);
+    ALOGI("%s: %d", __FUNCTION__, enable);
 
     snprintf(buf, 32, "%d", enable);
     return writeSysFile((char*)IPU_CLOCK_GATING_SYS_FILE, buf, 32);
@@ -256,7 +256,7 @@ int EaselClockControl::setAxiClockGating(bool enable)
     char buf[32];
     unsigned int val = 0;
 
-    ALOGI("%s: %d\n", __FUNCTION__, enable);
+    ALOGI("%s: %d", __FUNCTION__, enable);
 
     if (enable) {
         val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_L1_2_ENABLE
