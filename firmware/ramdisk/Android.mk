@@ -109,8 +109,13 @@ $(LOCAL_BUILT_MODULE): EASEL_BIN := prebuilt/system/bin/
 $(LOCAL_BUILT_MODULE): EASEL_LIB := prebuilt/system/lib64/
 $(LOCAL_BUILT_MODULE): EASEL_PCG := prebuilt/data/paintbox/compiled_graph/
 
-# Max size of easel ramdisk is set to 34MB
-$(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 35651584
+# Max size of easel ramdisk is set to 34MB (and 40MB for sanitized
+# builds which are slightly larger)
+ifeq ($(filter address,$(SANITIZE_TARGET)),)
+    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 35651584
+else
+    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 40651584
+endif
 
 $(LOCAL_BUILT_MODULE): \
 	$(PREBUILT_BIN_MODULES) \
