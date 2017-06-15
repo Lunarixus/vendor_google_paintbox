@@ -43,7 +43,8 @@ std::condition_variable conn_cond;
 enum ConnState {
     CONN_STATE_CLOSED, // control channel is closed, no message thread running
     CONN_STATE_PENDING, // message thread has been started, but channel is not opened
-    CONN_STATE_OPENED, // channel is opened and handshake has completed successfully
+    CONN_STATE_OPENED, // channel is opened
+    CONN_STATE_HANDSHAKED, // handshake has completed successfully on control channel
     CONN_STATE_FAILED, // channel closed because of some failure
 } conn_state = CONN_STATE_CLOSED;
 
@@ -276,6 +277,7 @@ void easelConnThread()
         return;
     }
     ALOGI("%s: handshake done\n", __FUNCTION__);
+    setConnStateAndNotify(CONN_STATE_HANDSHAKED);
 #endif
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
@@ -324,7 +326,10 @@ int setupEaselConn()
 
     {
         std::unique_lock<std::mutex> conn_lock(conn_mutex);
-        conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_PENDING);});
+        conn_cond.wait(conn_lock, []{
+            return (conn_state != CONN_STATE_PENDING) && \
+                   (conn_state != CONN_STATE_OPENED);
+        });
         if (conn_state == CONN_STATE_FAILED) {
             ALOGE("%s: Resume failed because of easelConnThread failure", __FUNCTION__);
             return -EIO;
