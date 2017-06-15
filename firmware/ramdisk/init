@@ -52,7 +52,7 @@ export LOG_LEVEL=DEBUG
 # LOG_DEST=FILE will log to the file specified by LOG_FILE.
 # LOG_DEST=CONSOLE will log to shell console.
 # export LOG_DEST=FILE
-# export LOG_FILE=/tmp/easel.log
+export LOG_FILE=/data/easel.log
 
 # mount -t proc proc /proc
 mount -t sysfs sysfs /sys

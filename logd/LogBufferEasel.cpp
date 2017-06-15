@@ -72,12 +72,22 @@ static LogDest getLogDest() {
 LogBufferEasel::LogBufferEasel()
     : mLogLevel(getLogLevel()), mLogDest(getLogDest()) {
   std::string logFilePath = getEnv(LOG_FILE);
-  if (mLogDest == LogDest::FILE && !logFilePath.empty()) {
-    mLogFile = fopen(logFilePath.c_str(), "w+");
+  if (mLogDest == LogDest::LOGCAT) {
+    int ret = mCommServer.open(EaselComm::EASEL_SERVICE_LOG);
+    // Falls back to LogDest::FILE if mCommServer open fails.
+    if (ret != 0) {
+      mLogDest = LogDest::FILE;
+    }
   }
 
-  if (mLogDest == LogDest::LOGCAT) {
-    mCommServer.open(EaselComm::EASEL_SERVICE_LOG);
+  if (mLogDest == LogDest::FILE) {
+    if (!logFilePath.empty()) {
+      mLogFile = fopen(logFilePath.c_str(), "w+");
+    }
+    // Falls back to LogDest::CONSOLE if mLogFile is not available.
+    if (mLogFile == nullptr) {
+      mLogDest = LogDest::CONSOLE;
+    }
   }
 }
 
