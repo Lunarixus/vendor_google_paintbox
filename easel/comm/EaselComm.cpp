@@ -197,6 +197,7 @@ int EaselComm::sendMessage(const EaselMessage *msg) {
     kmsg_desc.message_id = 0;
     kmsg_desc.need_reply = false;
     kmsg_desc.in_reply_to = 0;
+    kmsg_desc.replycode = 0;
     return sendAMessage(mEaselCommFd, &kmsg_desc, msg);
 }
 

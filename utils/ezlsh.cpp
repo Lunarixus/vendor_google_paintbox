@@ -714,46 +714,46 @@ void server_kill_shell() {
     }
 }
 
-void shell_server_session() {
-    int ret;
-
+void server_open_shell() {
     shell_pid = forkpty(&tty_fd, NULL, NULL, NULL);
     if (shell_pid < 0) {
         perror("forkpty");
         exit(1);
     } else if (shell_pid == 0) {
-        ret = execle(SHELL_PATH, SHELL_PATH, "-", nullptr, environ);
+        int ret = execle(SHELL_PATH, SHELL_PATH, "-", nullptr, environ);
         if (ret < 0) {
             perror(SHELL_PATH);
             exit(2);
         }
-    } else {
-        TtyDataMsg data_msg;
-        int ret;
+    }
+}
 
-        while ((ret = read(tty_fd, &data_msg.data,
-                           kMaxTtyDataBufferSize)) > 0) {
-            data_msg.h.datalen = ret;
+void shell_server_session() {
+    TtyDataMsg data_msg;
+    int ret;
 
-            EaselComm::EaselMessage msg;
-            msg.message_buf = &data_msg;
-            msg.message_buf_size = ret + sizeof(MsgHeader);
-            msg.dma_buf = 0;
-            msg.dma_buf_size = 0;
-            ret = easel_comm_server.sendMessage(&msg);
-            if (ret)
-                break;
-        }
+    while ((ret = read(tty_fd, &data_msg.data,
+                       kMaxTtyDataBufferSize)) > 0) {
+        data_msg.h.datalen = ret;
 
-        // EOF from server shell PTY; tell client to close its connection
-        CloseShellMsg close_msg;
         EaselComm::EaselMessage msg;
-        msg.message_buf = &close_msg;
-        msg.message_buf_size = sizeof(MsgHeader);
+        msg.message_buf = &data_msg;
+        msg.message_buf_size = ret + sizeof(MsgHeader);
         msg.dma_buf = 0;
         msg.dma_buf_size = 0;
-        easel_comm_server.sendMessage(&msg);
-   }
+        ret = easel_comm_server.sendMessage(&msg);
+        if (ret)
+            break;
+    }
+
+    // EOF from server shell PTY; tell client to close its connection
+    CloseShellMsg close_msg;
+    EaselComm::EaselMessage msg;
+    msg.message_buf = &close_msg;
+    msg.message_buf_size = sizeof(MsgHeader);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    easel_comm_server.sendMessage(&msg);
 }
 
 // Server receives and saves file pushed from client
@@ -960,6 +960,7 @@ void server_run(bool flush) {
             switch(h->command) {
             case CMD_OPEN_SHELL:
                 server_kill_shell();
+                server_open_shell();
                 shell_session_thread =
                   new std::thread(shell_server_session);
                 if (shell_session_thread == nullptr)
