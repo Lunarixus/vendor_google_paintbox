@@ -1,4 +1,4 @@
-#define LOG_TAG "EaselControlTest"
+#define LOG_TAG "EaselBootTest"
 
 #include <getopt.h>
 #include <time.h>
@@ -9,37 +9,50 @@
 namespace android {
 
 int body(int sec, int iterations) {
-    int ret;
+    int ret = 0;
+    int i;
     EaselControlClient easelControl;
 
-    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.\n",
+    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
           iterations, sec);
 
     struct timespec begin;
     struct timespec now;
     int64_t diff_ms;
 
-    for (int i = 1; i < iterations + 1; i++) {
+    for (i = 1; i < iterations + 1; i++) {
         ret = easelControl.open();
-        ALOG_ASSERT(ret == 0);
+        if (ret) {
+            ALOGE("easelControl.open() failed (%d)", ret);
+            break;
+        }
 
         ret = easelControl.suspend();
-        ALOG_ASSERT(ret == 0);
+        if (ret) {
+            ALOGE("easelControl.suspend() failed (%d)", ret);
+            break;
+        }
 
         // Start timer
         clock_gettime(CLOCK_MONOTONIC, &begin);
 
         ret = easelControl.resume();
-        ALOG_ASSERT(ret == 0);
+        if (ret) {
+            ALOGE("easelControl.resume() failed (%d)", ret);
+            break;
+        }
 
         ret = easelControl.activate();
-        ALOG_ASSERT(ret == 0);
+        if (ret) {
+            ALOGE("easelControl.activate() failed (%d)", ret);
+            break;
+        }
 
         // Stop timer
         clock_gettime(CLOCK_MONOTONIC, &now);
         diff_ms = (now.tv_sec - begin.tv_sec) * 1000
                   + (now.tv_nsec - begin.tv_nsec) / 1000000;
-        ALOGI("iter %d: Easel resume->activate done: %ld ms!\n", i, diff_ms);
+        ALOGI("iter %d: Easel resume->activate done: %ld ms!", i, diff_ms);
 
         if (sec >= 0) {
             sleep(sec);
@@ -48,15 +61,20 @@ int body(int sec, int iterations) {
         }
 
         ret = easelControl.deactivate();
-        ALOG_ASSERT(ret == 0);
+        if (ret) {
+            ALOGE("easelControl.deactivate() failed (%d)", ret);
+            break;
+        }
 
-        ALOGI("easelControl.suspend()\n");
-        easelControl.suspend();
+        ret = easelControl.suspend();
+        if (ret) {
+            ALOGE("Warning: easelControl.suspend() returned (%d)", ret);
+            break;
+        }
 
-        ALOGI("easelControl.close()\n");
         easelControl.close();
 
-        ALOGI("Testing Easel Boot n. %d done!\n", i);
+        ALOGI("Testing Easel Boot n. %d done", i);
 
         if (sec >= 0) {
             sleep(sec);
@@ -64,7 +82,14 @@ int body(int sec, int iterations) {
             getchar();
         }
     }
-    return 0;
+
+    if (ret == 0) {
+        ALOGI("Easel Boot Test PASSED %d cycles", i - 1);
+    } else {
+        ALOGI("Easel Boot Test FAILED at %d cycles", i);
+    }
+
+    return ret;
 }
 
 }   // namespace android
@@ -73,6 +98,7 @@ int main(int argc, char **argv) {
     int ch;
     int numIteration = 1;
     int numSleepSecond = 1;
+    int ret = 0;
 
     /*
      * h - help, no argument
@@ -113,5 +139,12 @@ int main(int argc, char **argv) {
         }
     }
 
-    return android::body(numSleepSecond, numIteration);
+    ret = android::body(numSleepSecond, numIteration);
+    if (ret == 0) {
+        fprintf(stderr, "%s PASSED\n", argv[0]);
+    } else {
+        fprintf(stderr, "%s FAILED (%d)\n", argv[0], ret);
+    }
+
+    return ret;
 }
