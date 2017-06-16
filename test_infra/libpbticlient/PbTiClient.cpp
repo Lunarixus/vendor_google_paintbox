@@ -107,6 +107,8 @@ status_t PbTiClient::resumeEasel() {
 // TODO: change system call to ioctl function call when it's ready
 status_t PbTiClient::freezeEaselState() {
     ALOGD("%s: Freezing Easel state.", __FUNCTION__);
+    // TODO(b/62456935): remove "sleep" after the bug is fixed
+    sleep(2);
     system("echo 1 > /sys/devices/virtual/misc/mnh_sm/freeze_state");
     return OK;
 }
@@ -114,6 +116,8 @@ status_t PbTiClient::freezeEaselState() {
 // TODO: change system call to ioctl function call when it's ready
 status_t PbTiClient::unfreezeEaselState() {
     ALOGD("%s: Unfreezing Easel state.", __FUNCTION__);
+    // TODO(b/62456935): remove "sleep" after the bug is fixed
+    sleep(2);
     system("echo 0 > /sys/devices/virtual/misc/mnh_sm/freeze_state");
     return OK;
 }
