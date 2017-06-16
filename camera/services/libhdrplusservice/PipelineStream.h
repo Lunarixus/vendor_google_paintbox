@@ -38,17 +38,16 @@ public:
             int numBuffers);
 
     /*
-     * Create an input PipelineStream with a sensor mode that can be used to capture frames from
-     * MIPI.
+     * Create an input PipelineStream based on input configuration.
      *
-     * sensorMode is the sensor mode for this input pipeline stream.
+     * inputConfig is the input configuration for this input pipeline stream.
      * numBuffers is the number of buffers to create for the stream.
      *
      * Returns a std::shared_ptr<PipelineStream> pointing to a PipelineStream on success.
      * Returns a std::shared_ptr<PipelineStream> pointing to nullptr if it failed.
      */
-    static std::shared_ptr<PipelineStream> newInputPipelineStream(const SensorMode &sensorMode,
-            int numBuffers);
+    static std::shared_ptr<PipelineStream> newInputPipelineStream(
+            const InputConfiguration &inputConfig, int numBuffers);
 
     // Return whether the stream has the specified configuration.
     bool hasConfig(const StreamConfiguration &config) const;
@@ -103,9 +102,9 @@ private:
     status_t create(const StreamConfiguration &config, int numBuffers);
 
     /**
-     * Create an input stream based on sensor mode.
+     * Create an input stream based on input configuration.
      *
-     * sensorMode is the sensor mode for this input stream.
+     * inputConfig is the input configuration for this input stream.
      * numBuffers is the number of buffers to create for the stream.
      *
      * Returns:
@@ -113,7 +112,7 @@ private:
      *  -EINVAL:        if config is not supported or invalid.
      *  -EEXIST:        if stream is already created.
      */
-    status_t createInput(const SensorMode &sensorMode, int numBuffers);
+    status_t createInput(const InputConfiguration &inputConfig, int numBuffers);
 
     // Destroy the stream and free all buffers with mApiLock held.
     void destroyLocked();

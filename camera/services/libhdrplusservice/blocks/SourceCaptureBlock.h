@@ -110,6 +110,9 @@ private:
     // Request a capture to prevent possible frame drops.
     void requestCaptureToPreventFrameDrop();
 
+    // DMA transfer a buffer.
+    status_t transferDmaBuffer(const DmaImageBuffer &dmaInputBuffer, PipelineBuffer *buffer);
+
     // Messenger for transferring the DMA buffer.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
 

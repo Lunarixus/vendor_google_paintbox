@@ -238,14 +238,7 @@ void HdrPlusPipeline::destroyLocked() {
 status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) {
     // TODO: Avoid recreate input stream if it has not changed. b/35673698
-    if (inputConfig.isSensorInput) {
-        mInputStream = PipelineStream::newInputPipelineStream(inputConfig.sensorMode,
-                kDefaultNumInputBuffers);
-    } else {
-        mInputStream = PipelineStream::newPipelineStream(inputConfig.streamConfig,
-                kDefaultNumInputBuffers);
-    }
-
+    mInputStream = PipelineStream::newInputPipelineStream(inputConfig, kDefaultNumInputBuffers);
     if (mInputStream == nullptr) {
         ALOGE("%s: Initialize input stream failed.", __FUNCTION__);
         return -ENODEV;

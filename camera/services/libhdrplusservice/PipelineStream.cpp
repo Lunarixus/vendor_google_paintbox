@@ -73,13 +73,13 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
 }
 
 std::shared_ptr<PipelineStream> PipelineStream::newInputPipelineStream(
-        const SensorMode &sensorMode, int numBuffers) {
+        const InputConfiguration &inputConfig, int numBuffers) {
     std::shared_ptr<PipelineStream> stream = std::shared_ptr<PipelineStream>(new PipelineStream());
     if (stream == nullptr) {
         ALOGE("%s: Creating an input pipeline stream instance failed.", __FUNCTION__);
         return nullptr;
     }
-    status_t res = stream->createInput(sensorMode, numBuffers);
+    status_t res = stream->createInput(inputConfig, numBuffers);
     if (res != 0) {
         ALOGE("%s: Creating an input pipeline stream failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);
@@ -89,42 +89,73 @@ std::shared_ptr<PipelineStream> PipelineStream::newInputPipelineStream(
     return stream;
 }
 
-status_t PipelineStream::createInput(const SensorMode &sensorMode, int numBuffers) {
+status_t PipelineStream::createInput(const InputConfiguration &inputConfig, int numBuffers) {
     std::unique_lock<std::mutex> lock(mApiLock);
     if (mAllBuffers.size() > 0) {
         // Stream is already created.
         return -EEXIST;
     }
 
-    uint32_t dataType = 0, bitsPerPixel = 0;
-    switch (sensorMode.format) {
-        case HAL_PIXEL_FORMAT_RAW10:
-            // TODO: Replace with a macro once defined in capture.h.
-            dataType = capture_service_consts::kMipiRaw10DataType;
-            bitsPerPixel = 10;
-            break;
-        default:
+    uint32_t width = 0;
+    uint32_t height = 0;
+    MipiRxPort mipiRxPort = MipiRxPort::RX0;
+    bool busAligned = false;
+
+    if (inputConfig.isSensorInput) {
+        // Check the input is RAW10.
+        if (inputConfig.sensorMode.format != HAL_PIXEL_FORMAT_RAW10) {
             ALOGE("%s: Only HAL_PIXEL_FORMAT_RAW10 is supported but sensor mode has %d",
-                    __FUNCTION__, sensorMode.format);
+                    __FUNCTION__, inputConfig.sensorMode.format);
             return -EINVAL;
+        }
+
+        width = inputConfig.sensorMode.pixelArrayWidth;
+        height = inputConfig.sensorMode.pixelArrayHeight;
+        busAligned = capture_service_consts::kBusAlignedStreamConfig;
+
+        switch (inputConfig.sensorMode.cameraId) {
+            case 0:
+                mipiRxPort = MipiRxPort::RX0;
+                break;
+            case 1:
+                mipiRxPort = MipiRxPort::RX1;
+                break;
+            default:
+                ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__,
+                        inputConfig.sensorMode.cameraId);
+                return -EINVAL;
+        }
+    } else {
+        // Check the input is RAW10.
+        if (inputConfig.streamConfig.image.format != HAL_PIXEL_FORMAT_RAW10) {
+            ALOGE("%s: Only HAL_PIXEL_FORMAT_RAW10 is supported but input config has %d",
+                    __FUNCTION__, inputConfig.streamConfig.image.format);
+            return -EINVAL;
+        }
+
+        // Check there is 1 plane.
+        if (inputConfig.streamConfig.image.planes.size() != 1) {
+            ALOGE("%s: Only support 1 plane but input config has %lu planes",
+                    __FUNCTION__, inputConfig.streamConfig.image.planes.size());
+            return -EINVAL;
+        }
+
+        width = inputConfig.streamConfig.image.width;
+        height = inputConfig.streamConfig.image.height;
+
+        // Check each line has no padding.
+        if (inputConfig.streamConfig.image.planes[0].stride != width * 10 / 8) {
+            ALOGE("%s: Image width is %u but stride is %u",
+                    __FUNCTION__, width, inputConfig.streamConfig.image.planes[0].stride);
+            return -EINVAL;
+        }
     }
+
+    uint32_t dataType = capture_service_consts::kMipiRaw10DataType;
+    uint32_t bitsPerPixel = 10;
 
     std::vector<CaptureStreamConfig> captureStreamConfigs = {
-            { dataType, sensorMode.pixelArrayWidth, sensorMode.pixelArrayHeight, bitsPerPixel,
-              capture_service_consts::kBusAlignedStreamConfig }};
-
-    MipiRxPort mipiRxPort;
-    switch (sensorMode.cameraId) {
-        case 0:
-            mipiRxPort = MipiRxPort::RX0;
-            break;
-        case 1:
-            mipiRxPort = MipiRxPort::RX1;
-            break;
-        default:
-            ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__, sensorMode.cameraId);
-            return -EINVAL;
-    }
+            { dataType, width, height, bitsPerPixel, busAligned }};
 
     CaptureConfig captureConfig = { mipiRxPort,
             capture_service_consts::kMainImageVirtualChannelId,
@@ -138,16 +169,21 @@ status_t PipelineStream::createInput(const SensorMode &sensorMode, int numBuffer
         return -ENOMEM;
     }
 
+    // Prepare stream configuration.
     StreamConfiguration config;
-    config.image.width = sensorMode.pixelArrayWidth;
-    config.image.height = sensorMode.pixelArrayHeight;
-    config.image.format = sensorMode.format;
+    if (inputConfig.isSensorInput) {
+        config.image.width = width;
+        config.image.height = height;
+        config.image.format = inputConfig.sensorMode.format;
 
-    PlaneConfiguration plane = {};
-    plane.stride = config.image.width * bitsPerPixel / 8;
-    plane.scanline = config.image.height;
+        PlaneConfiguration plane = {};
+        plane.stride = config.image.width * bitsPerPixel / 8;
+        plane.scanline = config.image.height;
 
-    config.image.planes.push_back(plane);
+        config.image.planes.push_back(plane);
+    } else {
+        config = inputConfig.streamConfig;
+    }
 
     // Allocate the buffers using capture frame buffer factory.
     for (int i = 0; i < numBuffers; i++) {
