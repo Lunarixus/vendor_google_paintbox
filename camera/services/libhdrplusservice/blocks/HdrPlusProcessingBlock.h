@@ -131,7 +131,7 @@ private:
 
     // Issue a shot capture.
     status_t IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
-            const std::vector<Input> &inputs);
+            const std::vector<Input> &inputs, const OutputRequest &outputRequest);
 
     // Add a payload frame to the shot.
     status_t addPayloadFrame(std::shared_ptr<PayloadFrame> frame, gcam::IShot *shot,
@@ -147,6 +147,12 @@ private:
 
     // Return an input. Must be called with mQueueLock held.
     void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
+
+    // Given an input crop region and output resolution, calculate the overall crop region that has
+    // the same aspect ratio as the output resolution.
+    status_t calculateCropRect(int32_t inputCropX, int32_t inputCropY, int32_t inputCropW,
+            int32_t inputCropH, int32_t outputW, int32_t outputH, int32_t *outputCropX,
+            int32_t *outputCropY, int32_t *outputCropW, int32_t *outputCropH);
 
     std::mutex mHdrPlusProcessingLock;
 
