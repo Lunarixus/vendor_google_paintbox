@@ -1,0 +1,416 @@
+burst_desc_file_version   26
+frame_count               9
+frame 0
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873653889 1 1 1.652758718
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873653889 1 1 1.652758718
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319395746302
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 1
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873657823 1 1 1.652746439
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873657823 1 1 1.652746439
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319362451625
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 2
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873662353 1 1 1.652732015
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873662353 1 1 1.652732015
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319329126429
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 3
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873670459 1 1 1.652717948
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873670459 1 1 1.652717948
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319262476039
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 4
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873673677 1 1 1.652721286
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873673677 1 1 1.652721286
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319229181361
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 5
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873677492 1 1 1.65272522
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873677492 1 1 1.65272522
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319195856166
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 6
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873678207 1 1 1.652752638
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873678207 1 1 1.652752638
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319162500453
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 7
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873678923 1 1 1.652784824
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873678923 1 1 1.652784824
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319129205775
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0
+frame 8
+  current_tet         0.2821170092
+    final_desired_tet   0.2821170092
+    exp_time_ms         0.2564699948
+    analog_gain_mult    1.100000024
+    applied_d_gain      1
+    post_raw_d_gain     1
+  flash                 off
+  capture color_temp  0
+    wb_gains            1.873679996 1 1 1.652822733
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  ideal color_temp  0
+    wb_gains            1.873679996 1 1 1.652822733
+    rgb2rgb             1.5234375 -0.3359375 -0.1875 -0.15625 1.2734375 -0.1171875 0.03125 -0.578125 1.546875
+  neutral_point       0.53125 1 0.6015625
+  sharpness           0
+  sensor_temp         -1024
+  timestamp           71319095880580
+  tonemap_valid       0
+  face_count          0
+  was_black_level_locked 0
+  black_levels_bayer  63.9375 63.8125 63.75 63.875
+  sensor_id           0
+  scene_flicker       60Hz
+  dng_noise_model_bayer 0 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 1 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 2 0.0001966919226 2.366255785e-06
+  dng_noise_model_bayer 3 0.0001966919226 2.366255785e-06
+  control_mode        2
+  ae_mode             1
+  ae_lock             0
+  ae_state            2
+  ae_precap_trigger   0
+  ae_metering_rects   0
+  awb_mode            1
+  awb_lock            0
+  awb_state           2
+  awb_metering_rects  0
+  af_mode             4
+  af_state            2
+  af_trigger          1
+  af_metering_rects   0
+  lens_state          0
+  focus_distance      0
+  capture_warnings    0
+  capture_errors      0

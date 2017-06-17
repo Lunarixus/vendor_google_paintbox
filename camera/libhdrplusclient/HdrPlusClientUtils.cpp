@@ -101,5 +101,81 @@ status_t writePpm(const std::string &filename, const pbcamera::StreamConfigurati
     return OK;
 }
 
+status_t comparePpm(const std::string &filename, const pbcamera::StreamConfiguration &streamConfig,
+        const pbcamera::StreamBuffer &buffer, float *diffRatio) {
+    if (streamConfig.image.format != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+        ALOGE("%s: format 0x%x is not supported.", __FUNCTION__, streamConfig.image.format);
+        return BAD_VALUE;
+    }
+
+    std::ifstream ifile(filename, std::ios::binary);
+    if (!ifile.is_open()) {
+        ALOGE("%s: Opening file (%s) failed.", __FUNCTION__, filename.data());
+        return NO_INIT;
+    }
+
+    std::string s;
+
+    // Read headers of the ppm file.
+    ifile >> s;
+    if (s != "P6") {
+        ALOGE("%s: Invalid PPM file header: %s", __FUNCTION__, s.c_str());
+        return BAD_VALUE;
+    }
+
+    // Read width and height.
+    ifile >> s;
+    uint32_t width = std::stoul(s);
+
+    ifile >> s;
+    uint32_t height = std::stoul(s);
+
+    if (width != streamConfig.image.width || height != streamConfig.image.height) {
+        ALOGE("%s: Image resolution doesn't match. image %dx%d ppm %dx%d",
+                __FUNCTION__, streamConfig.image.width, streamConfig.image.height,
+                width, height);
+        return BAD_VALUE;
+    }
+
+    ifile >> s;
+    if (s != "255") {
+        ALOGE("%s: Expecting 255 but got %s", __FUNCTION__, s.c_str());
+        return BAD_VALUE;
+    }
+
+    char c;
+
+    // Get a space
+    ifile.get(c);
+
+    // Now the RGB values start.
+    uint8_t r, g, b;
+    uint64_t diff = 0;
+
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            status_t res = getRgb(&r, &g, &b, x, y, streamConfig, buffer);
+            if (res != OK) {
+                ALOGE("%s: Getting RGB failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+                return res;
+            }
+
+            // Get r, g, b from golden image and accumulate the differences.
+            ifile.get(c);
+            diff += abs(static_cast<int32_t>(c) - r);
+            ifile.get(c);
+            diff += abs(static_cast<int32_t>(c) - g);
+            ifile.get(c);
+            diff += abs(static_cast<int32_t>(c) - b);
+        }
+    }
+
+    if (diffRatio != nullptr) {
+        *diffRatio = diff / (static_cast<float>(width) * height * 3 * 256);
+    }
+
+    return OK;
+}
+
 } // hdrplus_client_utils
 } // namespace android
