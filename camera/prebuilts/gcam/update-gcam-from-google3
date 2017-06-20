@@ -82,6 +82,8 @@ ANDROID_IMX_H_FULL_PATH="${ANDROID_IMX_PREBUILT_FULL_PATH%%/}/include/imx.h"
 ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}"
 TMP_PCG_FULL_PATH="/tmp/pcg"
 PCG_IMAGE_SET="0012_20170428_003011_573 0042_19700118_164050_527"
+PCG_NUM_FRAMES="3 4 5"
+PCG_NUM_EXPOSURES="2"
 
 ######################################################################
 # Verify paths
@@ -123,14 +125,19 @@ pushd ${GOOGLE3_PATH}
 rm -rf ${TMP_PCG_FULL_PATH}
 
 for image_set in ${PCG_IMAGE_SET}; do
-  mkdir -p ${TMP_PCG_FULL_PATH}/${image_set}
-  ${GOOGLE3_PCG_GEN_SH} \
-    --build_for_easel=0 \
-    --build_for_pbserver \
-    --image_set=${image_set} \
-    --num_frames=5 \
-    --synthetic_exposures=2 \
-    --pcg_output_dir=${TMP_PCG_FULL_PATH}/${image_set}
+  for num_frames in ${PCG_NUM_FRAMES}; do
+    for num_exposures in ${PCG_NUM_EXPOSURES}; do
+      mkdir -p ${TMP_PCG_FULL_PATH}
+      ${GOOGLE3_PCG_GEN_SH} \
+          --build_for_easel=0 \
+          --build_for_pbserver \
+          --image_set=${image_set} \
+          --num_frames=${num_frames} \
+          --synthetic_exposures=${num_exposures} \
+          --clear_stale_pcgs=0 \
+          --pcg_output_dir=${TMP_PCG_FULL_PATH}
+    done
+  done
 done
 
 # Build libgcam
@@ -187,9 +194,7 @@ cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 # Copy PCG
 mkdir -p ${ANDROID_PCG_FULL_PATH}
 rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
-for image_set in ${PCG_IMAGE_SET}; do
-  cp -rf ${TMP_PCG_FULL_PATH}/${image_set}/* ${ANDROID_PCG_FULL_PATH}/
-done
+cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
 
 # Rebuild prebuilts, so there's no surprises when trying to relink
 
