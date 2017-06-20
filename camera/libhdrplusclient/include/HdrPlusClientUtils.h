@@ -39,6 +39,24 @@ namespace hdrplus_client_utils {
 status_t writePpm(const std::string &filename, const pbcamera::StreamConfiguration &streamConfig,
         const pbcamera::StreamBuffer &buffer);
 
+/*
+ * Compare the image buffer against a golden .ppm file.
+ *
+ * filename is the filename of the .ppm file and should include ".ppm" in the end.
+ * streamConfig is the stream configuration of the buffer.
+ * buffer is the buffer to be compared.
+ * diffRatio will be the difference ratio between the image buffer and the golden ppm file.
+ *           It's calculated as sum(R, G, B diffs in each pixel) / (width * height * 256 * 3)
+ *
+ * Returns
+ *  OK:             if the comparison completed successfully.
+ *  BAD_VALUE:      if the format is not support or the stream configuration is invalid, or the
+ *                  file cannot be parsed correctly.
+ *  NO_INIT:        if it failed to open the file.
+ */
+status_t comparePpm(const std::string &filename, const pbcamera::StreamConfiguration &streamConfig,
+        const pbcamera::StreamBuffer &buffer, float *diffRatio);
+
 } // hdrplus_client_utils
 } // namespace android
 

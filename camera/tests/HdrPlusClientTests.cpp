@@ -33,7 +33,7 @@
 namespace android {
 
 const char kBurstInputDir[] =
-        "/data/nativetest/hdrplus_client_tests/bursts/0003_20160830_114037_705/";
+        "/data/nativetest/hdrplus_client_tests/bursts/0080_20170616_120819_772/";
 
 const char kCompiledGraphDir[] =
         "/data/paintbox/compiled_graph/";
@@ -44,6 +44,8 @@ const char kOutputDumpDir[] =
 const char kDoNotPoweronEasel[] = "camera.hdrplus.donotpoweroneasel";
 
 const int32_t kInvalidFd = -1;
+
+const float kOutputDiffThreshold = 0.01f;
 
 class HdrPlusClientTest : public HdrPlusClientListener,
                           public ::testing::Test {
@@ -64,6 +66,8 @@ public:
         ALOGV("%s: Got a capture result for request %d.", __FUNCTION__, result->requestId);
 
         dumpOutput(result);
+        pullCompiledGraph();
+        verifyOutput(result);
 
         Mutex::Autolock l(mCaptureResultLock);
 
@@ -134,11 +138,17 @@ protected:
     Condition mCaptureResultCond;
     std::vector<pbcamera::CaptureResult> mCaptureResults;
 
+    // Verifying against only one golden image is supported.
+    bool mVerifyOutput;
+    std::string mGoldenImagePath;
+
     // Override ::testing::Test::SetUp() to set up the test.
     virtual void SetUp() override {
         configureCameraServer(true);
         destroyAllStreams();
         mConnected = false;
+        mVerifyOutput = false;
+        mGoldenImagePath.erase();
     }
 
     // Override ::testing::Test::TearDown() to free test resources.
@@ -152,17 +162,13 @@ protected:
     // If test_mode is true, camera server will be set to test mode
     // otherwise functional mode.
     status_t configureCameraServer(bool test_mode) {
-        if(property_get_bool(kDoNotPoweronEasel, false)) {
-            return OK;
-        }
-
         status_t ret = property_set(kDoNotPoweronEasel, test_mode ? "1" : "0");
         if (ret != OK) {
             ALOGE("Could not set %s to 1", kDoNotPoweronEasel);
             return ret;
         }
 
-        return hdrp_test_utils::runCommand("killall cameraserver; sleep 1;");
+        return hdrp_test_utils::runCommand("pkill -f camera; sleep 1;");
     }
 
     // Connect to client.
@@ -200,11 +206,11 @@ protected:
     void pullCompiledGraph() {
         if (hdrp_test_utils::fileExist("/vendor/bin/ezlsh")) {
 
-            // Check if dumping output is enabled.
-            bool dumpOutput = property_get_bool("persist.hdrplus_client_test.dump_output", false);
+            // Check if dumping PCG is enabled.
+            bool dumpPcg = property_get_bool("persist.hdrplus_client_test.dump_pcg", false);
 
             // Return if dump is not enabled.
-            if (!dumpOutput) return;
+            if (!dumpPcg) return;
 
             ALOGI("Pull compiled graph to %s", kCompiledGraphDir);
             std::stringstream ss;
@@ -256,8 +262,33 @@ protected:
                     result->requestId, buffer.streamId, config->image.width, config->image.height);
             hdrplus_client_utils::writePpm(buf, *config, buffer);
         }
+    }
 
-        pullCompiledGraph();
+    void verifyOutput(pbcamera::CaptureResult *result) {
+        if (result == nullptr || !mVerifyOutput) return;
+
+        // Verify each buffer in the result.
+        for (auto & buffer : result->outputBuffers) {
+            // Find the output configuration for this buffer.
+            pbcamera::StreamConfiguration *config = nullptr;
+            for (auto & stream : mOutputStreams) {
+                if (stream->config.id == buffer.streamId) {
+                    config = &stream->config;
+                    break;
+                }
+            }
+
+            if (config == nullptr) {
+                ALOGE("%s: Could not find the stream for this buffer (stream %d)", __FUNCTION__,
+                    buffer.streamId);
+                continue;
+            }
+
+            float diffRatio = 1.0;
+            ASSERT_EQ(hdrplus_client_utils::comparePpm(mGoldenImagePath, *config, buffer,
+                    &diffRatio), OK);
+            ASSERT_LT(diffRatio, kOutputDiffThreshold);
+        }
     }
 
     // Create a stream.
@@ -635,6 +666,9 @@ TEST_F(HdrPlusClientTest, CaptureRequest) {
 // Test capture requests with NV21.
 TEST_F(HdrPlusClientTest, CaptureSingleYuv) {
     std::vector<uint32_t> outputFormats = { HAL_PIXEL_FORMAT_YCrCb_420_SP };
+    mVerifyOutput = true;
+    mGoldenImagePath.append(kBurstInputDir);
+    mGoldenImagePath.append("golden.ppm");
     testCaptureRequests(outputFormats, /* numRequests */1);
 }
 

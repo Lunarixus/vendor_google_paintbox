@@ -34,6 +34,8 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
     // Check if capture config is valid.
     if (mCaptureConfig.stream_config_list.size() > 0) {
         mIsMipiInput = true;
+    } else {
+        mIsMipiInput = false;
     }
 }
 
@@ -44,10 +46,6 @@ status_t SourceCaptureBlock::createCaptureService() {
     if (mCaptureService != nullptr) {
         return -EEXIST;
     }
-
-    // Create a timestamp notification thread to send Easel timestamps.
-    mTimestampNotificationThread =
-        std::make_unique<TimestampNotificationThread>(mMessengerToClient);
 
     ALOGI("%s: Creating new catpure service", __FUNCTION__);
     mCaptureService = CaptureService::CreateInstance(mCaptureConfig);
@@ -67,7 +65,6 @@ status_t SourceCaptureBlock::createCaptureService() {
 void SourceCaptureBlock::destroyCaptureService() {
     mDequeueRequestThread = nullptr;
     mCaptureService = nullptr;
-    mTimestampNotificationThread = nullptr;
 }
 
 std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
@@ -155,6 +152,12 @@ void SourceCaptureBlock::resume() {
 
 bool SourceCaptureBlock::doWorkLocked() {
     ALOGV("%s", __FUNCTION__);
+
+    // Create a timestamp notification thread to send Easel timestamps if it doesn't exist yet.
+    if (mTimestampNotificationThread == nullptr) {
+        mTimestampNotificationThread =
+            std::make_unique<TimestampNotificationThread>(mMessengerToClient);
+    }
 
     // For input buffers coming from the client via notifyDmaInputBuffer(), there is nothing to do
     // here.
@@ -273,8 +276,43 @@ void SourceCaptureBlock::handleTimeoutLocked() {
 
     ALOGI("%s: Source capture block timed out", __FUNCTION__);
 
-    // Remove pending output results that have been around for a while.
-    removeTimedoutPendingOutputResult();
+    // Remove pending output results that have been around for a while if capturing from MIPI.
+    if (mIsMipiInput) {
+        removeTimedoutPendingOutputResult();
+    }
+}
+
+status_t SourceCaptureBlock::transferDmaBuffer(const DmaImageBuffer &dmaInputBuffer,
+        PipelineBuffer *buffer) {
+    if (buffer == nullptr) return -EINVAL;
+
+    // Allocate a temporary buffer for DMA transfer. This is to workaround b/62633675.
+    // TODO: Remove this temporary buffer once we can get the fd for the ION buffer.
+    auto temp = std::unique_ptr<void, void (*)(void*)>(malloc(buffer->getDataSize()), free);
+    if (temp == nullptr) {
+        ALOGE("%s: Can't allocate a temporary buffer for DMA transfer.", __FUNCTION__);
+        return -ENOMEM;
+    }
+
+    // DMA transfer to the temporary buffer.
+    status_t res = mMessengerToClient->transferDmaBuffer(dmaInputBuffer.dmaHandle, /*ionFd*/-1,
+            temp.get(), buffer->getDataSize());
+    if (res != 0) {
+        ALOGE("%s: transfering DMA buffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    res = buffer->lockData();
+    if (res != 0) {
+        ALOGE("%s: locking buffer data failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    // Copy to the actual buffer.
+    memcpy(buffer->getPlaneData(0), temp.get(), buffer->getDataSize());
+    buffer->unlockData();
+
+    return 0;
 }
 
 void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
@@ -317,12 +355,9 @@ void SourceCaptureBlock::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuff
         mOutputRequestQueue.pop_front();
     }
 
-    // Transfer the DMA buffer.
-    status_t res = mMessengerToClient->transferDmaBuffer(dmaInputBuffer.dmaHandle, /*ionFd*/-1,
-            outputRequest.buffers[0]->getPlaneData(0), outputRequest.buffers[0]->getDataSize());
+    status_t res = transferDmaBuffer(dmaInputBuffer, outputRequest.buffers[0]);
     if (res != 0) {
-        ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
-                strerror(-res), res);
+        ALOGE("%s: transferDmaBuffer failed: %s (%d)", __FUNCTION__, strerror(-res), res);
 
         // Put the output request back to the queue.
         std::unique_lock<std::mutex> lock(mQueueLock);

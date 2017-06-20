@@ -1,0 +1,30 @@
+ShotLogData:
+  synthetic_exposure_count      2
+  ae_confidence_short_exposure  13.9
+  ae_confidence_long_exposure   7.4
+  ae_confidence_single_exposure -1.0
+  ideal_range_compression       1.126
+  actual_range_compression      1.126
+  fraction_of_pixels_from_long_exposure  0.64
+  short_exp_adjustment_factor   1.000
+  long_exp_adjustment_factor    1.000
+  log_scene_brightness          6.4
+  metering_frame_count          1
+  original_payload_frame_count  9
+  original_payload_frame_sharpness[] = { 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, }
+  final_payload_frame_sharpness[] = { 806338176.000000, 828240064.000000, 830152384.000000, 823273984.000000, 819850560.000000, 809867200.000000, 0.000000, 0.000000, 0.000000, }
+  was_payload_frame_merged[] = { 0, 1, 1, 1, 1, 0, 0, 0, 0, }
+  base_frame_index              1
+  zsl                           1
+  merged_frame_count            4
+  time_to_shot                  0.000
+  time_to_postview              0.503
+  used_hexagon                  0
+  capture_time                  0.302
+  postview_callback_time        0.029
+  merge_process_time            2.852
+  merged_raw_callback_time      0.000
+  finish_process_time           1.492
+  final_image_callback_time     0.000
+  jpeg_encode_time              0.000
+  jpeg_callback_time            0.000
