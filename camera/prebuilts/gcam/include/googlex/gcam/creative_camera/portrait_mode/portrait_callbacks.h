@@ -36,15 +36,22 @@ class GoudaProgressCallback {
 //
 // 'pixel_format' determines the precise pixel format and byte ordering in
 // 'image'.
+//
+// 'description' is a concise, potentially human-facing description of the image
+// being delivered--e.g., "input_image", "raw_pd", "disparity",
+// "face_detections", etc.  Description strings should only contain characters
+// suitable for use in filenames, i.e., a-zA-Z0-9_.
 class GoudaImageCallback {
  public:
   virtual ~GoudaImageCallback() = default;
 
   virtual void RgbReady(int64_t id, gcam::InterleavedImageU8* image,
-                        gcam::GcamPixelFormat pixel_format) = 0;
+                        gcam::GcamPixelFormat pixel_format,
+                        const std::string& description) = 0;
 
   virtual void YuvReady(int64_t id, gcam::YuvImage* image,
-                        gcam::GcamPixelFormat pixel_format) = 0;
+                        gcam::GcamPixelFormat pixel_format,
+                        const std::string& description) = 0;
 };
 
 // GoudaCompleteCallback::Run is invoked after all other callbacks for the
@@ -66,8 +73,31 @@ struct GoudaCallbacks {
   // Invoked as background processing makes progress.
   GoudaProgressCallback* progress_callback = nullptr;
 
-  // Invoked when an output image is available.
+  // Invoked when the upsampled input image is available. This is useful for
+  // accelerating the portrait processing pipeline--normally HDR+ upsamples
+  // digital zoomed shots up to the full sensor resolution, but the extra pixels
+  // just slow down portrait processing. Instead, HDR+ can produce a native
+  // resolution cropped image and defer upsampling to the portrait processor,
+  // which will return an upsampled HDR+ image via this callback. This will be
+  // invoked only once very early in the processing pipeline to mitigate the
+  // risk of losing images due to something killing the post-processing task.
+  GoudaImageCallback* upsampled_input_image_callback = nullptr;
+
+  // Invoked when the primary output image is available. This will be invoked
+  // only once.
   GoudaImageCallback* image_callback = nullptr;
+
+  // Invoked once for each secondary output image as it becomes available.
+  // Secondary outputs are images that could conceivably be surfaced to users as
+  // results, e.g., different blur amounts, cropped subimages, etc. This may be
+  // invoked any number of times (including zero) before the complete_callback
+  // is invoked.
+  GoudaImageCallback* secondary_image_callback = nullptr;
+
+  // Invoked once for each debug image as it becomes available. This may be
+  // invoked any number of times (including zero) before the complete_callback
+  // is invoked.
+  GoudaImageCallback* debug_image_callback = nullptr;
 
   // Invoked when background processing is complete and no more callbacks will
   // be invoked.

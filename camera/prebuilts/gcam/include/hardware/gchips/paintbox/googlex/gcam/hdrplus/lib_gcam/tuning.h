@@ -52,6 +52,13 @@ class SmoothKeyValueMap {
   // Replace the key-value pairs contained in this smooth map.
   void SetMap(const std::map<float, T>& pairs) { map_ = pairs; }
 
+  // Replace the key-value pairs contained in this smooth map with a mapping to
+  // a constant.
+  void SetConstant(const T& value) {
+    map_.clear();
+    map_[0.0f] = value;
+  }
+
   // Perform a linearly interpolated lookup into this map. If the map is empty,
   // this returns a default constructed T. If key is outside the range defined
   // by the keys of the map, the function returns the nearest key (i.e. it does
@@ -266,36 +273,24 @@ struct HotPixelParams {
   HotPixelParams();
 };
 
-// The number of bins used to describe a noise profile.
-static const int kRawNoiseShapeBins = 8;
-
-struct RawNoiseShape {
-  RawNoiseShape();
-
-  // The shape of the noise power spectral density is determined by scaling a
-  // white noise power spectrum by this profile. Bin 0 is the scale at the DC
-  // bin. Bin (kNoiseShapeBins - 1) is the scale at the Nyquist limit in both
-  // spatial dimensions.
-  float bins[kRawNoiseShapeBins];
-};
-
-// Overload lerp to support tuning interpolation.
-template <>
-RawNoiseShape LerpTuning<RawNoiseShape>(const RawNoiseShape& a,
-                                       const RawNoiseShape& b, float t);
-
 // Per-device configurable tuning settings for raw image merging.
 struct RawMergeParams {
   RawMergeParams();
+
+  // If true, disable alignment completely. This causes merge to use zero
+  // displacement alignments for all tiles.
+  bool disable_align;
 
   // Mapping of average base frame SNR to tile sizes to use for align and merge.
   // The tile size actually used is rounded down to the previous power of 2.
   SmoothKeyValueMap<int> align_tile_size;
   SmoothKeyValueMap<int> merge_tile_size;
 
-  // Noise shapes are stored as key-value pairs of average base frame SNR and
-  // RawNoiseShape objects.
-  SmoothKeyValueMap<RawNoiseShape> noise_shape;
+  // SNR dependent scalar factors on the expected amount of noise for each step
+  // of the merge denoising filter. Increasing the amount of expected noise
+  // increases the noise reduction strength.
+  SmoothKeyValueMap<float> temporal_strength;
+  SmoothKeyValueMap<float> spatial_strength;
 };
 
 // The number of frequencies used to describe the shape of the unsharp mask
@@ -366,6 +361,31 @@ struct ArcFlareParam {
   double radius_param[6];
 };
 
+// Denoising is performed on a image pyramid frequency decomposition. At the
+// highest frequency level, only luma denoising is performed, using a laplacian
+// shrinkage algorithm. For the rest of the levels, both the luma and chroma
+// are denoised using an approximated bilateral filter.
+struct DenoiseParams {
+  // Relative strength of the denoising. This value is used to scale the
+  // expected noise standard deviation. Larger values increase the expected
+  // noise standard deviation, which increases the denoising performed by the
+  // filter. The array elements correspond to pyramid levels, indexed from the
+  // base (highest resolution) pyramid level. The pyramid levels are decimated
+  // by 2 at each level.
+  float luma_strength[3] = { 1.0f, 1.0f, 1.0f };
+  float chroma_strength[3] = { 1.0f, 1.0f, 1.0f };
+
+  // This is used to blend back the original image, at each pyramid level.
+  // A value of 0 means none of the original image is used; a value of 1
+  // reverts to the original image completely.
+  float revert_factor[3] = { 0.0f, 0.0f, 0.0f };
+};
+
+template <>
+DenoiseParams LerpTuning<DenoiseParams>(const DenoiseParams& a,
+                                        const DenoiseParams& b,
+                                        float t);
+
 struct RawFinishParams {
   RawFinishParams();
 
@@ -382,16 +402,7 @@ struct RawFinishParams {
   // the extra vignetting will only take effect for non-ZSL (HDR+ ON) shots.
   bool disable_extra_vignetting_for_zsl;
 
-  // Relative strength of chroma denoising. Noise is smoothed if it appears to
-  // deviate less than the standard deviation of the noise scaled by this
-  // parameter. A value of 1.0 indicates that deviations of exactly the noise
-  // or less are suppressed. For chroma noise, this is often not enough, so
-  // values > 1.0 are typical.
-  float chroma_denoise_strength;
-
-  // Relative strength of spatial denoising, 1.0 is normal. This is a function
-  // of the estimated average SNR for the merged frame.
-  SmoothKeyValueMap<float> spatial_denoise_strength;
+  SmoothKeyValueMap<DenoiseParams> denoise;
 
   ChromaticAberrationParams chromatic_aberration;
 

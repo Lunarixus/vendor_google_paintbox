@@ -423,7 +423,7 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
                                                int x, int y) const;
   template <typename SourceType> void CopyFrom(const SourceType& source) const;
 
-  // Test if the the sample memory for this image view includes padding.
+  // Test if the sample memory for this image view includes padding.
   using ReadOnlyView::SamplesAreCompact;
 
   using ReadOnlyView::sample_array_size;
@@ -525,7 +525,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // Set the image to a null image. This will release the underlying image data.
   TImage& operator=(std::nullptr_t) override;
 
-  // Test if the the sample memory for this image view includes padding.
+  // Test if the sample memory for this image view includes padding.
   using ReadOnlyView::SamplesAreCompact;
 
   // Access to the memory allocator for the samples.
