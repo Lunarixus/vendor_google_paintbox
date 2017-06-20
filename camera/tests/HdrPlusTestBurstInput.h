@@ -16,7 +16,9 @@
 #ifndef PAINTBOX_HDR_PLUS_CLIENT_TEST_BURST_INPUT_H
 #define PAINTBOX_HDR_PLUS_CLIENT_TEST_BURST_INPUT_H
 
-#include <camera/CameraMetadata.h>
+#include <CameraMetadata.h>
+
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 
 namespace android {
 

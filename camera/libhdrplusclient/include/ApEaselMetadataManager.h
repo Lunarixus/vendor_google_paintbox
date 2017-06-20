@@ -21,8 +21,10 @@
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
 
-#include "camera/CameraMetadata.h"
+#include <CameraMetadata.h>
 #include "HdrPlusTypes.h"
+
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 
 namespace android {
 

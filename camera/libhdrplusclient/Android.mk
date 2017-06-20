@@ -26,7 +26,6 @@ LOCAL_SRC_FILES :=  \
     HdrPlusClientUtils.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-    libcamera_client \
     libcamera_metadata \
     libcutils \
     libhdrplusmessenger \
@@ -34,7 +33,11 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libeaselcontrol
 
+LOCAL_STATIC_LIBRARIES := \
+    android.hardware.camera.common@1.0-helper
+
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
+LOCAL_EXPORT_STATIC_LIBRARY_HEADERS += android.hardware.camera.common@1.0-helper
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
