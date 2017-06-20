@@ -20,7 +20,9 @@
 #include <fstream>
 #include <memory>
 
-#include <camera/CameraMetadata.h>
+#include <CameraMetadata.h>
+
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 
 namespace android {
 
