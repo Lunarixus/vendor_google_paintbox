@@ -19,12 +19,13 @@
 
 #define ENABLE_HDRPLUS_PROFILER 1
 
-#include <camera/CameraMetadata.h>
+#include <CameraMetadata.h>
 #include <inttypes.h>
 #include <stdlib.h>
 
 #include "HdrPlusClient.h"
 
+using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 namespace android {
 
 HdrPlusClient::HdrPlusClient() : mClientListener(nullptr), mServiceFatalErrorState(false) {
