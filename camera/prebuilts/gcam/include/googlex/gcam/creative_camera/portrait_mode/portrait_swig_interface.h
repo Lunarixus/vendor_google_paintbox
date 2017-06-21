@@ -9,6 +9,7 @@
 
 #include "googlex/gcam/base/pixel_rect.h"
 #include "googlex/gcam/creative_camera/portrait_mode/portrait_callbacks.h"
+#include "googlex/gcam/creative_camera/portrait_mode/portrait_request.h"
 #include "googlex/gcam/image/t_image.h"
 #include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_metadata/image_rotation.h"
@@ -42,8 +43,7 @@ class GoudaSwigWrapper {
   // Returns true on success.
   bool Process(int64_t id, const GoudaCallbacks& callbacks,
                const gcam::InterleavedImageU8& rgb_input,
-               gcam::ImageRotation input_rotation,
-               const std::vector<gcam::PixelRect>& faces,
+               const GoudaRequest& gouda_request,
                const gcam::InterleavedReadViewU16& pd_input);  // Optional.
 
   // Releases memory associated with the internal GoudaProcessor. Will require

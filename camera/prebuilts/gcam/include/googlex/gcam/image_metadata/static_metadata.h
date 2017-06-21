@@ -136,7 +136,7 @@ struct StaticMetadata {
   // Defaults to 0.
   int sensor_id;
 
-  // Description of the software used to create the the image this metadata
+  // Description of the software used to create the image this metadata
   // describes (e.g. "Gcam [build date: ...], Device code ...").
   std::string software;
 
