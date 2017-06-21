@@ -110,16 +110,16 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         }
 
         // Remove old inputs
-        auto input = mInputQueue.begin();
-        while (input != mInputQueue.end()) {
-            if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
+        while (!mInputQueue.empty()) {
+            auto input = mInputQueue.top();
+            if (now - input.metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
                 ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
-                        input->metadata.frameMetadata->easelTimestamp, now);
-                returnInputLocked(pipeline, &*input);
-                input = mInputQueue.erase(input);
+                        input.metadata.frameMetadata->easelTimestamp, now);
+                returnInputLocked(pipeline, &input);
             } else {
-                input++;
+                break;
             }
+            mInputQueue.pop();
         }
 
         // If we have more inputs than we need, remove the oldest ones.
@@ -127,8 +127,9 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
             ALOGV("%s: Input queue is full (%zu). Send the oldest buffer back.", __FUNCTION__,
                     mInputQueue.size());
 
-            returnInputLocked(pipeline, &mInputQueue[0]);
-            mInputQueue.pop_front();
+            auto input = mInputQueue.top();
+            returnInputLocked(pipeline, &input);
+            mInputQueue.pop();
         }
 
         if (mInputQueue.size() < kGcamMinPayloadFrames) {
@@ -143,9 +144,9 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         }
 
         // Get all inputs.
-        while (mInputQueue.size() > 0) {
-            inputs.push_back(mInputQueue[0]);
-            mInputQueue.pop_front();
+        while (!mInputQueue.empty()) {
+            inputs.push_back(mInputQueue.top());
+            mInputQueue.pop();
         }
 
         outputRequest = mOutputRequestQueue[0];
@@ -168,7 +169,9 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
 
         // Push inputs and output request back to the front of the queue.
         std::unique_lock<std::mutex> lock(mQueueLock);
-        mInputQueue.insert(mInputQueue.begin(), inputs.begin(), inputs.end());
+        for (const auto& input : inputs) {
+          mInputQueue.push(input);
+        }
         mOutputRequestQueue.push_front(outputRequest);
 
         if (sourceCaptureBlock != nullptr) {
@@ -527,7 +530,9 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int burst_id, gcam::YuvImage* yuvR
     // Push inputs back to the front of the queue because it may be needed for next capture.
     {
         std::unique_lock<std::mutex> lock(mQueueLock);
-        mInputQueue.insert(mInputQueue.begin(), inputs.begin(), inputs.end());
+        for (const auto& input : inputs) {
+          mInputQueue.push(input);
+        }
     }
 
     // Notify worker thread that it can start next processing.
