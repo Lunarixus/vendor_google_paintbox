@@ -32,6 +32,7 @@ TESTS="
 	camera2/cts/StaticMetadataTest.java \
 	camera2/cts/FlashlightTest.java \
 	camera2/cts/BurstCaptureTest.java \
+	camera2/cts/ImageReaderTest.java \
 	camera2/cts/ImageWriterTest.java \
 	camera2/cts/CaptureRequestTest.java \
 	camera2/cts/NativeCameraDeviceTest.java \
@@ -44,8 +45,7 @@ TESTS="
 	multiprocess/camera/cts/CameraEvictionTest.java \
 "
 
-FLAKY_TEST="
-	camera2/cts/ImageReaderTest.java \
+FLAKY_TESTS="
 	camera2/cts/RecordingTest.java \
 	camera2/cts/ReprocessCaptureTest.java \
 	camera2/cts/RobustnessTest.java \
