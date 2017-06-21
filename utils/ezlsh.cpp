@@ -201,8 +201,8 @@ void client_push_response_handler(EaselComm::EaselMessage *msg) {
     FilePushResponse *resp = (FilePushResponse *)msg->message_buf;
 
     if (resp->response_code) {
-        fprintf(stderr, "ERROR: ezlsh push: %s: %s\n", file_xfer_path_remote,
-                strerror(resp->response_code));
+        fprintf(stderr, "ERROR: ezlsh %s: %s: %s\n", __FUNCTION__,
+                file_xfer_path_remote, strerror(resp->response_code));
     }
 
     client_xfer_done();
@@ -213,8 +213,8 @@ void client_save_pulled_file(EaselComm::EaselMessage *msg) {
     FilePullResponse *resp = (FilePullResponse *)msg->message_buf;
 
     if (resp->response_code) {
-        fprintf(stderr, "ezlsh: %s: %s\n", file_xfer_path_remote,
-                strerror(resp->response_code));
+        fprintf(stderr, "ezlsh: %s: %s: %s\n", __FUNCTION__,
+                file_xfer_path_remote, strerror(resp->response_code));
         return;
     }
 
@@ -296,7 +296,8 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
     int ret = easel_comm_client.receiveDMA(msg);
 
     if (ret) {
-        fprintf(stderr, "ezlsh: %s: EaselComm receiveDMA failed errno %d", __FUNCTION__, ret);
+        fprintf(stderr, "ezlsh: %s: EaselComm receiveDMA failed (%d)",
+                __FUNCTION__, ret);
         free(files_buffer);
         client_recursive_done();
         return;
@@ -824,6 +825,7 @@ void server_pull_file(FilePullRequest *req) {
     struct stat stat_buf;
     ssize_t data_len = 0;
     ssize_t data_max_len;
+    int ret_code = 0;
 
     if (fd >= 0) {
         if (fstat(fd, &stat_buf) == 0)
@@ -848,22 +850,28 @@ void server_pull_file(FilePullRequest *req) {
     // maximum number of bytes configured above.
     data_max_len = file_size ? file_size : kDynamicMaxSize;
 
-    // Read file, send errno as response code and file data as DMA buffer
-    // (if successful).
-    errno = 0;
+    // Read file, send errno as response code if failed.
+    // Send file data as DMA buffer if successful.
+    ret_code = 0;
     char *file_data = (char *)malloc(data_max_len);
-    if (file_data != nullptr)
+    if (!file_data) {
+        ret_code = errno;
+    } else {
         data_len = read(fd, file_data, data_max_len);
+        if (data_len < 0) {
+            ret_code = errno;
+        }
+    }
     // If dynamically-generated file larger than our max then send error
     if (!file_size && data_len == kDynamicMaxSize)
-        errno = EFBIG;
+        ret_code = EFBIG;
 
-    FilePullResponse pull_resp(errno);
+    FilePullResponse pull_resp(ret_code);
     EaselComm::EaselMessage msg;
     msg.message_buf = &pull_resp;
     msg.message_buf_size = sizeof(FilePullResponse);
-    msg.dma_buf = (errno || !data_len) ? NULL : file_data;
-    msg.dma_buf_size = errno ? 0 : data_len;
+    msg.dma_buf = (ret_code || !data_len) ? NULL : file_data;
+    msg.dma_buf_size = ret_code ? 0 : data_len;
     easel_comm_server.sendMessage(&msg);
 
     free(file_data);
@@ -885,7 +893,8 @@ void server_ls_file(FileLsRequest *req) {
     msg.dma_buf_size = file_list.length() + 1;
     int ret = easel_comm_server.sendMessage(&msg);
     if (ret != 0) {
-        fprintf(stderr, "%s: %s errno %d\n", "ezlsh", __FUNCTION__, ret);
+        fprintf(stderr, "ezlsh: %s: failed to sendMessage (%d)\n",
+                __FUNCTION__, ret);
     }
 }
 
@@ -903,7 +912,8 @@ static int server_send_exec_response(const char *output, int size, bool done, in
     msg.dma_buf_size = 0;
     int ret = easel_comm_server.sendMessage(&msg);
     if (ret != 0) {
-        fprintf(stderr, "%s: %s errno %d", "ezlsh", __FUNCTION__, ret);
+        fprintf(stderr, "ezlsh: %s: failed to sendMessage (%d)\n",
+                __FUNCTION__, ret);
     }
     return ret;
 }
@@ -912,14 +922,16 @@ void server_exec_cmd(ExecRequest *request) {
     auto pipe = popen(request->cmd, "r");
     int ret = -1;
     if (!pipe) {
-        fprintf(stderr, "%s: %s could not execute cmd", "ezlsh", __FUNCTION__);
+        fprintf(stderr, "ezlsh: %s could not execute cmd %s\n",
+                __FUNCTION__, request->cmd);
         return;
     } else {
         char output[kMaxTtyDataBufferSize];
         while ((ret = read(fileno(pipe), output, kMaxTtyDataBufferSize)) > 0) {
             // read contains null terminator: ret == strlen(output) + 1
             if (ret > kMaxTtyDataBufferSize) {
-                fprintf(stderr, "%s: %s output too long %d", "ezlsh", __FUNCTION__, ret);
+                fprintf(stderr, "ezlsh: %s output too long (%d)",
+                        __FUNCTION__, ret);
                 ret = kMaxTtyDataBufferSize;
             }
             server_send_exec_response(output, ret, false, 0);
