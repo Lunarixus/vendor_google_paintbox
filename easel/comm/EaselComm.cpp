@@ -146,14 +146,12 @@ const char *handshakeSeq[kHandshakeSeqNum] = {
 };
 
 static int composeHandshake(EaselComm::EaselMessage *msg, int seq) {
-    const int32_t timeoutMsHandshake = 1000;    // Wait for 1 sec
     assert(msg != nullptr);
     assert((seq >= 0) && (seq < kHandshakeSeqNum));
 
     msg->message_buf = (void *)handshakeSeq[seq];
     msg->message_buf_size = kHandshakeSignalLen;
     msg->dma_buf = nullptr;
-    msg->timeout_ms = timeoutMsHandshake;
     return 0;
 }
 
@@ -516,6 +514,7 @@ void EaselComm::handleReceivedMessages(
 int EaselCommClient::initialHandshake() {
     EaselMessage msg;
     int ret = 0;
+    const int32_t timeoutMsHandshakeClient = 1000;  // Client waits for 1 sec
 
     composeHandshake(&msg, 0);
     ret = sendMessage(&msg);
@@ -523,6 +522,7 @@ int EaselCommClient::initialHandshake() {
         return ret;
     }
 
+    msg.timeout_ms = timeoutMsHandshakeClient;
     ret = receiveMessage(&msg);
     if (ret) {
         return ret;
@@ -540,10 +540,11 @@ int EaselCommClient::initialHandshake() {
 // Server side handshaking.
 // Receive, send, receive
 int EaselCommServer::initialHandshake() {
-
     EaselMessage msg;
     int ret = 0;
+    const int32_t timeoutMsHandshakeServer = 5000;  // Server waits for 5 sec
 
+    msg.timeout_ms = timeoutMsHandshakeServer;
     ret = receiveMessage(&msg);
     if (ret) {
         return ret;
@@ -559,6 +560,7 @@ int EaselCommServer::initialHandshake() {
         return ret;
     }
 
+    msg.timeout_ms = timeoutMsHandshakeServer;
     ret = receiveMessage(&msg);
     if (ret) {
         return ret;
