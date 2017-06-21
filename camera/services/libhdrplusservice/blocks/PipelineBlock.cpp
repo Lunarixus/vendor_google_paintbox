@@ -109,15 +109,15 @@ status_t PipelineBlock::stopAndFlush(uint32_t timeoutMs) {
         auto pipeline = mPipeline.lock();
         if (pipeline != nullptr) {
             std::unique_lock<std::mutex> queueLock(mQueueLock);
-            while (!mInputQueue.empty()) {
-                pipeline->inputAbort(mInputQueue.top());
-                mInputQueue.pop();
+            for (auto input : mInputQueue) {
+                pipeline->inputAbort(input);
             }
             for (auto output : mOutputRequestQueue) {
                 pipeline->outputRequestAbort(output);
             }
         }
 
+        mInputQueue.clear();
         mOutputRequestQueue.clear();
     }
 
@@ -189,7 +189,7 @@ status_t PipelineBlock::queueInput(Input *input) {
     // Queue input and notify worker thread.
     {
         std::unique_lock<std::mutex> lock(mQueueLock);
-        mInputQueue.push(*input);
+        mInputQueue.push_back(*input);
     }
 
     notifyWorkerThreadEvent();

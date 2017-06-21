@@ -47,8 +47,8 @@ bool CaptureResultBlock::doWorkLocked() {
             ALOGV("%s: No input", __FUNCTION__);
             return false;
         }
-        input = mInputQueue.top();
-        mInputQueue.pop();
+        input = mInputQueue[0];
+        mInputQueue.pop_front();
     }
 
     ALOGV("%s: Processing input", __FUNCTION__);

@@ -235,15 +235,7 @@ protected:
      * mInputQueue or mOutputRequestQueue.
      */
     std::mutex mQueueLock;
-
-    // A simple comparator for mInputQueue which uses the Input timestamp.
-    struct InputLess {
-        bool operator()(const Input& lhs, const Input& rhs) const {
-            return lhs.metadata.frameMetadata->easelTimestamp <
-                   rhs.metadata.frameMetadata->easelTimestamp;
-        }
-    };
-    std::priority_queue<Input, std::deque<Input>, InputLess> mInputQueue;
+    std::deque<Input> mInputQueue;
     std::deque<OutputRequest> mOutputRequestQueue;
 
     // Name of the block.
