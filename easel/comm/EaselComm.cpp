@@ -385,6 +385,7 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
 }
 
 bool EaselComm::isConnected() {
+    std::lock_guard<std::mutex> lock(mStatusMutex);
     return !mClosed;
 }
 
@@ -394,6 +395,8 @@ bool EaselComm::isConnected() {
 int EaselCommClient::open(int service_id, long timeout_ms) {
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
+
+    std::lock_guard<std::mutex> lock(mStatusMutex);
 
     if (!mClosed) {
         return -EBUSY;
@@ -430,6 +433,9 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
 }
 
 int EaselCommServer::open(int service_id, __unused long timeout_ms) {
+
+    std::lock_guard<std::mutex> lock(mStatusMutex);
+
     if (!mClosed) {
         return -EBUSY;
     }
@@ -450,13 +456,17 @@ int EaselCommServer::open(int service_id, __unused long timeout_ms) {
 
 // Close connection.
 void EaselComm::close() {
-    if (mClosed) {
-        return;
+    {
+        std::lock_guard<std::mutex> lock(mStatusMutex);
+        if (mClosed) {
+            return;
+        }
+        ioctl(mEaselCommFd, EASELCOMM_IOC_SHUTDOWN);
+        ::close(mEaselCommFd);
+        mEaselCommFd = -1;
+        mClosed = true;
     }
-    ioctl(mEaselCommFd, EASELCOMM_IOC_SHUTDOWN);
-    ::close(mEaselCommFd);
-    mEaselCommFd = -1;
-    mClosed = true;
+
     if (mHandlerThread.joinable()) {
         mHandlerThread.join();
     }
@@ -472,6 +482,8 @@ int EaselComm::startMessageHandlerThread(
     if (mHandlerThread.joinable()) {
         return -EBUSY;
     }
+
+    std::lock_guard<std::mutex> lock(mStatusMutex);
     if (mClosed) {
         return -EINVAL;
     }
@@ -483,7 +495,7 @@ void EaselComm::handleReceivedMessages(
         std::function<void(EaselMessage *msg)> callback) {
 
     EaselMessage msg;
-    while (!mClosed) {
+    while (isConnected()) {
         int ret = receiveMessage(&msg);
         if (ret != 0) {
           break;
