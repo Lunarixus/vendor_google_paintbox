@@ -5,6 +5,8 @@
  * Header file easelcomm.h contains documentation on the public APIs below.
  */
 
+#define LOG_TAG "EaselComm"
+
 #include "easelcomm.h"
 #include "uapi/linux/google-easel-comm.h"
 
@@ -22,10 +24,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <log/log.h>
+
 namespace {
 // Device file path
 static const char *kEaselCommDevPathClient = "/dev/easelcomm-client";
 static const char *kEaselCommDevPathServer = "/dev/easelcomm-server";
+static const useconds_t kOpenPollIntervalUs = 1000;  // Poll interval 1 ms
 
 enum {
     KBUF_FILL_UNUSED,
@@ -400,9 +405,12 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
         return -EBUSY;
     }
 
+    int retry = 0;
     while (1) {
         long diff_ms;
         struct timespec now;
+
+        retry++;
 
         mEaselCommFd = ::open(kEaselCommDevPathClient, O_RDWR);
 
@@ -414,15 +422,19 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
             break;
         }
         if (diff_ms > timeout_ms) {
+            ALOGE("%s: Failed to open device %s, retried %d",
+                  __FUNCTION__, kEaselCommDevPathServer, retry);
             return -ETIME;
         }
-        usleep(1000);   // Sleep for 1 ms to reduce retry attempts
+        usleep(kOpenPollIntervalUs);   // Sleep to reduce retry attempts
     }
 
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
         int ret = -errno;
         ::close(mEaselCommFd);
         mEaselCommFd = -1;
+        ALOGE("%s: Failed to register service %d (%d)",
+              __FUNCTION__, service_id, ret);
         return ret;
     }
     mClosed = false;
@@ -430,7 +442,9 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
     return 0;
 }
 
-int EaselCommServer::open(int service_id, __unused long timeout_ms) {
+int EaselCommServer::open(int service_id, long timeout_ms) {
+    struct timespec begin;
+    clock_gettime(CLOCK_MONOTONIC, &begin);
 
     std::lock_guard<std::mutex> lock(mStatusMutex);
 
@@ -438,13 +452,36 @@ int EaselCommServer::open(int service_id, __unused long timeout_ms) {
         return -EBUSY;
     }
 
-    mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
-    if (mEaselCommFd == -1)
-        return -errno;
+    int retry = 0;
+    while (1) {
+        long diff_ms;
+        struct timespec now;
+
+        retry++;
+
+        mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        diff_ms = (now.tv_sec - begin.tv_sec) * 1000
+                  + (now.tv_nsec - begin.tv_nsec) / 1000000;
+
+        if (mEaselCommFd > 0) {
+            break;
+        }
+        if (diff_ms > timeout_ms) {
+            ALOGE("%s: Failed to open device %s, retried %d",
+                  __FUNCTION__, kEaselCommDevPathServer, retry);
+            return -ETIME;
+        }
+        usleep(kOpenPollIntervalUs);   // Sleep to reduce retry attempts
+    }
+
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
         int ret = -errno;
         ::close(mEaselCommFd);
         mEaselCommFd = -1;
+        ALOGE("%s: Failed to register service %d (%d)",
+              __FUNCTION__, service_id, ret);
         return ret;
     }
     mClosed = false;
