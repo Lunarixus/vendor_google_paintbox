@@ -239,8 +239,8 @@ public:
 
 class EaselCommServer : public EaselComm {
 public:
-    virtual int open(int service_id, __unused long timeout_ms
-                                     = DEFAULT_OPEN_TIMEOUT_MS) override;
+    virtual int open(int service_id,
+                     long timeout_ms = DEFAULT_OPEN_TIMEOUT_MS) override;
 
     /*
      * Server side handshaking to confirm service layer connection.
