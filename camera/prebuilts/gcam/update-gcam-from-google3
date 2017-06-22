@@ -123,7 +123,7 @@ rm -rf ${TMP_PCG_FULL_PATH}
 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
 
 # Build libgcam
-blaze build --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
+blaze build --define easel=1 --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
   popd
