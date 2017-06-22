@@ -284,7 +284,7 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sen
 
     // Create an HDR+ processing block for HDR+ processing.
     mHdrPlusProcessingBlock = HdrPlusProcessingBlock::newHdrPlusProcessingBlock(shared_from_this(),
-            mStaticMetadata, sourceCaptureBlock);
+            mStaticMetadata, sourceCaptureBlock, sensorMode == nullptr);
     if (mHdrPlusProcessingBlock == nullptr) {
         ALOGE("%s: Creating HdrPlusProcessingBlock failed.", __FUNCTION__);
         return -ENODEV;

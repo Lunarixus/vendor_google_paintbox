@@ -558,10 +558,16 @@ protected:
                     &frameMetadata, i), OK);
 
             // Get the timestamp of the frame from metadata
+            // Easel SOF timestamp = AP sensor timestamp + exposure time.
             camera_metadata_entry entry = frameMetadata.find(ANDROID_SENSOR_TIMESTAMP);
             ASSERT_EQ(entry.count, (uint32_t)1)
                     << "Cannot find timestamp in metadata for frame " << i;
             int64_t timestampNs = entry.data.i64[0];
+
+            entry = frameMetadata.find(ANDROID_SENSOR_EXPOSURE_TIME);
+            ASSERT_EQ(entry.count, (uint32_t)1)
+                    << "Cannot find exposure time in metadata for frame " << i;
+            int64_t exposureTimeNs = entry.data.i64[0];
 
             // Send an input buffer
             pbcamera::StreamBuffer inputBuffer = {};
@@ -569,7 +575,7 @@ protected:
             inputBuffer.dmaBufFd = kInvalidFd;
             inputBuffer.data = mInputStream->availableBuffers[0];
             inputBuffer.dataSize = mInputStream->bufferSizeBytes;
-            mClient->notifyInputBuffer(inputBuffer, timestampNs);
+            mClient->notifyInputBuffer(inputBuffer, timestampNs + exposureTimeNs);
 
             // Create and send a CameraMetadata
             const camera_metadata_t* metadata = frameMetadata.getAndLock();
