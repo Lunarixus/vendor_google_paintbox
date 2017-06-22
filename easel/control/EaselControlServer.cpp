@@ -62,9 +62,6 @@ int64_t timesync_ap_boottime = 0;
 // The local boottime clock at the time the above was set
 int64_t timesync_local_boottime = 0;
 
-// Incoming message handler thread
-std::thread *msg_handler_thread;
-
 // EaselThermalMonitor instance
 EaselThermalMonitor thermalMonitor;
 static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
@@ -104,112 +101,88 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
 }
 
 // Handle incoming messages from EaselControlClient.
-void *msgHandlerThread() {
-    while (true) {
-        EaselComm::EaselMessage msg;
-        int ret = easel_conn.receiveMessage(&msg);
+void msgHandlerCallback(EaselComm::EaselMessage* msg) {
+    EaselControlImpl::MsgHeader *h =
+        (EaselControlImpl::MsgHeader *)msg->message_buf;
+
+    ALOGI("Received command %d", h->command);
+
+    int ret = 0;
+
+    switch(h->command) {
+    case EaselControlImpl::CMD_ACTIVATE: {
+      EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
+
+        // Server will not set realtime on receiving CMD_ACTIVATE
+        // Instead, we assume client will send another CMD_SET_TIME after
+        // receiving this reply.
+        easel_conn.sendReply(msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
+
+        ret = thermalMonitor.start();
         if (ret) {
-            if (errno != ESHUTDOWN)
-                ALOGE("easelcontrol: receiveMessage error, exiting");
-            break;
+            ALOGE("failed to start EaselThermalMonitor (%d)", ret);
         }
 
-        if (msg.dma_buf_size) {
-            msg.dma_buf = nullptr;
-            easel_conn.receiveDMA(&msg);
-        }
-
-        if (msg.message_buf == nullptr)
-            continue;
-
-        EaselControlImpl::MsgHeader *h =
-            (EaselControlImpl::MsgHeader *)msg.message_buf;
-
-        ALOGI("Received command %d", h->command);
-
-        switch(h->command) {
-        case EaselControlImpl::CMD_ACTIVATE: {
-          EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
-
-            // Server will not set realtime on receiving CMD_ACTIVATE
-            // Instead, we assume client will send another CMD_SET_TIME after
-            // receiving this reply.
-            easel_conn.sendReply(&msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
-
-            ret = thermalMonitor.start();
-            if (ret) {
-                ALOGE("failed to start EaselThermalMonitor (%d)", ret);
-            }
-
-            break;
-        }
-
-        case EaselControlImpl::CMD_DEACTIVATE: {
-            // Invalidate current timesync value
-            timesync_ap_boottime = 0;
-
-            ret = thermalMonitor.stop();
-            if (ret) {
-                ALOGE("%s: failed to stop EaselThermalMonitor (%d)", __FUNCTION__, ret);
-            }
-
-            EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
-            break;
-        }
-
-        case EaselControlImpl::CMD_SUSPEND: {
-            // Send command to suspend the kernel
-            int fd = open(KERNEL_SUSPEND_SYS_FILE, O_WRONLY);
-            char buf[] = KERNEL_SUSPEND_STRING;
-
-            if (fd >= 0) {
-                write(fd, buf, strlen(buf));
-                close(fd);
-            } else {
-                ALOGE("easelcontrol: could not open power management sysfs file");
-            }
-
-            break;
-        }
-
-        case EaselControlImpl::CMD_SET_TIME: {
-            EaselControlImpl::SetTimeMsg *tmsg =
-                (EaselControlImpl::SetTimeMsg *)msg.message_buf;
-
-            setTimeFromMsg(tmsg->boottime, tmsg->realtime);
-
-            // Send server timestamp back to client
-            EaselControlImpl::SetTimeMsg reply_msg;
-            reply_msg.h.command = EaselControlImpl::CMD_SET_TIME;
-            struct timespec ts ;
-            clock_gettime(CLOCK_BOOTTIME, &ts);
-            reply_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
-            clock_gettime(CLOCK_REALTIME, &ts);
-            reply_msg.realtime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
-
-            EaselComm::EaselMessage reply;
-            reply.message_buf = &reply_msg;
-            reply.message_buf_size = sizeof(reply_msg);
-            reply.dma_buf = 0;
-            reply.dma_buf_size = 0;
-
-            easel_conn.sendReply(&msg, EaselControlImpl::REPLY_SET_TIME_OK, &reply);
-            break;
-        }
-
-        default:
-            ALOGE("ERROR: unrecognized command %d", h->command);
-            assert(0);
-        }
-
-        free(msg.message_buf);
+        break;
     }
 
-    return NULL;
-}
+    case EaselControlImpl::CMD_DEACTIVATE: {
+        // Invalidate current timesync value
+        timesync_ap_boottime = 0;
 
-void spawnIncomingMsgThread() {
-    msg_handler_thread = new std::thread(msgHandlerThread);
+        ret = thermalMonitor.stop();
+        if (ret) {
+            ALOGE("%s: failed to stop EaselThermalMonitor (%d)", __FUNCTION__, ret);
+        }
+
+        EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
+        break;
+    }
+
+    case EaselControlImpl::CMD_SUSPEND: {
+        // Send command to suspend the kernel
+        int fd = open(KERNEL_SUSPEND_SYS_FILE, O_WRONLY);
+        char buf[] = KERNEL_SUSPEND_STRING;
+
+        if (fd >= 0) {
+            write(fd, buf, strlen(buf));
+            close(fd);
+        } else {
+            ALOGE("easelcontrol: could not open power management sysfs file");
+        }
+
+        break;
+    }
+
+    case EaselControlImpl::CMD_SET_TIME: {
+        EaselControlImpl::SetTimeMsg *tmsg =
+            (EaselControlImpl::SetTimeMsg *)msg->message_buf;
+
+        setTimeFromMsg(tmsg->boottime, tmsg->realtime);
+
+        // Send server timestamp back to client
+        EaselControlImpl::SetTimeMsg reply_msg;
+        reply_msg.h.command = EaselControlImpl::CMD_SET_TIME;
+        struct timespec ts ;
+        clock_gettime(CLOCK_BOOTTIME, &ts);
+        reply_msg.boottime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        reply_msg.realtime = (uint64_t)ts.tv_sec * NSEC_PER_SEC + ts.tv_nsec;
+
+        EaselComm::EaselMessage reply;
+        reply.message_buf = &reply_msg;
+        reply.message_buf_size = sizeof(reply_msg);
+        reply.dma_buf = 0;
+        reply.dma_buf_size = 0;
+
+        easel_conn.sendReply(msg, EaselControlImpl::REPLY_SET_TIME_OK, &reply);
+        break;
+    }
+
+    default:
+        ALOGE("ERROR: unrecognized command %d", h->command);
+        assert(0);
+    }
 }
 
 /* Open our EaselCommServer object if not already. */
@@ -237,7 +210,7 @@ int initializeServer() {
     }
 #endif
 
-    spawnIncomingMsgThread();
+    easel_conn.startMessageHandlerThread(msgHandlerCallback);
     gServerInitialized = true;
     return ret;
 }
