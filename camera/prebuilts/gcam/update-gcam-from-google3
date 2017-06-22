@@ -52,7 +52,7 @@ GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
 GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
 GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessor.so"
 GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
-GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/precompile_burst_process.sh"
+GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/generate_all_pbserver_pcgs.sh"
 
 ANDROID_GCAM_PREBUILT_PATH="vendor/google_paintbox/camera/prebuilts/gcam/"
 ANDROID_GCAM_LIB_PATH="${ANDROID_GCAM_PREBUILT_PATH%%/}/lib64"
@@ -81,9 +81,6 @@ ANDROID_IMX_H_FULL_PATH="${ANDROID_IMX_PREBUILT_FULL_PATH%%/}/include/imx.h"
 
 ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}"
 TMP_PCG_FULL_PATH="/tmp/pcg"
-PCG_IMAGE_SET="0012_20170428_003011_573 0042_19700118_164050_527"
-PCG_NUM_FRAMES="3 4 5"
-PCG_NUM_EXPOSURES="2"
 
 ######################################################################
 # Verify paths
@@ -123,22 +120,7 @@ pushd ${GOOGLE3_PATH}
 
 # Generate PCG
 rm -rf ${TMP_PCG_FULL_PATH}
-
-for image_set in ${PCG_IMAGE_SET}; do
-  for num_frames in ${PCG_NUM_FRAMES}; do
-    for num_exposures in ${PCG_NUM_EXPOSURES}; do
-      mkdir -p ${TMP_PCG_FULL_PATH}
-      ${GOOGLE3_PCG_GEN_SH} \
-          --build_for_easel=0 \
-          --build_for_pbserver \
-          --image_set=${image_set} \
-          --num_frames=${num_frames} \
-          --synthetic_exposures=${num_exposures} \
-          --clear_stale_pcgs=0 \
-          --pcg_output_dir=${TMP_PCG_FULL_PATH}
-    done
-  done
-done
+${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
 
 # Build libgcam
 blaze build --config=android_arm64 -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
