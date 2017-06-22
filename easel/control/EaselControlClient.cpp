@@ -36,19 +36,11 @@ EaselCommClient easel_conn;
 // EaselStateManager instance
 EaselStateManager stateMgr;
 
-// Mutex to protect EaselComm thread
-std::thread *conn_thread = NULL;
-std::mutex conn_mutex;
-std::condition_variable conn_cond;
-enum ConnState {
-    CONN_STATE_CLOSED, // control channel is closed, no message thread running
-    CONN_STATE_PENDING, // message thread has been started, but channel is not opened
-    CONN_STATE_OPENED, // channel is opened
-    CONN_STATE_HANDSHAKED, // handshake has completed successfully on control channel
-    CONN_STATE_FAILED, // channel closed because of some failure
-} conn_state = CONN_STATE_CLOSED;
+std::thread conn_thread;
 
 EaselLog::LogClient gLogClient;
+
+bool gHandshakeSuccessful;
 
 // Mutex to protect the current state of EaselControlClient
 std::mutex state_mutex;
@@ -69,49 +61,6 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"msm_therm", 1000},
     {"quiet_therm", 1000},
 };
-
-/*
- * Handle incoming messages from EaselControlServer.
- */
-void handleMessages() {
-    while (true) {
-        EaselComm::EaselMessage msg;
-        int ret = easel_conn.receiveMessage(&msg);
-        if (ret) {
-            if (errno != ESHUTDOWN) {
-                ALOGE("easelcontrol: receiveMessage error (%d, %d), exiting\n", ret, errno);
-            }
-            break;
-        }
-
-        if (msg.message_buf == nullptr) {
-            continue;
-        }
-
-        EaselControlImpl::MsgHeader *h =
-            (EaselControlImpl::MsgHeader *)msg.message_buf;
-
-        switch (h->command) {
-            // Currently there is no messages expected to be received here.
-        default:
-            ALOGE("easelcontrol: unknown command code %d received\n",
-                    h->command);
-            // TODO(toddpoynor): panic restart Easel on misbehavior
-        }
-
-        /*
-         * DMA transfers are never requested by EaselControl, but just in
-         * case, throw away any DMA buffer requested.
-         */
-        if (msg.dma_buf_size) {
-            msg.dma_buf = nullptr;
-            easel_conn.receiveDMA(&msg);
-        }
-
-        free(msg.message_buf);
-    }
-}
-
 } // anonymous namespace
 
 static int sendTimestamp(void) {
@@ -228,15 +177,6 @@ int sendDeactivateCommand()
     return ret;
 }
 
-void setConnStateAndNotify(enum ConnState state)
-{
-    {
-        std::lock_guard<std::mutex> conn_lock(conn_mutex);
-        conn_state = state;
-    }
-    conn_cond.notify_all();
-}
-
 void easelConnThread()
 {
     int ret;
@@ -248,7 +188,6 @@ void easelConnThread()
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
         ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
-        setConnStateAndNotify(CONN_STATE_FAILED);
         return;
     }
 
@@ -257,11 +196,8 @@ void easelConnThread()
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
-        setConnStateAndNotify(CONN_STATE_FAILED);
         return;
     }
-
-    setConnStateAndNotify(CONN_STATE_OPENED);
 
 #ifndef MOCKEASEL
     ALOGI("%s: waiting for handshake\n", __FUNCTION__);
@@ -269,15 +205,14 @@ void easelConnThread()
     if (ret) {
         if (ret == -ESHUTDOWN) {
             ALOGD("%s: connection was closed during handshake", __FUNCTION__);
-            setConnStateAndNotify(CONN_STATE_CLOSED);
         } else {
             ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
-            setConnStateAndNotify(CONN_STATE_FAILED);
         }
+        gHandshakeSuccessful = false;
         return;
     }
+    gHandshakeSuccessful = true;
     ALOGI("%s: handshake done\n", __FUNCTION__);
-    setConnStateAndNotify(CONN_STATE_HANDSHAKED);
 #endif
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
@@ -295,78 +230,36 @@ void easelConnThread()
             ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
         }
     }
-
-    handleMessages();
-
-    setConnStateAndNotify(CONN_STATE_CLOSED);
 }
 
 int setupEaselConn()
 {
-    {
-        std::unique_lock<std::mutex> conn_lock(conn_mutex);
-        if (conn_state == CONN_STATE_OPENED) {
-            return 0;
-        }
-    }
-
-    if (conn_thread == NULL) {
-        {
-            std::unique_lock<std::mutex> conn_lock(conn_mutex);
-            conn_state = CONN_STATE_PENDING;
-        }
-
-        conn_thread = new std::thread(easelConnThread);
-        if (conn_thread == NULL) {
-            return -ENOMEM;
-        }
-
+    if (conn_thread.joinable() || easel_conn.isConnected()) {
         return 0;
     }
+    gHandshakeSuccessful = false;
+    conn_thread = std::thread(easelConnThread);
+    return 0;
+}
 
-    {
-        std::unique_lock<std::mutex> conn_lock(conn_mutex);
-        conn_cond.wait(conn_lock, []{
-            return (conn_state != CONN_STATE_PENDING) && \
-                   (conn_state != CONN_STATE_OPENED);
-        });
-        if (conn_state == CONN_STATE_FAILED) {
-            ALOGE("%s: Resume failed because of easelConnThread failure", __FUNCTION__);
-            return -EIO;
-        }
+int waitForEaselConn() {
+    if (conn_thread.joinable()) {
+        conn_thread.join();
     }
-
+    if (!easel_conn.isConnected() || !gHandshakeSuccessful) {
+        return -EIO;
+    }
     return 0;
 }
 
 int teardownEaselConn()
 {
-    if (!conn_thread) {
-        return 0;
-    }
-
-    {
-        std::unique_lock<std::mutex> conn_lock(conn_mutex);
-        if (conn_state == CONN_STATE_CLOSED) {
-            return 0;
-        } else if (conn_state == CONN_STATE_PENDING) {
-            conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_PENDING);});
-        }
-    }
-
     easel_conn.close();
 
-    {
-        std::unique_lock<std::mutex> conn_lock(conn_mutex);
-        if (conn_state == CONN_STATE_OPENED) {
-            conn_cond.wait(conn_lock, []{return (conn_state != CONN_STATE_OPENED);});
-        }
+    if (conn_thread.joinable()) {
+        conn_thread.join();
     }
-
-    conn_thread->join();
-    delete conn_thread;
-    conn_thread = NULL;
-
+    gHandshakeSuccessful = false;
     return 0;
 }
 
@@ -484,12 +377,15 @@ int switchState(enum ControlState nextState)
                             ret = startThermalMonitor();
                         }
                         if (!ret) {
+                            ret = waitForEaselConn();
+                        }
+                        if (!ret) {
                             ret = sendActivateCommand();
                         }
                     }
                     break;
                 case ControlState::RESUMED:
-                    ret = setupEaselConn();
+                    ret = waitForEaselConn();
                     if (!ret) {
                         ret = sendActivateCommand();
                     }
