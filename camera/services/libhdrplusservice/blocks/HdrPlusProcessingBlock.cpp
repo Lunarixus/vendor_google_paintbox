@@ -20,9 +20,11 @@ namespace pbcamera {
 
 std::once_flag loadPcgOnce;
 
-HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) :
+HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+        bool skipTimestampCheck) :
         PipelineBlock("HdrPlusProcessingBlock"),
-        mSourceCaptureBlock(sourceCaptureBlock) {
+        mSourceCaptureBlock(sourceCaptureBlock),
+        mSkipTimestampCheck(skipTimestampCheck) {
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
@@ -30,11 +32,11 @@ HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
         std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock) {
+        std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck) {
     ALOGV("%s", __FUNCTION__);
 
     auto block = std::shared_ptr<HdrPlusProcessingBlock>(
-            new HdrPlusProcessingBlock(sourceCaptureBlock));
+            new HdrPlusProcessingBlock(sourceCaptureBlock, skipTimestampCheck));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -110,15 +112,17 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         }
 
         // Remove old inputs
-        auto input = mInputQueue.begin();
-        while (input != mInputQueue.end()) {
-            if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
-                ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
-                        input->metadata.frameMetadata->easelTimestamp, now);
-                returnInputLocked(pipeline, &*input);
-                input = mInputQueue.erase(input);
-            } else {
-                input++;
+        if (!mSkipTimestampCheck) {
+            auto input = mInputQueue.begin();
+            while (input != mInputQueue.end()) {
+                if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
+                    ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
+                            input->metadata.frameMetadata->easelTimestamp, now);
+                    returnInputLocked(pipeline, &*input);
+                    input = mInputQueue.erase(input);
+                } else {
+                    input++;
+                }
             }
         }
 

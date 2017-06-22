@@ -34,7 +34,7 @@ public:
      */
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
-                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
+                std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -44,7 +44,8 @@ protected:
 
 private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
-    HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock);
+    HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
+            bool skipTimestampCheck);
 
     // Gcam related constants.
     static const gcam::GcamPixelFormat kGcamFinalImageFormat = gcam::GcamPixelFormat::kNv21;
@@ -181,6 +182,9 @@ private:
     std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;
 
     gcam::ShotCallbacks mShotCallbacks;
+
+    // Whether to skip timestamp check to return old input buffers.
+    bool mSkipTimestampCheck;
 };
 
 } // namespace pbcamera
