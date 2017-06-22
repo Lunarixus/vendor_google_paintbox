@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "EaselThermalMonitor.h"
+
 class EaselClockControl {
 
 public:
@@ -62,11 +64,11 @@ public:
 
     /*
      * Sets the operating mode of the device. Each mode has a different set of
-     * operating clocks.
+     * operating clocks, and may also depend on the current thermal condition.
      *
      * Returns zero for success or an error code for failure.
      */
-    static int setMode(enum Mode mode);
+    static int setMode(enum Mode mode, enum EaselThermalMonitor::Condition thermalCond);
 
     /*
      * Gets the operating mode of the device. Each mode has a different set of
