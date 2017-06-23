@@ -32,6 +32,15 @@ enum class SceneFlicker {
 const char* ToText(SceneFlicker scene_flicker);
 SceneFlicker TextToSceneFlicker(const char* text);
 
+enum class LensState {
+  kUnknown = -1,
+  kStationary = 0,
+  kMoving = 1,
+};
+
+const char* ToText(LensState lens_state);
+LensState TextToLensState(const char* text);
+
 // Description of the noise found in a particular raw/linear image, or one of
 // its Bayer color channels, following the DNG specification for the
 // 'NoiseProfile' tag.
@@ -392,7 +401,7 @@ struct FrameMetadata {
   AfMetadata  af;
 
   // Current lens status.
-  int lens_state;
+  LensState lens_state;
 };
 
 // Write the metadata for a burst of captured frames to a string.
