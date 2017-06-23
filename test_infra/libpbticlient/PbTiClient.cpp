@@ -176,4 +176,11 @@ void PbTiClient::notifyPbTiTestResult(const std::string &result) {
     mClientListener->onPbTiTestResult(result);
 }
 
+void PbTiClient::notifyPbTiTestResultFailed() {
+    ALOGE("%s: Failed to get easel test result.", __FUNCTION__);
+
+    // Invoke client listener callback for the test result.
+    mClientListener->onPbTiTestResultFailed();
+}
+
 }  // namespace android

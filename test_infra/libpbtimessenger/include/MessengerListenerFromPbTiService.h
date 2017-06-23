@@ -26,6 +26,11 @@ class MessengerListenerFromPbTiService : public EaselMessengerListener {
     virtual void notifyPbTiTestResult(const std::string &result) = 0;
 
     /*
+     * Invoked when a test result is not received.
+     */
+    virtual void notifyPbTiTestResultFailed() = 0;
+
+    /*
      * Override EaselMessengerListener::onMessage
      * Invoked when receiving a message from paintbox test service.
      *
@@ -34,6 +39,11 @@ class MessengerListenerFromPbTiService : public EaselMessengerListener {
      *  Non-zero errors depend on the message.
      */
     status_t onMessage(Message *message) override;
+
+    /*
+     * Invoked when a message is not received from test service.
+     */
+    void onMessageFailed();
 
  private:
     // Functions to deserialize messages.

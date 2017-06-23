@@ -423,12 +423,14 @@ void EaselMessenger::listenerThreadLoop() {
         } else {
             if (errno == ESHUTDOWN) {
                 ALOGD("%s: EaselComm has shut down.", __FUNCTION__);
+                mListener->onMessageFailed();
                 return;
             }
 
             // Other errors
             ALOGE("%s: receiveMessage failed: %s (%d).",
                   __FUNCTION__, strerror(-errno), errno);
+            mListener->onMessageFailed();
         }
     }
 }

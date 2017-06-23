@@ -79,15 +79,24 @@ android::status_t PbTiClientRunner::deactivate() {
     return android::OK;
 }
 
-void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
-    if (result.empty()) {
-        return;
-    }
+void PbTiClientRunner::wait() {
+    std::unique_lock<std::mutex> lock(mExitLock);
+    mExitCondition.wait(lock);
+}
 
-    // Get log file from Easel to AP
-    system(("mkdir -p $(dirname " + result + ")").c_str());
-    system(("ezlsh pull " + result + " " + result).c_str());
-    ALOGI("Log file: %s", result.c_str());
+void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
+    if (!result.empty()) {
+        // Get log file from Easel to AP
+        ALOGI("Log file: %s", result.c_str());
+        system(("mkdir -p $(dirname " + result + ")").c_str());
+        system(("ezlsh pull " + result + " " + result).c_str());
+    }
+    mExitCondition.notify_all();
+}
+
+void PbTiClientRunner::onPbTiTestResultFailed() {
+    ALOGE("%s: Failed to get test result.", __FUNCTION__);
+    mExitCondition.notify_all();
 }
 
 android::status_t PbTiClientRunner::connectClient() {
@@ -232,6 +241,9 @@ int main(int argc, const char *argv[]) {
             return ret;
         }
         ret = client_runner->submitPbTiTestRequest(request);
+        if (ret == 0) {
+            client_runner->wait();
+        }
     }
 
     return ret;

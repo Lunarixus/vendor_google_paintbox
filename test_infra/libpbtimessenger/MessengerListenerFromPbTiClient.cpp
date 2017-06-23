@@ -44,4 +44,8 @@ status_t MessengerListenerFromPbTiClient::deserializeSubmitPbTiTestRequest(
     return submitPbTiTestRequest(request);
 }
 
+void MessengerListenerFromPbTiClient::onMessageFailed() {
+    // The method is not implemented, as we have to keep service alive all time
+}
+
 }  // namespace pbti

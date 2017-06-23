@@ -114,6 +114,7 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     // Callbacks from paintbox test service start here.
     // Override pbti::MessengerListenerFromPbTiService
     void notifyPbTiTestResult(const std::string &result) override;
+    void notifyPbTiTestResultFailed() override;
     // Callbacks from paintbox test service end here.
 
     // Easel control

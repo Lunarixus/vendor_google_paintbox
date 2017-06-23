@@ -52,6 +52,8 @@ class MessengerListenerFromPbTiClient : public EaselMessengerListener {
      */
     status_t onMessage(Message *message) override;
 
+    void onMessageFailed() override;
+
  private:
     /*
      * Functions to deserialize messages.

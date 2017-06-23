@@ -15,6 +15,11 @@ class PbTiClientListener {
      * Invoked when a PbTi test result for a PbTi test request is received.
      */
     virtual void onPbTiTestResult(const std::string &result) = 0;
+
+    /*
+     * Invoked when a PbTi test request is failed.
+     */
+    virtual void onPbTiTestResultFailed() = 0;
 };
 
 }  // namespace android

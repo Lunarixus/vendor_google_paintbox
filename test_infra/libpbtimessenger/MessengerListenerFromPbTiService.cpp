@@ -35,4 +35,8 @@ void MessengerListenerFromPbTiService::deserializeNotifyTestResult(
     notifyPbTiTestResult(pbtiTestResult);
 }
 
+void MessengerListenerFromPbTiService::onMessageFailed() {
+    notifyPbTiTestResultFailed();
+}
+
 }  // namespace pbti

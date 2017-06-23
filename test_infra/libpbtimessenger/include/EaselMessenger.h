@@ -161,6 +161,9 @@ class EaselMessengerListener {
      *  Non-zero errors depend on the message.
      */
     virtual status_t onMessage(Message *message) = 0;
+
+    // Invoked when a message is not received.
+    virtual void onMessageFailed() = 0;
 };
 
 /*
