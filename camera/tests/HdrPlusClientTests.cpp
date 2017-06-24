@@ -45,7 +45,7 @@ const char kDoNotPoweronEasel[] = "camera.hdrplus.donotpoweroneasel";
 
 const int32_t kInvalidFd = -1;
 
-const float kOutputDiffThreshold = 0.01f;
+const char kDefaultOutputDiffThreshold[] = "0.01";
 
 class HdrPlusClientTest : public HdrPlusClientListener,
                           public ::testing::Test {
@@ -267,6 +267,11 @@ protected:
     void verifyOutput(pbcamera::CaptureResult *result) {
         if (result == nullptr || !mVerifyOutput) return;
 
+        char value[256];
+        property_get("persist.hdrplus_client_test.compare_threshold", value,
+                kDefaultOutputDiffThreshold);
+        float diffThreshold = std::atof(value);
+
         // Verify each buffer in the result.
         for (auto & buffer : result->outputBuffers) {
             // Find the output configuration for this buffer.
@@ -287,7 +292,7 @@ protected:
             float diffRatio = 1.0;
             ASSERT_EQ(hdrplus_client_utils::comparePpm(mGoldenImagePath, *config, buffer,
                     &diffRatio), OK);
-            ASSERT_LT(diffRatio, kOutputDiffThreshold);
+            ASSERT_LE(diffRatio, diffThreshold);
         }
     }
 
@@ -357,11 +362,12 @@ protected:
         }
 
         return createAllStreams(kDefaultInputWidth, kDefaultInputHeight, kDefaultInputFormat,
-            outputFormats);
+                kDefaultInputWidth, kDefaultInputHeight, outputFormats);
     }
 
     // Create all streams with specified resolution and format.
     status_t createAllStreams(uint32_t inputWidth, uint32_t inputHeight, uint32_t inputFormat,
+            uint32_t outputWidth, uint32_t outputHeight,
             const std::vector<uint32_t> &outputFormats) {
         int streamId = 0;
 
@@ -378,11 +384,11 @@ protected:
         // Create output streams using the input resolution.
         for (auto outputFormat : outputFormats) {
             std::unique_ptr<HdrPlusClientTestStream> stream;
-            res = createStream(&stream, streamId++, inputWidth, inputHeight, outputFormat,
+            res = createStream(&stream, streamId++, outputWidth, outputHeight, outputFormat,
                     kDefaultNumOutputBuffer);
             if (res != 0) {
                 ALOGE("%s: Creating output stream failed: res %ux%u format %u numBuffers %d",
-                        __FUNCTION__, inputWidth, inputHeight,
+                        __FUNCTION__, outputWidth, outputHeight,
                         outputFormat, kDefaultNumOutputBuffer);
                 destroyAllStreams();
                 return res;
@@ -542,8 +548,27 @@ protected:
         int32_t rawWidth = entry.data.i32[0];
         int32_t rawHeight = entry.data.i32[1];
 
+
+        // TODO: support multiple outputs and other formats.
+        ASSERT_EQ(outputFormats.size(), (uint32_t)1);
+        ASSERT_EQ(outputFormats[0], HAL_PIXEL_FORMAT_YCrCb_420_SP);
+
+        // Find the largest stream configuration for YUV output
+        int32_t yuvWidth = 0, yuvHeight = 0;
+        entry = staticMetadata.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+        for (uint32_t i = 0; i < entry.count; i += 4) {
+            if (entry.data.i32[i] == HAL_PIXEL_FORMAT_YCBCR_420_888 &&
+                    entry.data.i32[i + 3] == 0) {
+                if (entry.data.i32[i + 1] >= yuvWidth && entry.data.i32[i + 2] >= yuvHeight) {
+                    yuvWidth = entry.data.i32[i + 1];
+                    yuvHeight = entry.data.i32[i + 2];
+                }
+            }
+        }
+
         // Create streams based on raw resolution.
-        ASSERT_EQ(createAllStreams(rawWidth, rawHeight, kDefaultInputFormat, outputFormats), OK);
+        ASSERT_EQ(createAllStreams(rawWidth, rawHeight, kDefaultInputFormat,
+                yuvWidth, yuvHeight, outputFormats), OK);
 
         // Configure default streams.
         ASSERT_EQ(configureStreams(), OK);
