@@ -201,6 +201,11 @@ public:
             std::function<void(EaselMessage *msg)> callback);
 
     /*
+     * Joins message handler thread.
+     */
+    void joinMessageHandlerThread();
+
+    /*
      * Returns true if communication is connected, else false.
      */
     bool isConnected();

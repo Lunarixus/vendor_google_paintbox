@@ -526,6 +526,12 @@ int EaselComm::startMessageHandlerThread(
     return 0;
 }
 
+void EaselComm::joinMessageHandlerThread() {
+    if (mHandlerThread.joinable()) {
+        mHandlerThread.join();
+    }
+}
+
 void EaselComm::handleReceivedMessages(
         std::function<void(EaselMessage *msg)> callback) {
 
