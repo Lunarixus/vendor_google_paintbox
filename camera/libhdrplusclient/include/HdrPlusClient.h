@@ -162,6 +162,7 @@ private:
     void notifyFrameEaselTimestamp(int64_t easelTimestampNs) override;
     void notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) override;
     void notifyServiceClosed() override;
+    void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) override;
     // Callbacks from HDR+ service end here.
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.

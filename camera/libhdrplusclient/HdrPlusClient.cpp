@@ -313,6 +313,13 @@ void HdrPlusClient::notifyServiceClosed() {
     }
 }
 
+void HdrPlusClient::notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) {
+    ALOGV("%s: Got shutter callback for request %u timestamp %" PRId64, __FUNCTION__, requestId,
+        apSensorTimestampNs);
+
+    mClientListener->onShutter(requestId, apSensorTimestampNs);
+}
+
 void HdrPlusClient::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
     if (result == nullptr) return;
 
