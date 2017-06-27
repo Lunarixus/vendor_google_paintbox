@@ -193,44 +193,48 @@ status_t EaselManagerClient::openHdrPlusClientInternal(HdrPlusClientListener *li
         std::unique_ptr<HdrPlusClient> *client) {
     // If client is valid, this function is called synchronously.
     bool isCalledSynchronously = client != nullptr;
+    status_t res = OK;
+    std::unique_ptr<HdrPlusClient> newClient;
 
-    Mutex::Autolock l(mEaselControlLock);
+    {
+        Mutex::Autolock l(mEaselControlLock);
 
-    // Activate Easel.
-    status_t res = activateLocked();
-    if (res != OK) {
-        ALOGE("%s: Activating Easel failed: %s (%d)", __FUNCTION__, strerror(-res), res);
+        // Activate Easel.
+        res = activateLocked();
+        if (res != OK) {
+            ALOGE("%s: Activating Easel failed: %s (%d)", __FUNCTION__, strerror(-res), res);
 
-        if (!isCalledSynchronously) {
-            listener->onOpenFailed(res);
+            if (isCalledSynchronously) {
+                return res;
+            }
+        } else {
+            // Create a new HDR+ client.
+            newClient = std::make_unique<HdrPlusClient>();
+
+            // Connect to the messenger for sending messages to HDR+ service.
+            res = newClient->connect(listener);
+            if (res != OK) {
+                ALOGE("%s: Connecting service messenger failed: %s (%d)", __FUNCTION__,
+                        strerror(-res), res);
+
+                if (isCalledSynchronously) {
+                    return res;
+                }
+            }
         }
-
-        return res;
     }
 
-    // Create a new HDR+ client.
-    auto newClient = std::make_unique<HdrPlusClient>();
-
-    // Connect to the messenger for sending messages to HDR+ service.
-    res = newClient->connect(listener);
-    if (res != OK) {
-        ALOGE("%s: Connecting service messenger failed: %s (%d)", __FUNCTION__,
-                strerror(-res), res);
-
+    if (res == OK) {
         if (!isCalledSynchronously) {
-            listener->onOpenFailed(res);
+            listener->onOpened(std::move(newClient));
+        } else {
+            *client = std::move(newClient);
         }
-
-        return res;
+    } else if (!isCalledSynchronously) {
+        listener->onOpenFailed(res);
     }
 
-    if (!isCalledSynchronously) {
-        listener->onOpened(std::move(newClient));
-    } else {
-        *client = std::move(newClient);
-    }
-
-    return OK;
+    return res;
 }
 
 status_t EaselManagerClient::openHdrPlusClientAsync(HdrPlusClientListener *listener) {
