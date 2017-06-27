@@ -423,7 +423,7 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
         }
         if (diff_ms > timeout_ms) {
             ALOGE("%s: Failed to open device %s, retried %d",
-                  __FUNCTION__, kEaselCommDevPathServer, retry);
+                  __FUNCTION__, kEaselCommDevPathClient, retry);
             return -ETIME;
         }
         usleep(kOpenPollIntervalUs);   // Sleep to reduce retry attempts
