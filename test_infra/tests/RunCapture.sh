@@ -10,8 +10,6 @@ adb wait-for-device root
 adb wait-for-device
 
 adb shell "input keyevent KEYCODE_MENU"
-adb shell "setprop persist.camera.hdrplus.enable 1"
-adb shell "killall cameraserver"
 
 for i in $(seq 1 3)
 do
