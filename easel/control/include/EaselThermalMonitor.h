@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <unistd.h>
 #include <vector>
 
@@ -15,6 +16,19 @@
  */
 class EaselThermalMonitor {
 public:
+    enum Condition {
+        /* Recognized thermal conditions, ranges are defined when calling
+         * start function below.
+         */
+        Low,
+        MediumLow,
+        Medium,
+        MediumHigh,
+        High,
+        /* Special case thermal condition if no thermal zones are valid */
+        Unknown,
+    };
+
     struct Configuration {
         /*
          * The name of the thermal zone; should be the same as the "type" field
@@ -28,6 +42,15 @@ public:
          * in the right units.
          */
         int scaling;
+
+        /* An array of temperature thresholds in millidegree celsius
+         * that are used when calculating the thermal condition:
+         *     Low:       0 <= temperature < thresholds[Low]
+         *     MediumLow: thresholds[Low] <= temperature < thresholds[MediumLow]
+         *     ...
+         *     High:      thresholds[MediumHigh] <= temperature
+         */
+        int thresholds[4];
     };
 
     /*
@@ -61,20 +84,38 @@ public:
     int stop();
 
     /*
-     * Prints current temperature of monitored thermal zones
+     * Get the current thermal condition.
+     *
+     * Returns the current thermal condition as calculated during the last
+     * monitor event.
      */
-    void printStatus();
+    enum EaselThermalMonitor::Condition getCondition();
+
+    /*
+     * Checks the thermal monitors for the current condition.
+     *
+     * Returns the highest Condition of all thermal zones at the point this
+     * function is called.
+     */
+    enum EaselThermalMonitor::Condition checkCondition();
 
 private:
+    using ThermalZoneConfig = std::tuple<ThermalZone*, int*>;
+
     /*
-     * A vector of thermal zones, allocated during open()
+     * A vector of thermal zone configurations, allocated during open()
      */
-    std::vector<ThermalZone*> mZones;
+    std::vector<ThermalZoneConfig> mZoneCfgs;
 
     /*
      * Thread for monitoring thermal zones
      */
     std::thread *mThread;
+
+    /*
+     * The current thermal condition
+     */
+    enum Condition mCondition;
 };
 
 #endif // __EASEL_THERMAL_MONITOR_H__

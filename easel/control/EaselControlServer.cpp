@@ -65,10 +65,10 @@ int64_t timesync_local_boottime = 0;
 // EaselThermalMonitor instance
 EaselThermalMonitor thermalMonitor;
 static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
-    {"lpddr", 1},
-    {"cpu", 1},
-    {"ipu1", 1},
-    {"ipu2", 1},
+    {"lpddr", 1, {55000, 65000, 75000, 85000}},
+    {"cpu",   1, {55000, 65000, 75000, 85000}},
+    {"ipu1",  1, {55000, 65000, 75000, 85000}},
+    {"ipu2",  1, {55000, 65000, 75000, 85000}},
 };
 
 void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
@@ -327,7 +327,8 @@ int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
 
 int EaselControlServer::setClockMode(ClockMode mode)
 {
-    return EaselClockControl::setMode((EaselClockControl::Mode)mode);
+    return EaselClockControl::setMode((EaselClockControl::Mode)mode,
+                                      thermalMonitor.getCondition());
 }
 
 EaselControlServer::ClockMode EaselControlServer::getClockMode()
