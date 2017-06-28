@@ -3,9 +3,11 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <iomanip>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sstream>
 #include <thread>
 #include <time.h>
 #include <sys/ioctl.h>
@@ -55,7 +57,7 @@ void monitor(EaselThermalMonitor *inst)
         }
 
         if (monitorFlag == MONITOR_ON) {
-            inst->printStatus();
+            inst->checkCondition();
         }
     }
 }
@@ -77,7 +79,7 @@ int EaselThermalMonitor::open(const std::vector<struct Configuration> &cfg)
             continue;
         }
 
-        mZones.push_back(zone);
+        mZoneCfgs.push_back(std::make_tuple(zone, (int*)cfg[i].thresholds));
     }
 
     monitorFlag = MONITOR_OFF;
@@ -99,11 +101,12 @@ int EaselThermalMonitor::close()
         mThread = NULL;
     }
 
-    for (auto zone : mZones) {
+    for (auto cfg : mZoneCfgs) {
+        ThermalZone *zone = std::get<0>(cfg);
         zone->close();
         delete zone;
     }
-    mZones.clear();
+    mZoneCfgs.clear();
 
     return 0;
 }
@@ -116,6 +119,7 @@ int EaselThermalMonitor::start()
     }
     monitorCondition.notify_all();
 
+    mCondition = Condition::Unknown;
     return 0;
 }
 
@@ -127,23 +131,60 @@ int EaselThermalMonitor::stop()
     }
     monitorCondition.notify_all();
 
+    mCondition = Condition::Unknown;
     return 0;
 }
 
-void EaselThermalMonitor::printStatus()
+enum EaselThermalMonitor::Condition EaselThermalMonitor::getCondition()
 {
-    char buf[128] = "";
+    return mCondition;
+}
 
-    for (auto zone : mZones) {
-        char buf2[128];
+enum EaselThermalMonitor::Condition EaselThermalMonitor::checkCondition()
+{
+    std::stringstream ss, ss2;
+    enum Condition maxCondition = Condition::Unknown;
 
-        if (strlen(buf)) {
-            strcat(buf, ", ");
+    for (auto cfg : mZoneCfgs) {
+        ThermalZone *zone = std::get<0>(cfg);
+        int *thresholds = std::get<1>(cfg);
+        int temperature = zone->getTemp();
+        enum Condition currentCondition = Condition::Unknown;
+
+        if (temperature >= 0) {
+            int i;
+            for (i = Condition::Low; i < Condition::High; i++) {
+                if (temperature < thresholds[i]) {
+                    break;
+                }
+            }
+            currentCondition = static_cast<enum Condition>(i);
         }
 
-        sprintf(buf2, "%s: %.2f", zone->getName().c_str(), zone->getTemp() / 1000.0f);
-        strcat(buf, buf2);
-    };
+        if ((maxCondition == Condition::Unknown) || (currentCondition > maxCondition)) {
+            maxCondition = currentCondition;
+        }
 
-    ALOGI("%s", buf);
+        if (ss.tellp() > 0) {
+            ss << ", ";
+        }
+
+        ss << zone->getName() << ": ";
+        ss << std::fixed << std::setprecision(2) << temperature / 1000.0f;
+    }
+
+    switch (maxCondition) {
+        case Condition::Low: ss2 << "(Low)"; break;
+        case Condition::MediumLow: ss2 << "(MediumLow)"; break;
+        case Condition::Medium: ss2 << "(Medium)"; break;
+        case Condition::MediumHigh: ss2 << "(MediumHigh)"; break;
+        case Condition::High: ss2 << "(High)"; break;
+        default: ss2 << "(Unknown)"; break;
+    }
+
+    ALOGI("%s %s", ss2.str().c_str(), ss.str().c_str());
+
+    mCondition = maxCondition;
+    return maxCondition;
 }
+

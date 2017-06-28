@@ -54,12 +54,9 @@ enum ControlState {
 // EaselThermalMonitor instance
 EaselThermalMonitor thermalMonitor;
 static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
-    {"bcm15602_tz", 1},
-    {"fpc_therm", 1000},
-    {"back_therm", 1000},
-    {"pa_therm", 1000},
-    {"msm_therm", 1000},
-    {"quiet_therm", 1000},
+    {"bcm15602_tz",    1, {50000, 60000, 70000, 80000}},
+    {"bd_therm",    1000, {40000, 45000, 50000, 55000}}, /* for taimen */
+    {"back_therm",  1000, {40000, 45000, 50000, 55000}}, /* for muskie */
 };
 } // anonymous namespace
 

@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <map>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,45 +38,75 @@ static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
 
 static enum EaselClockControl::Mode mMode = (enum EaselClockControl::Mode)-EINVAL;
+static enum EaselThermalMonitor::Condition mThermalCondition =
+    (enum EaselThermalMonitor::Condition)-EINVAL;
 
-int EaselClockControl::setMode(enum Mode mode)
+struct ModeConfig {
+    int lpddrFreq;
+    int cpuFreq;
+    int ipuFreq;
+};
+
+// The frequency configurations for Functional mode based on thermal conditions
+static const std::map<enum EaselThermalMonitor::Condition, struct ModeConfig> functionalModeConfigs = {
+    { EaselThermalMonitor::Condition::Low,        {2400, 950, 425}},
+    { EaselThermalMonitor::Condition::MediumLow,  {2400, 950, 425}},
+    { EaselThermalMonitor::Condition::Medium,     {1600, 800, 425}},
+    { EaselThermalMonitor::Condition::MediumHigh, {1600, 800, 300}},
+    { EaselThermalMonitor::Condition::High,       {1600, 800, 200}},
+    { EaselThermalMonitor::Condition::Unknown,    {1600, 800, 200}},
+};
+
+int EaselClockControl::setMode(enum Mode mode, enum EaselThermalMonitor::Condition thermalCond)
 {
-    if (mode == mMode) {
+    if ((mode == mMode) && (mThermalCondition == thermalCond)) {
         return 0;
     }
 
     switch (mode) {
         case Mode::Bypass:
+        {
             ALOGI("%s: Bypass Mode (33/200/100)", __FUNCTION__);
             setIpuClockGating(true);
             setAxiClockGating(true);
             EaselClockControl::setSys200Mode();
             break;
+        }
 
         case Mode::Capture:
+        {
             ALOGI("%s: Capture Mode (400/200/200)", __FUNCTION__);
             setIpuClockGating(false);
             setAxiClockGating(false);
             setFrequency(Subsystem::LPDDR, 400);
-            setFrequency(Subsystem::IPU, 200);
             setFrequency(Subsystem::CPU, 200);
+            setFrequency(Subsystem::IPU, 200);
             break;
+        }
 
         case Mode::Functional:
-            ALOGI("%s: Functional Mode (2400/425/950)", __FUNCTION__);
+        {
+            struct ModeConfig cfg = functionalModeConfigs.at(thermalCond);
+
+            ALOGI("%s: Functional Mode (%d/%d/%d)", __FUNCTION__, cfg.lpddrFreq, cfg.cpuFreq,
+                  cfg.ipuFreq);
             setIpuClockGating(false);
             setAxiClockGating(false);
-            setFrequency(Subsystem::LPDDR, 2400);
-            setFrequency(Subsystem::IPU, 425);
-            setFrequency(Subsystem::CPU, 950);
+            setFrequency(Subsystem::LPDDR, cfg.lpddrFreq);
+            setFrequency(Subsystem::CPU, cfg.cpuFreq);
+            setFrequency(Subsystem::IPU, cfg.ipuFreq);
             break;
+        }
 
         default:
-            ALOGE("Invalid operating mode %d", mode);
+        {
+            ALOGE("%s: Invalid operating mode %d", __FUNCTION__, mode);
             return -EINVAL;
+        }
     }
 
     mMode = mode;
+    mThermalCondition = thermalCond;
 
     return 0;
 }
