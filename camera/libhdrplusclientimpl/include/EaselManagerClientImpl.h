@@ -1,11 +1,12 @@
-#ifndef PAINTBOX_EASEL_MANAGER_CLIENT_H
-#define PAINTBOX_EASEL_MANAGER_CLIENT_H
+#ifndef PAINTBOX_EASEL_MANAGER_CLIENT_IMPL_H
+#define PAINTBOX_EASEL_MANAGER_CLIENT_IMPL_H
 
 #include <future>
 
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
 
+#include "EaselManagerClient.h"
 #include "easelcontrol.h"
 
 namespace android {
@@ -13,38 +14,38 @@ namespace android {
 class HdrPlusClient;
 class HdrPlusClientListener;
 
-class EaselManagerClient {
+class EaselManagerClientImpl : public EaselManagerClient {
 public:
-    EaselManagerClient();
-    virtual ~EaselManagerClient();
+    EaselManagerClientImpl();
+    virtual ~EaselManagerClientImpl();
 
     /*
      * Return if Easel is present on the device.
      *
      * If Easel is not present, all other calls to HdrPlusClient are invalid.
      */
-    bool isEaselPresentOnDevice() const;
+    bool isEaselPresentOnDevice() const override;
 
     /*
      * Open Easel manager client.
      *
      * This will power on Easel and initialize Easel manager client.
      */
-    status_t open();
+    status_t open() override;
 
     /*
      * Suspend Easel.
      *
      * Put Easel on suspend mode.
      */
-    status_t suspend();
+    status_t suspend() override;
 
     /*
      * Resume Easel.
      *
      * Resume Easel from suspend mode.
      */
-    status_t resume();
+    status_t resume() override;
 
     /*
      * Start MIPI with an output pixel lock rate for a camera.
@@ -54,16 +55,17 @@ public:
      *
      * cameraId is the camera ID to start MIPI for.
      * outputPixelClkHz is the output pixel rate.
+     * enableCapture is whether to enable MIPI capture on Easel.
      */
     status_t startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
-                       bool enableIpu);
+                       bool enableCapture) override;
 
     /*
      * Stop MIPI for a camera.
      *
      * cameraId is the camera is ID to stop MIPI for.
      */
-    status_t stopMipi(uint32_t cameraId);
+    status_t stopMipi(uint32_t cameraId) override;
 
     /*
      * Open an HDR+ client asynchronously.
@@ -81,7 +83,7 @@ public:
      *                  will be invoked when opening an HDR+ client completed.
      *  ALREADY_EXISTS: if there is already a pending HDR+ client being opened.
      */
-    status_t openHdrPlusClientAsync(HdrPlusClientListener *listener);
+    status_t openHdrPlusClientAsync(HdrPlusClientListener *listener) override;
 
     /*
      * Open an HDR+ client synchronously and block until it completes.
@@ -95,14 +97,14 @@ public:
      *  -ENODEV:    if opening an HDR+ failed due to a serious error.
      */
     status_t openHdrPlusClient(HdrPlusClientListener *listener,
-            std::unique_ptr<HdrPlusClient> *client);
+            std::unique_ptr<HdrPlusClient> *client) override;
 
     /*
      * Close an HDR+ client.
      *
      * client is the HDR+ client to be closed.
      */
-    void closeHdrPlusClient(std::unique_ptr<HdrPlusClient> client);
+    void closeHdrPlusClient(std::unique_ptr<HdrPlusClient> client) override;
 
 private:
 
@@ -161,4 +163,4 @@ private:
 
 } // namespace android
 
-#endif // PAINTBOX_EASEL_MANAGER_CLIENT_H
+#endif // PAINTBOX_EASEL_MANAGER_CLIENT_IMPL_H

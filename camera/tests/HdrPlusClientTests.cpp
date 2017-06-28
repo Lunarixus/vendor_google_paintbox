@@ -17,7 +17,6 @@
 #define LOG_TAG "HdrPlusClientTest"
 #include <log/log.h>
 
-//#include <camera/CameraMetadata.h>
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <inttypes.h>
@@ -27,6 +26,7 @@
 
 #include "EaselManagerClient.h"
 #include "HdrPlusClient.h"
+#include "HdrPlusClientListener.h"
 #include "HdrPlusClientUtils.h"
 #include "HdrPlusTestBurstInput.h"
 #include "HdrPlusTestUtils.h"
@@ -133,7 +133,7 @@ protected:
     std::unique_ptr<HdrPlusClientTestStream> mInputStream;
     std::vector<std::unique_ptr<HdrPlusClientTestStream>> mOutputStreams;
 
-    EaselManagerClient mEaselManagerClient;
+    std::unique_ptr<EaselManagerClient> mEaselManagerClient;
     std::unique_ptr<HdrPlusClient> mClient;
 
     // Flag indicating if the test is connected to HdrPlusClient.
@@ -150,6 +150,7 @@ protected:
 
     // Override ::testing::Test::SetUp() to set up the test.
     virtual void SetUp() override {
+        mEaselManagerClient = EaselManagerClient::create();
         configureCameraServer(true);
         destroyAllStreams();
         mConnected = false;
@@ -179,20 +180,20 @@ protected:
 
     // Connect to client.
     status_t connectClient() {
-        status_t res = mEaselManagerClient.open();
+        status_t res = mEaselManagerClient->open();
         if (res != 0) {
             ALOGE("%s: Powering on Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             return res;
         }
 
-        res = mEaselManagerClient.resume();
+        res = mEaselManagerClient->resume();
         if (res != 0) {
             ALOGE("%s: Resuming Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             disconnectClient();
             return res;
         }
 
-        res = mEaselManagerClient.openHdrPlusClient(this, &mClient);
+        res = mEaselManagerClient->openHdrPlusClient(this, &mClient);
         if (res != 0) {
             ALOGE("%s: Opening HDR+ client failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             disconnectClient();
@@ -204,8 +205,8 @@ protected:
     }
 
     void disconnectClient() {
-        mEaselManagerClient.closeHdrPlusClient(std::move(mClient));
-        mEaselManagerClient.suspend();
+        mEaselManagerClient->closeHdrPlusClient(std::move(mClient));
+        mEaselManagerClient->suspend();
         mConnected = false;
     }
 
