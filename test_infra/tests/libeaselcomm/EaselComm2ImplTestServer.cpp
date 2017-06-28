@@ -1,8 +1,10 @@
+#include <sstream>
 #include <utils/Errors.h>
 
 #include "android-base/logging.h"
 #include "easelcomm.h"
 #include "imx.h"
+#include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
 
 // Test server for EaselComm2ImplTest.
 // Must be copied to Easel and run before running EaselComm2ImplTest on AP.
@@ -39,9 +41,62 @@ size_t getBufferSize(const AHardwareBuffer_Desc& desc) {
 
 ImxMemoryAllocatorHandle allocator;
 EaselCommServer server;
-}  // namespace
 
-void messageHandlerThreadFunc(EaselComm::EaselMessage *msg) {
+// Handles protobuffer calculation requests.
+void handleProtoMessage(EaselComm::EaselMessage *msg) {
+  CHECK(msg->message_buf_size > 0);
+  CHECK(msg->message_buf);
+
+  test::Request request;
+  CHECK(request.ParseFromArray(msg->message_buf, msg->message_buf_size));
+
+  test::Response response;
+  for (int i = 0; i < request.operations_size(); i++) {
+    auto mathOp = request.operations(i);
+    char op;
+    auto mathResult = response.add_results();
+    switch (mathOp.op()) {
+      case test::MathOperation::ADD:
+        mathResult->set_result(mathOp.operand1() + mathOp.operand2());
+        op = '+';
+        break;
+      case test::MathOperation::MINUS:
+        mathResult->set_result(mathOp.operand1() - mathOp.operand2());
+        op = '-';
+        break;
+      case test::MathOperation::MULTIPLY:
+        mathResult->set_result(mathOp.operand1() * mathOp.operand2());
+        op = '*';
+        break;
+      case test::MathOperation::DIVIDE:
+        mathResult->set_result(mathOp.operand1() / mathOp.operand2());
+        op = '/';
+        break;
+    }
+    std::stringstream ss;
+    ss << mathOp.operand1() << " "
+        << op << " "
+        << mathOp.operand2() << " = "
+        << mathResult->result();
+    mathResult->set_expression(ss.str());
+  }
+
+  size_t size = response.ByteSize();
+  void* buffer = malloc(size);
+  CHECK(response.SerializeToArray(buffer, size));
+
+  EaselComm::EaselMessage reply;
+  reply.message_buf = buffer;
+  reply.message_buf_size = size;
+  reply.dma_buf = nullptr;
+  reply.dma_buf_size = 0;
+
+  CHECK_EQ(server.sendMessage(&reply), NO_ERROR);
+  free(buffer);
+}
+
+// Handles DMA ion buffer and echo same buffer back.
+void handleBufferMessage(EaselComm::EaselMessage *msg) {
   CHECK_EQ(msg->message_buf_size, sizeof(AHardwareBuffer_Desc));
 
   AHardwareBuffer_Desc* desc = reinterpret_cast<AHardwareBuffer_Desc*>(msg->message_buf);
@@ -69,6 +124,15 @@ void messageHandlerThreadFunc(EaselComm::EaselMessage *msg) {
 
   CHECK_EQ(ImxDeleteDeviceBuffer(buffer), IMX_SUCCESS);
 }
+
+void messageHandlerThreadFunc(EaselComm::EaselMessage *msg) {
+  if (msg->dma_buf_size == 0) {
+    handleProtoMessage(msg);
+  } else {
+    handleBufferMessage(msg);
+  }
+}
+}  // namespace
 
 int main() {
   CHECK_EQ(ImxGetMemoryAllocator(IMX_MEMORY_ALLOCATOR_DEFAULT, &allocator), IMX_SUCCESS);
