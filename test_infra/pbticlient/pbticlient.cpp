@@ -1,11 +1,14 @@
 #include <log/log.h>
 
+#include <sys/wait.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <fstream>
 #include <iostream>
 
 #include "pbticlientrunner.h"
+
+const int EZLSH_PULL_RETRY = 3;
 
 PbTiClientRunner::PbTiClientRunner() : mEaselActivated(false),
                                        mConnected(false) {
@@ -89,7 +92,19 @@ void PbTiClientRunner::onPbTiTestResult(const std::string &result) {
         // Get log file from Easel to AP
         ALOGI("Log file: %s", result.c_str());
         system(("mkdir -p $(dirname " + result + ")").c_str());
-        system(("ezlsh pull " + result + " " + result).c_str());
+        bool ezlsh_pull_succeed = false;
+        int ret = 0;
+        for (int i = 0; i < EZLSH_PULL_RETRY; ++i) {
+            ret = system(("ezlsh pull " + result + " " + result).c_str());
+            if (ret != -1 && WEXITSTATUS(ret) == 0) {
+                ezlsh_pull_succeed = true;
+                break;
+            }
+        }
+        if (!ezlsh_pull_succeed) {
+            ALOGE("%s: Failed to pull out %s from easel, exit code %d",
+                  __FUNCTION__, result.c_str(), WEXITSTATUS(ret));
+        }
     }
     mExitCondition.notify_all();
 }
