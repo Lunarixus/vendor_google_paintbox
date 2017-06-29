@@ -1,32 +1,32 @@
-#define LOG_TAG "EaselManagerClient"
+#define LOG_TAG "EaselManagerClientImpl"
 #include <log/log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
 #include "HdrPlusProfiler.h"
 
-#include "EaselManagerClient.h"
-#include "HdrPlusClient.h"
+#include "EaselManagerClientImpl.h"
+#include "HdrPlusClientImpl.h"
 
 namespace android {
 
-EaselManagerClient::EaselManagerClient() : mEaselControlOpened(false),
-                                           mEaselResumed(false),
-                                           mEaselActivated(false) {
+EaselManagerClientImpl::EaselManagerClientImpl() : mEaselControlOpened(false),
+                                                   mEaselResumed(false),
+                                                   mEaselActivated(false) {
     mIsEaselPresent = ::isEaselPresent();
     ALOGI("%s: Easel is %s", __FUNCTION__, mIsEaselPresent ? "present" : "not present");
 }
 
-EaselManagerClient::~EaselManagerClient() {
+EaselManagerClientImpl::~EaselManagerClientImpl() {
     Mutex::Autolock l(mEaselControlLock);
     deactivateLocked();
     suspendLocked();
 }
 
-bool EaselManagerClient::isEaselPresentOnDevice() const {
+bool EaselManagerClientImpl::isEaselPresentOnDevice() const {
     return mIsEaselPresent;
 }
 
-status_t EaselManagerClient::open() {
+status_t EaselManagerClientImpl::open() {
     Mutex::Autolock l(mEaselControlLock);
     if (mEaselControlOpened) {
         ALOGW("%s: Easel control is already opened.", __FUNCTION__);
@@ -52,12 +52,12 @@ status_t EaselManagerClient::open() {
     return res;
 }
 
-status_t EaselManagerClient::suspend() {
+status_t EaselManagerClientImpl::suspend() {
     Mutex::Autolock l(mEaselControlLock);
     return suspendLocked();
 }
 
-bool EaselManagerClient::isOpenFuturePendingLocked() {
+bool EaselManagerClientImpl::isOpenFuturePendingLocked() {
     if (!mOpenFuture.valid()) {
         return false;
     }
@@ -66,7 +66,7 @@ bool EaselManagerClient::isOpenFuturePendingLocked() {
     return mOpenFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready;
 }
 
-status_t EaselManagerClient::suspendLocked() {
+status_t EaselManagerClientImpl::suspendLocked() {
     ALOGD("%s: Suspending Easel.", __FUNCTION__);
     if (!mEaselControlOpened) {
         ALOGE("%s: Easel control is not opened.", __FUNCTION__);
@@ -90,7 +90,7 @@ status_t EaselManagerClient::suspendLocked() {
     return res;
 }
 
-status_t EaselManagerClient::resume() {
+status_t EaselManagerClientImpl::resume() {
     ALOGD("%s: Resuming Easel.", __FUNCTION__);
     Mutex::Autolock l(mEaselControlLock);
     if (!mEaselControlOpened) {
@@ -114,7 +114,7 @@ status_t EaselManagerClient::resume() {
     return OK;
 }
 
-status_t EaselManagerClient::convertCameraId(uint32_t cameraId,
+status_t EaselManagerClientImpl::convertCameraId(uint32_t cameraId,
         enum EaselControlClient::Camera *easelCameraId) {
     if (easelCameraId == nullptr) return BAD_VALUE;
 
@@ -132,8 +132,8 @@ status_t EaselManagerClient::convertCameraId(uint32_t cameraId,
     return OK;
 }
 
-status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
-        bool enableIpu) {
+status_t EaselManagerClientImpl::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
+        bool enableCapture) {
     Mutex::Autolock l(mEaselControlLock);
     if (!mEaselControlOpened) {
         ALOGE("%s: Easel control is not opened.", __FUNCTION__);
@@ -149,11 +149,11 @@ status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelCl
         return res;
     }
 
-    ALOGD("%s: Start MIPI rate %d for camera %u enableIpu %d", __FUNCTION__, rate,
-            cameraId, enableIpu);
+    ALOGD("%s: Start MIPI rate %d for camera %u enableCapture %d", __FUNCTION__, rate,
+            cameraId, enableCapture);
 
     SCOPE_PROFILER_TIMER("Start MIPI");
-    res = mEaselControl.startMipi(easelCameraId, rate, enableIpu);
+    res = mEaselControl.startMipi(easelCameraId, rate, enableCapture);
     if (res != OK) {
         ALOGE("%s: Failed to config mipi: %s (%d).", __FUNCTION__, strerror(errno), -errno);
         return NO_INIT;
@@ -162,7 +162,7 @@ status_t EaselManagerClient::startMipi(uint32_t cameraId, uint32_t outputPixelCl
     return res;
 }
 
-status_t EaselManagerClient::stopMipi(uint32_t cameraId) {
+status_t EaselManagerClientImpl::stopMipi(uint32_t cameraId) {
     Mutex::Autolock l(mEaselControlLock);
     if (!mEaselControlOpened) {
         ALOGE("%s: Easel control is not opened.", __FUNCTION__);
@@ -189,7 +189,7 @@ status_t EaselManagerClient::stopMipi(uint32_t cameraId) {
     return res;
 }
 
-status_t EaselManagerClient::openHdrPlusClientInternal(HdrPlusClientListener *listener,
+status_t EaselManagerClientImpl::openHdrPlusClientInternal(HdrPlusClientListener *listener,
         std::unique_ptr<HdrPlusClient> *client) {
     // If client is valid, this function is called synchronously.
     bool isCalledSynchronously = client != nullptr;
@@ -209,7 +209,7 @@ status_t EaselManagerClient::openHdrPlusClientInternal(HdrPlusClientListener *li
     }
 
     // Create a new HDR+ client.
-    auto newClient = std::make_unique<HdrPlusClient>();
+    auto newClient = std::make_unique<HdrPlusClientImpl>();
 
     // Connect to the messenger for sending messages to HDR+ service.
     res = newClient->connect(listener);
@@ -233,7 +233,7 @@ status_t EaselManagerClient::openHdrPlusClientInternal(HdrPlusClientListener *li
     return OK;
 }
 
-status_t EaselManagerClient::openHdrPlusClientAsync(HdrPlusClientListener *listener) {
+status_t EaselManagerClientImpl::openHdrPlusClientAsync(HdrPlusClientListener *listener) {
     Mutex::Autolock l(mEaselControlLock);
     if (isOpenFuturePendingLocked()) {
         ALOGE("%s: HDR+ client is already being opened.", __FUNCTION__);
@@ -241,18 +241,18 @@ status_t EaselManagerClient::openHdrPlusClientAsync(HdrPlusClientListener *liste
     }
 
     // Launch a future to open an HDR+ client.
-    mOpenFuture = std::async(std::launch::async, &EaselManagerClient::openHdrPlusClientInternal,
+    mOpenFuture = std::async(std::launch::async, &EaselManagerClientImpl::openHdrPlusClientInternal,
             this, listener, /* client */nullptr);
 
     return OK;
 }
 
-status_t EaselManagerClient::openHdrPlusClient(HdrPlusClientListener *listener,
+status_t EaselManagerClientImpl::openHdrPlusClient(HdrPlusClientListener *listener,
         std::unique_ptr<HdrPlusClient> *client) {
     return openHdrPlusClientInternal(listener, client);
 }
 
-void EaselManagerClient::closeHdrPlusClient(std::unique_ptr<HdrPlusClient> client) {
+void EaselManagerClientImpl::closeHdrPlusClient(std::unique_ptr<HdrPlusClient> client) {
     client = nullptr;
 
     Mutex::Autolock l(mEaselControlLock);
@@ -262,7 +262,7 @@ void EaselManagerClient::closeHdrPlusClient(std::unique_ptr<HdrPlusClient> clien
     }
 }
 
-status_t EaselManagerClient::activateLocked() {
+status_t EaselManagerClientImpl::activateLocked() {
     if (!mEaselControlOpened) {
         ALOGE("%s: Easel control is not opened.", __FUNCTION__);
         return NO_INIT;
@@ -285,7 +285,7 @@ status_t EaselManagerClient::activateLocked() {
     return OK;
 }
 
-status_t EaselManagerClient::deactivateLocked() {
+status_t EaselManagerClientImpl::deactivateLocked() {
     if (!mEaselActivated) return OK;
 
     SCOPE_PROFILER_TIMER("Deactivate Easel");

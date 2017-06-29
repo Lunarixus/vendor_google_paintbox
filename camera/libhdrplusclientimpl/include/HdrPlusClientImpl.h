@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PAINTBOX_HDR_PLUS_CLIENT_H
-#define PAINTBOX_HDR_PLUS_CLIENT_H
+#ifndef PAINTBOX_HDR_PLUS_CLIENT_IMPL_H
+#define PAINTBOX_HDR_PLUS_CLIENT_IMPL_H
 
 #include <deque>
 #include <utils/Errors.h>
@@ -26,7 +26,7 @@
 
 #include "ApEaselMetadataManager.h"
 #include "hardware/camera3.h"
-#include "HdrPlusClientListener.h"
+#include "HdrPlusClient.h"
 #include "HdrPlusProfiler.h"
 #include "MessengerToHdrPlusService.h"
 #include "MessengerListenerFromHdrPlusService.h"
@@ -36,27 +36,27 @@ namespace android {
 class NotifyFrameMetadataThread;
 
 /**
- * HdrPlusClient
+ * HdrPlusClientImpl
  *
- * HdrPlusClient class can be used to connect to HDR+ service to perform HDR+ processing on
+ * HdrPlusClientImpl class can be used to connect to HDR+ service to perform HDR+ processing on
  * Paintbox.
  */
-class HdrPlusClient : public pbcamera::MessengerListenerFromHdrPlusService {
+class HdrPlusClientImpl : public HdrPlusClient, public pbcamera::MessengerListenerFromHdrPlusService {
 public:
-    HdrPlusClient();
-    virtual ~HdrPlusClient();
+    HdrPlusClientImpl();
+    virtual ~HdrPlusClientImpl();
 
     /*
-     * The recommended way to create an HdrPlusClient instance is via
+     * The recommended way to create an HdrPlusClientImpl instance is via
      * EaselManagerClient::openHdrPlusClientAsync() or EaselManagerClient::openHdrPlusClientAsync().
      * EaselManagerClient will make sure Easel is in a valid state to open an HDR+ client. To close
-     * an HdrPlusClient, use EaselManagerClient::closeHdrPlusClient.
+     * an HdrPlusClientImpl, use EaselManagerClient::closeHdrPlusClient.
      */
 
     /*
      * Connect to HDR+ service.
      *
-     * If EaselManagerClient is used to create the HdrPlusClient, it is already connected.
+     * If EaselManagerClient is used to create the HdrPlusClientImpl, it is already connected.
      *
      * listener is the listener to receive callbacks from HDR+ client.
      *
@@ -170,7 +170,7 @@ private:
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
 
-    // Callbacks to invoke from HdrPlusClient.
+    // Callbacks to invoke from HdrPlusClientImpl.
     Mutex mClientListenerLock;
     HdrPlusClientListener *mClientListener;
 
@@ -243,4 +243,4 @@ private:
 
 } // namespace android
 
-#endif // PAINTBOX_HDR_PLUS_CLIENT_H
+#endif // PAINTBOX_HDR_PLUS_CLIENT_IMPL_H
