@@ -18,28 +18,19 @@
 # Update the gcam libraries from google3
 #
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  # Unfortunate since this pollutes your environment, but we do like the
-  # access to mm
-  # In the future it might be nice if there was a script to export -f mm
-  echo "Run script with 'source $0' instead of '$0'" >&2
-  return 1
-fi
-
-if [ $# -ne 3 ]; then
+if [ $# -ne 1 ]; then
   echo "`basename $0`: Build and update the gcam libraries from google3"
   echo ""
-  echo "Usage: source `basename $0` <google3 base path> <checkin>"
-  echo "For example, \"`basename $0` ~/google3 true\""
+  echo "Usage: ./`basename $0` <google3 base path>"
+  echo "For example, \"./`basename $0` ~/google3\""
   echo ""
-  return 1
+  exit
 fi
 
 ######################################################################
 # Setup paths
 
 GOOGLE3_PATH="$1"
-CHECKIN="$2"
 
 GOOGLE3_HARDWARE="hardware"
 GOOGLE3_GOOGLEX="googlex"
@@ -178,73 +169,5 @@ mkdir -p ${ANDROID_PCG_FULL_PATH}
 rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
 cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
 
-# Rebuild prebuilts, so there's no surprises when trying to relink
-
-echo -e "\e[1;34m** Rebuilding prebuilts directory\e[00m"
-
-pushd "${ANDROID_GCAM_BUILD_FULL_PATH}"
-mm
-popd
-
-echo -e "\e[1;34m** Done\e[00m"
-echo " "
-
-if [ $CHECKIN == "false" ]; then
-  exit 0
-fi
-
-echo "Last steps:"
-echo " - Squash multiple commits with 'git rebase -i HEAD~N'"
-echo " - Run 'git commit --amend' and describe what the change actually does"
-
-
-######################################################################
-# Check it in, with a pretty commit message consisting of a list of
-# the new google3 gcam CL's.
-
-echo -e "\e[1;34m** Checking in the gcam update\e[00m"
-
-pushd "${ANDROID_GCAM_BUILD_FULL_PATH}"
-
-git add -A  # add any untracked files
-LAST_SYNC_CL=$(git log --oneline \
-    | grep "\(libgcam\).*: Sync to" \
-    | head -n1 \
-    | sed 's/.*cl\/\([0-9]\+\).*/\1/')
-
-pushd ${GOOGLE3_PATH}
-
-log_script="${GOOGLE3_GCAM_PATH}/tools/pretty_log.sh"
-if [[ -x "$log_script" ]]
-then
-  echo "File '$log_script' is executable"
-else
-  chmod +x $log_script
-fi
-
-if [[ -z "$LAST_SYNC_CL" ]]
-then
-  echo "LAST_SYNC_CL is empty. Setting it to 0"
-  LAST_SYNC_CL=0
-fi
-
-./$log_script \
-    --lib_name=libgcam \
-    --google3_paths=${GOOGLE3_GCAM_PATH} \
-    --previous_cl $LAST_SYNC_CL \
-    | tail -n +3 \
-    | tee /tmp/gcam_log_commit.txt
-popd
-git commit -a -F /tmp/gcam_log_commit.txt
-if [ $? -ne 0 ]; then
-  # This only fails due to an empty commit message, which usually means that
-  # we needed to run this script multiple times and that gcam has already
-  # been updated. Commit with a special message -- we can squash everything
-  # down to a single commit later.
-  git commit -a -m "libgcam: Sync to cl/$LAST_SYNC_CL [again]"
-fi
-GIT_PAGER=cat git log -1
-
-popd
 ######################################################################
 # All done.
