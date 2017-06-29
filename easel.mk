@@ -23,7 +23,7 @@ PRODUCT_PACKAGES += \
 
 # vendor/google_paintbox
 PRODUCT_PACKAGES += \
-    libhdrplusclient \
+    libhdrplusclientimpl \
     libhdrplusmessenger \
     libeaselcomm \
     libeaselcontrol

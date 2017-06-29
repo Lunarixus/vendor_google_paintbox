@@ -31,6 +31,7 @@ else
 endif
 
 LOCAL_C_INCLUDES += \
+    hardware/google/easel/camera/include \
     system/media/camera/include \
     vendor/google_paintbox/camera/include \
     vendor/google_paintbox/camera/services/include

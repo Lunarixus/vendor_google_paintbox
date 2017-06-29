@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 //#define LOG_NDEBUG 0
-#define LOG_TAG "HdrPlusClient"
+#define LOG_TAG "HdrPlusClientImpl"
 #include <log/log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
@@ -23,19 +23,19 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-#include "HdrPlusClient.h"
+#include "HdrPlusClientImpl.h"
 
 using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 namespace android {
 
-HdrPlusClient::HdrPlusClient() : mClientListener(nullptr), mServiceFatalErrorState(false) {
+HdrPlusClientImpl::HdrPlusClientImpl() : mClientListener(nullptr), mServiceFatalErrorState(false) {
     mNotifyFrameMetadataThread = new NotifyFrameMetadataThread(&mMessengerToService);
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
     }
 }
 
-HdrPlusClient::~HdrPlusClient() {
+HdrPlusClientImpl::~HdrPlusClientImpl() {
     disconnect();
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->requestExit();
@@ -43,7 +43,7 @@ HdrPlusClient::~HdrPlusClient() {
     }
 }
 
-status_t HdrPlusClient::connect(HdrPlusClientListener *listener) {
+status_t HdrPlusClientImpl::connect(HdrPlusClientListener *listener) {
     ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
@@ -66,7 +66,7 @@ status_t HdrPlusClient::connect(HdrPlusClientListener *listener) {
     return OK;
 }
 
-void HdrPlusClient:: failAllPendingRequestsLocked() {
+void HdrPlusClientImpl:: failAllPendingRequestsLocked() {
     // Return all pending requests as failed results.
     Mutex::Autolock requestLock(mPendingRequestsLock);
     for (auto & pendingRequest : mPendingRequests) {
@@ -80,7 +80,7 @@ void HdrPlusClient:: failAllPendingRequestsLocked() {
     return;
 }
 
-void HdrPlusClient::disconnect() {
+void HdrPlusClientImpl::disconnect() {
     ALOGV("%s", __FUNCTION__);
 
     // Return all pending results and clear the listener to make sure no more callbacks will be
@@ -98,7 +98,7 @@ void HdrPlusClient::disconnect() {
     mMessengerToService.disconnect();
 }
 
-status_t HdrPlusClient::setStaticMetadata(const camera_metadata_t &staticMetadata) {
+status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMetadata) {
     if (mServiceFatalErrorState) {
         ALOGE("%s: HDR+ service is in a fatal error state.", __FUNCTION__);
         return NO_INIT;
@@ -129,7 +129,7 @@ status_t HdrPlusClient::setStaticMetadata(const camera_metadata_t &staticMetadat
     return mMessengerToService.setStaticMetadata(*staticMetadataDest.get());
 }
 
-status_t HdrPlusClient::configureStreams(const pbcamera::InputConfiguration &inputConfig,
+status_t HdrPlusClientImpl::configureStreams(const pbcamera::InputConfiguration &inputConfig,
             const std::vector<pbcamera::StreamConfiguration> &outputConfigs) {
     ALOGV("%s", __FUNCTION__);
 
@@ -147,7 +147,7 @@ status_t HdrPlusClient::configureStreams(const pbcamera::InputConfiguration &inp
     return res;
 }
 
-status_t HdrPlusClient::setZslHdrPlusMode(bool enabled) {
+status_t HdrPlusClientImpl::setZslHdrPlusMode(bool enabled) {
     ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
@@ -158,7 +158,7 @@ status_t HdrPlusClient::setZslHdrPlusMode(bool enabled) {
     return mMessengerToService.setZslHdrPlusMode(enabled);
 }
 
-status_t HdrPlusClient::submitCaptureRequest(pbcamera::CaptureRequest *request) {
+status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request) {
     ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
@@ -189,7 +189,7 @@ status_t HdrPlusClient::submitCaptureRequest(pbcamera::CaptureRequest *request) 
     return 0;
 }
 
-void HdrPlusClient::notifyInputBuffer(const pbcamera::StreamBuffer &inputBuffer,
+void HdrPlusClientImpl::notifyInputBuffer(const pbcamera::StreamBuffer &inputBuffer,
         int64_t timestampNs) {
     ALOGV("%s", __FUNCTION__);
 
@@ -201,7 +201,7 @@ void HdrPlusClient::notifyInputBuffer(const pbcamera::StreamBuffer &inputBuffer,
     mMessengerToService.notifyInputBuffer(inputBuffer, timestampNs);
 }
 
-void HdrPlusClient::notifyFrameMetadata(uint32_t frameNumber,
+void HdrPlusClientImpl::notifyFrameMetadata(uint32_t frameNumber,
         const camera_metadata_t &resultMetadata, bool lastMetadata) {
     ALOGV("%s", __FUNCTION__);
 
@@ -283,7 +283,7 @@ void HdrPlusClient::notifyFrameMetadata(uint32_t frameNumber,
 }
 
 // Callbacks from HDR+ service.
-void HdrPlusClient::notifyFrameEaselTimestamp(int64_t easelTimestampNs) {
+void HdrPlusClientImpl::notifyFrameEaselTimestamp(int64_t easelTimestampNs) {
     ALOGV("%s: Got an easel timestamp %" PRId64, __FUNCTION__, easelTimestampNs);
 
     std::shared_ptr<pbcamera::FrameMetadata> frameMetadata;
@@ -301,7 +301,7 @@ void HdrPlusClient::notifyFrameEaselTimestamp(int64_t easelTimestampNs) {
     }
 }
 
-void HdrPlusClient::notifyServiceClosed() {
+void HdrPlusClientImpl::notifyServiceClosed() {
     // Return all pending requests.
     Mutex::Autolock listenerLock(mClientListenerLock);
 
@@ -313,7 +313,7 @@ void HdrPlusClient::notifyServiceClosed() {
     }
 }
 
-void HdrPlusClient::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
+void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
     if (result == nullptr) return;
 
     if (result->buffer.dmaHandle == nullptr) {
