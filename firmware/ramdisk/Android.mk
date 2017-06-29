@@ -28,28 +28,29 @@ BIN_MODULES := \
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbase)/libbase.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libc++)/libc++.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc)/libc.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libc++)/libc++.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,liblzma)/liblzma.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libm)/libm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,liblzma)/liblzma.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libm)/libm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libnl)/libnl.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libprocinfo)/libprocinfo.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libprotobuf-cpp-lite)/libprotobuf-cpp-lite.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libsysutils)/libsysutils.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libprocinfo)/libprocinfo.so
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 

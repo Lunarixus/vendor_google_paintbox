@@ -3,6 +3,7 @@
 #include <vndk/hardware_buffer.h>
 
 #include "easelcomm.h"
+#include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
 
 namespace android {
 namespace {
@@ -149,6 +150,36 @@ class EaselComm2ImplTest : public ::testing::Test {
     return ret;
   }
 
+  // Sends the proto buffer to server.
+  // Returns NO_ERROR if successful, otherwise error code.
+  int sendProtoBuffer(const test::Request& request) {
+    size_t size = request.ByteSize();
+    void* buffer = malloc(size);
+    bool success = request.SerializeToArray(buffer, size);
+    if (!success) return BAD_VALUE;
+
+    EaselComm::EaselMessage message;
+    message.message_buf = buffer;
+    message.message_buf_size = size;
+    message.dma_buf = nullptr;
+    message.dma_buf_size = 0;
+
+    int ret = mClient.sendMessage(&message);
+    free(buffer);
+    return ret;
+  }
+
+  // Receives the proto buffer from server.
+  // Returns NO_ERROR if successful, otherwise error code.
+  int receiveProtoBuffer(test::Response *response) {
+    EaselComm::EaselMessage message;
+    int ret = mClient.receiveMessage(&message);
+    if (ret != NO_ERROR) return ret;
+    bool success = response->ParseFromArray(message.message_buf, message.message_buf_size);
+    free(message.message_buf);
+    return success ? NO_ERROR : BAD_VALUE;
+  }
+
  protected:
   void SetUp() override {
     ASSERT_EQ(mClient.open(EaselComm::EASEL_SERVICE_TEST), OK);
@@ -182,6 +213,51 @@ TEST_F(EaselComm2ImplTest, AHardareBufferEaselLoopback) {
 
   releaseBuffer(txBuffer);
   releaseBuffer(rxBuffer);
+}
+
+TEST_F(EaselComm2ImplTest, MathRpc) {
+  test::Request request;
+  auto mathOp = request.add_operations();
+  mathOp->set_op(test::MathOperation::ADD);
+  mathOp->set_operand1(1);
+  mathOp->set_operand2(2);
+
+  mathOp = request.add_operations();
+  mathOp->set_op(test::MathOperation::MINUS);
+  mathOp->set_operand1(3);
+  mathOp->set_operand2(4);
+
+  mathOp = request.add_operations();
+  mathOp->set_op(test::MathOperation::MULTIPLY);
+  mathOp->set_operand1(5);
+  mathOp->set_operand2(6);
+
+  mathOp = request.add_operations();
+  mathOp->set_op(test::MathOperation::DIVIDE);
+  mathOp->set_operand1(7);
+  mathOp->set_operand2(8);
+
+  ASSERT_EQ(sendProtoBuffer(request), NO_ERROR);
+
+  test::Response response;
+  ASSERT_EQ(receiveProtoBuffer(&response), NO_ERROR);
+
+  EXPECT_EQ(response.results_size(), 4);
+  auto mathResult = response.results(0);
+  EXPECT_EQ(mathResult.result(), 3);
+  EXPECT_EQ(mathResult.expression(), "1 + 2 = 3");
+
+  mathResult = response.results(1);
+  EXPECT_EQ(mathResult.result(), -1);
+  EXPECT_EQ(mathResult.expression(), "3 - 4 = -1");
+
+  mathResult = response.results(2);
+  EXPECT_EQ(mathResult.result(), 30);
+  EXPECT_EQ(mathResult.expression(), "5 * 6 = 30");
+
+  mathResult = response.results(3);
+  EXPECT_EQ(mathResult.result(), 0);
+  EXPECT_EQ(mathResult.expression(), "7 / 8 = 0");
 }
 
 }  // namespace androids

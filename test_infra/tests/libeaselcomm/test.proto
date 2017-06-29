@@ -1,0 +1,36 @@
+// Test example proto that sends calculation requests
+// to server and gets results.
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package test;
+
+// Request sent to server.
+message Request {
+  repeated MathOperation operations = 1;
+}
+
+// Response received from server.
+message Response {
+  repeated MathResult results = 1;
+}
+
+// An individual math calculation operation.
+message MathOperation {
+  enum Operator {
+    ADD = 0;
+    MINUS = 1;
+    MULTIPLY = 2;
+    DIVIDE = 3;
+  }
+  optional Operator op = 1;
+  optional int32 operand1 = 2;
+  optional int32 operand2 = 3;
+}
+
+// An individual math calculation result.
+message MathResult {
+  optional int32 result = 1;
+  optional string expression = 2;
+}
