@@ -24,11 +24,14 @@ LOCAL_SRC_FILES:= \
     HdrPlusTestUtils.cpp
 
 LOCAL_SHARED_LIBRARIES := \
+    libcamera_metadata \
     libcutils \
     libdng_sdk \
     libhdrplusclient \
-    libhdrplusmessenger \
     liblog
+
+LOCAL_STATIC_LIBRARIES := \
+    android.hardware.camera.common@1.0-helper
 
 LOCAL_C_INCLUDES += \
     system/media/camera/include

@@ -21,9 +21,8 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES :=  \
     ApEaselMetadataManager.cpp \
-    EaselManagerClient.cpp \
-    HdrPlusClient.cpp \
-    HdrPlusClientUtils.cpp
+    EaselManagerClientImpl.cpp \
+    HdrPlusClientImpl.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcamera_metadata \
@@ -40,8 +39,11 @@ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
 LOCAL_EXPORT_STATIC_LIBRARY_HEADERS += android.hardware.camera.common@1.0-helper
 
 LOCAL_C_INCLUDES += \
+    $(LOCAL_PATH)/ \
     $(LOCAL_PATH)/include \
     hardware/libhardware/include \
+    hardware/google/easel/camera/include \
+    hardware/google/easel/camera/libhdrplusclient/include \
     system/core/include \
     system/media/camera/include \
     vendor/google_paintbox/camera/include
@@ -55,14 +57,11 @@ else
 endif
 
 LOCAL_EXPORT_C_INCLUDE_DIRS += \
-    $(LOCAL_PATH)/include \
-    vendor/google_paintbox/camera/include
-
-LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libhdrplusmessenger
+    $(LOCAL_PATH)/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
-LOCAL_MODULE:= libhdrplusclient
+LOCAL_MODULE:= libhdrplusclientimpl
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE_OWNER := google
 
