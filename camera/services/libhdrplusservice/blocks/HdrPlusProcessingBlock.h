@@ -8,6 +8,7 @@
 #include "HdrPlusProfiler.h"
 
 #include <stdlib.h>
+#include <unordered_map>
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam.h"
 #include "system/camera_metadata_tags.h"
 
@@ -181,6 +182,13 @@ private:
     // Notify AP about a shutter. Must be called when mHdrPlusProcessingLock is locked.
     void notifyShutterLocked(const Shutter &shutter);
 
+    // Helper functions for managing buffer references.
+    void addInputReference(int64_t bufferId, Input input);
+    void removeInputReference(int64_t bufferId);
+
+    // Assumes mInputQueue is sorted and performs insertion.
+    void insertIntoInputQueue(Input input);
+
     std::mutex mHdrPlusProcessingLock;
 
     // Static metadata of current device.
@@ -212,6 +220,15 @@ private:
 
     // TODO: Remove reference to source capture block. b/34854987
     std::weak_ptr<SourceCaptureBlock> mSourceCaptureBlock;
+
+    struct InputAndRefCount {
+        InputAndRefCount(Input refInput) : input(refInput), refCount(1) {}
+        Input input;
+        int refCount;
+    };
+    std::unordered_map<int64_t, InputAndRefCount> mInputIdMap;
+
+    std::mutex mInputIdMapLock;
 
     gcam::ShotCallbacks mShotCallbacks;
 
