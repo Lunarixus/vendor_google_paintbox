@@ -35,6 +35,7 @@ ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
     easel_boot_test \
     ezlsh \
+    ezlspi \
     libcapture \
     libeaselcontrolservice \
     libgcam \
