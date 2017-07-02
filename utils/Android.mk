@@ -20,3 +20,11 @@ LOCAL_CFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := ezltmon.cpp
 include $(BUILD_EXECUTABLE)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := ezlspi
+LOCAL_MODULE_OWNER := google
+LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/bin
+LOCAL_CFLAGS += -Wall -Werror -UNDEBUG
+LOCAL_SRC_FILES := ezlspi.cpp
+include $(BUILD_EXECUTABLE)
+
