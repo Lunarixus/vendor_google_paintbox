@@ -22,6 +22,9 @@ LOCAL_SHARED_LIBRARIES:= \
     liblog \
     libeaselcontrol
 
+LOCAL_HEADER_LIBRARIES := \
+    libsystem_headers
+
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
 
 ifeq ($(USE_LIB_EASEL), 0)
