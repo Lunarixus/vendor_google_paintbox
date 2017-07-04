@@ -1,10 +1,12 @@
 #define LOG_TAG "EaselBootTest"
 
+#include "easelcontrol.h"
+
+#include <log/log.h>
+
 #include <getopt.h>
 #include <time.h>
-#include <utils/Log.h>
-
-#include "easelcontrol.h"
+#include <unistd.h>
 
 namespace android {
 
