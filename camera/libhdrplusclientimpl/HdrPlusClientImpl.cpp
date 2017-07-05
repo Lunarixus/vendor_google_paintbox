@@ -104,10 +104,10 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         return NO_INIT;
     }
 
-    std::shared_ptr<CameraMetadata> staticMetadataSrc = std::make_shared<CameraMetadata>();
-    *staticMetadataSrc.get() = &staticMetadata;
+    CameraMetadata staticMetadataSrc;
+    staticMetadataSrc = &staticMetadata;
 
-    std::shared_ptr<pbcamera::StaticMetadata> staticMetadataDest;
+    pbcamera::StaticMetadata staticMetadataDest;
     status_t res = ApEaselMetadataManager::convertAndReturnStaticMetadata(&staticMetadataDest,
             staticMetadataSrc);
     if (res != 0) {
@@ -118,7 +118,7 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
     {
         // This is to workaround HAL that doesn't support dynamic black level. Save static black
         // level to use as dynamic black level later.
-        camera_metadata_entry entry = staticMetadataSrc->find(ANDROID_SENSOR_BLACK_LEVEL_PATTERN);
+        camera_metadata_entry entry = staticMetadataSrc.find(ANDROID_SENSOR_BLACK_LEVEL_PATTERN);
         if (entry.count == 4) {
             for (size_t i = 0; i < entry.count; i++) {
                 mBlackLevelPattern[i] = entry.data.i32[i];
@@ -126,7 +126,7 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         }
     }
 
-    return mMessengerToService.setStaticMetadata(*staticMetadataDest.get());
+    return mMessengerToService.setStaticMetadata(staticMetadataDest);
 }
 
 status_t HdrPlusClientImpl::configureStreams(const pbcamera::InputConfiguration &inputConfig,

@@ -52,8 +52,8 @@ public:
      * staticMetadataSrc is the static metadata to convert from.
      */
     static status_t convertAndReturnStaticMetadata(
-            std::shared_ptr<pbcamera::StaticMetadata> *staticMetadataDest,
-            const std::shared_ptr<CameraMetadata> &staticMetadataSrc);
+            pbcamera::StaticMetadata *staticMetadataDest,
+            const CameraMetadata &staticMetadataSrc);
     /*
      * Add a new Easel Timestamp and if a matching cameraMetadata is found, output a
      * pbcamera::FrameMetadata.
@@ -120,8 +120,7 @@ private:
 
     // Convert a CameraMetadata to pbcamera::FrameMetadata.
     status_t convertAndReturnPbFrameMetadata(
-            std::shared_ptr<pbcamera::FrameMetadata> *frameMetadata,
-            const std::shared_ptr<CameraMetadata>& camerMetadata);
+            pbcamera::FrameMetadata *frameMetadata, const CameraMetadata &camerMetadata);
 
     // Try to add a pair of CameraMetadata and easelTimestamp and if they match, return a converted
     // pbcamera::FrameMetadata.
