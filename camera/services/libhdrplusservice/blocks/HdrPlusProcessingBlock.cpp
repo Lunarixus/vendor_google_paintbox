@@ -29,6 +29,9 @@ HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock>
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
+    if (!mInputIdMap.empty()) {
+        ALOGE("%s: Some input buffers are still referenced!", __FUNCTION__);
+    }
 }
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
@@ -399,16 +402,17 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
         return res;
     }
 
+    int64_t imageId = (uintptr_t)input.buffers[0]->getPlaneData(0);
     gcam::RawWriteView raw(input.buffers[0]->getWidth(), input.buffers[0]->getHeight(),
             input.buffers[0]->getStride(0) - widthBytes, layout, input.buffers[0]->getPlaneData(0));
     if (!shot->AddPayloadFrame(frame->gcamFrameMetadata,
-            /*raw_id*/(uintptr_t)input.buffers[0]->getPlaneData(0), raw,
-            *frame->gcamSpatialGainMap.get())) {
+            imageId, raw, *frame->gcamSpatialGainMap.get())) {
         ALOGE("%s: Adding a payload frame failed.", __FUNCTION__);
         return -ENODEV;
     }
 
     frame->input = input;
+    addInputReference(imageId, input);
 
     return 0;
 }
@@ -462,7 +466,7 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
 
 void HdrPlusProcessingBlock::onGcamInputImageReleased(const int64_t imageId) {
     ALOGD("%s: Got image %" PRId64, __FUNCTION__, imageId);
-    // TODO: Put buffers back to queue here instead of later in onGcamFinalImage().
+    removeInputReference(imageId);
 }
 
 void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
@@ -576,18 +580,6 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
         }
     } else {
         ALOGW("%s: Pipeline is destroyed.", __FUNCTION__);
-    }
-
-    // Return input buffers back to the input queue.
-    std::vector<Input> inputs;
-    for (auto &frame : finishingShot->frames) {
-        inputs.push_back(frame->input); // Create a vector of inputs to keep the order right.
-    }
-
-    // Push inputs back to the front of the queue because it may be needed for next capture.
-    {
-        std::unique_lock<std::mutex> lock(mQueueLock);
-        mInputQueue.insert(mInputQueue.begin(), inputs.begin(), inputs.end());
     }
 
     // Notify worker thread that it can start next processing.
@@ -1008,6 +1000,54 @@ void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(
 
     if (yuv_result != nullptr) delete yuv_result;
     if (rgb_result != nullptr) delete rgb_result;
+}
+
+void HdrPlusProcessingBlock::addInputReference(int64_t id, Input input) {
+    std::unique_lock<std::mutex> lock(mInputIdMapLock);
+    auto refIt = mInputIdMap.find(id);
+    if (refIt == mInputIdMap.end()) {
+        mInputIdMap.emplace(id, InputAndRefCount(input));
+    } else {
+        refIt->second.refCount++;
+    }
+}
+
+void HdrPlusProcessingBlock::removeInputReference(int64_t id) {
+    std::unique_lock<std::mutex> lock(mInputIdMapLock);
+    auto refIt = mInputIdMap.find(id);
+    if (refIt == mInputIdMap.end()) {
+      ALOGE("%s: Image %" PRId64 " never added to map.", __FUNCTION__, id);
+      return;
+    }
+
+    auto ref = refIt->second;
+    ref.refCount--;
+    // Return input buffer back to the input queue if it is no longer used.
+    // We also erase the entry from the map to keep our map bounded.
+    if (!ref.refCount) {
+        insertIntoInputQueue(ref.input);
+        mInputIdMap.erase(refIt);
+    } else if (ref.refCount < 0) {
+        ALOGE("%s: Image %" PRId64 " already released.", __FUNCTION__, id);
+    }
+}
+
+void HdrPlusProcessingBlock::insertIntoInputQueue(Input input) {
+    {
+        // This function assumes mInputQueue is already sorted, and that the
+        // oldest timestamps are at the front of the queue.
+        std::unique_lock<std::mutex> lock(mQueueLock);
+        auto insert_it = mInputQueue.begin();
+        for (; insert_it != mInputQueue.end(); insert_it++) {
+            auto input_ts = input.metadata.frameMetadata->easelTimestamp;
+            auto insert_it_ts = insert_it->metadata.frameMetadata->easelTimestamp;
+            if (input_ts > insert_it_ts) {
+              break;
+            }
+        }
+        mInputQueue.insert(insert_it, input);
+    }
+    notifyWorkerThreadEvent();
 }
 
 } // pbcamera
