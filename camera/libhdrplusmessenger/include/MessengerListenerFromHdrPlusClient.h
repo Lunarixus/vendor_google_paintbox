@@ -98,12 +98,14 @@ public:
      * Invoked when HDR+ client submits a capture request for HDR+ outputs.
      *
      * request is a CaptureRequest containing request ID and output buffers.
+     * metadata is the request metadata.
      *
      * Returns:
      *  0:              on success.
      *  -EINVAL:        if the request is invalid such as containing invalid stream IDs.
      */
-    virtual status_t submitCaptureRequest(const CaptureRequest &request) = 0;
+    virtual status_t submitCaptureRequest(const CaptureRequest &request,
+            const RequestMetadata &metadata) = 0;
 
     /*
      * Invoked when a DMA input buffer is received. If the callback function wants

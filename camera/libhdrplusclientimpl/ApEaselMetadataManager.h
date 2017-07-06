@@ -54,6 +54,17 @@ public:
     static status_t convertAndReturnStaticMetadata(
             pbcamera::StaticMetadata *staticMetadataDest,
             const CameraMetadata &staticMetadataSrc);
+
+    /*
+     * Convert the request metadata from CameraMetadata to pbcamera::RequestMetadata and return it.
+     *
+     * requestMetadataDest will be filled with converted request metadata.
+     * requestMetadataSrc is the request metadata to convert from.
+     *
+     */
+    static status_t convertAndReturnRequestMetadata(
+            pbcamera::RequestMetadata *requestMetadataDest,
+            const CameraMetadata &requestMetadataSrc);
     /*
      * Add a new Easel Timestamp and if a matching cameraMetadata is found, output a
      * pbcamera::FrameMetadata.

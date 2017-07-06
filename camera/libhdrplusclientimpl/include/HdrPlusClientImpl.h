@@ -124,12 +124,14 @@ public:
      * buffer will be returned in CaptureResult only once.
      *
      * request is a CaptureRequest containing output buffers to be filled by HDR+ service.
+     * requestMetadata is the metadata for this request.
      *
      * Returns:
      *  0:              on success.
      *  -EINVAL:        if the request is invalid such as containing invalid stream IDs.
      */
-    status_t submitCaptureRequest(pbcamera::CaptureRequest *request);
+    status_t submitCaptureRequest(pbcamera::CaptureRequest *request,
+            const CameraMetadata &requestMetadata);
 
     /*
      * Send an input buffer to HDR+ service. This is used when HDR+ service's input buffers come

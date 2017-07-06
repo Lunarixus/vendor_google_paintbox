@@ -100,12 +100,13 @@ public:
      * return all or a subset of output buffers.
      *
      * request is the capture request. Each capture request must have a unique CaptureRequest.id.
+     * metadata is the request metadata.
      *
      * Returns:
      *  0:              on success.
      *  -EINVAL:        if the request is invalid such as containing invalid stream IDs.
      */
-    status_t submitCaptureRequest(CaptureRequest *request);
+    status_t submitCaptureRequest(CaptureRequest *request, const RequestMetadata &metadata);
 
     /*
      * Send an input buffer to HDR+ service. This is used when HDR+ service's input buffers come

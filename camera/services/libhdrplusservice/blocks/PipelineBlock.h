@@ -46,6 +46,10 @@ public:
         // Frame metadata submitted by HDR+ client. This will be assigned in SourceCaptureBlock.
         std::shared_ptr<FrameMetadata> frameMetadata;
 
+        // Request metadata for HDR+ processing. This will be assigned before queueing a request
+        // to HdrPlusProcessingBlock.
+        std::shared_ptr<RequestMetadata> requestMetadata;
+
         // Result metadata due to HDR+ processing. This will be assigned in HdrPlusProcessingBlock.
         std::shared_ptr<ResultMetadata> resultMetadata;
 

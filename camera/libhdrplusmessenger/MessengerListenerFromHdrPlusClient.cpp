@@ -220,6 +220,7 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSetZslHdrPlusMode(Messag
 
 status_t MessengerListenerFromHdrPlusClient::deserializeSubmitCaptureRequest(Message *message){
     CaptureRequest request = {};
+    RequestMetadata metadata = {};
     uint32_t numOutputBuffers = 0;
 
     // Deserialize CaptureRequest
@@ -231,8 +232,10 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSubmitCaptureRequest(Mes
         // buffer.data remains nullptr because it's ignored in the service.
         request.outputBuffers.push_back(buffer);
     }
+    // Deserialize RequestMetadata.
+    RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.cropRegion));
 
-    return submitCaptureRequest(request);
+    return submitCaptureRequest(request, metadata);
 }
 
 void MessengerListenerFromHdrPlusClient::deserializeNotifyDmaInputBuffer(Message *message,

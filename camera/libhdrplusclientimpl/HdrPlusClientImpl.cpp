@@ -158,12 +158,23 @@ status_t HdrPlusClientImpl::setZslHdrPlusMode(bool enabled) {
     return mMessengerToService.setZslHdrPlusMode(enabled);
 }
 
-status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request) {
+status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request,
+        const CameraMetadata &requestMetadata) {
     ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
         ALOGE("%s: HDR+ service is in a fatal error state.", __FUNCTION__);
         return NO_INIT;
+    }
+
+
+    pbcamera::RequestMetadata requestMetadataDest = {};
+    status_t res = ApEaselMetadataManager::convertAndReturnRequestMetadata(&requestMetadataDest,
+            requestMetadata);
+    if (res != 0) {
+        ALOGE("%s: Converting request metadata failed: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return res;
     }
 
     // Lock here to prevent the case where the result comes back very quickly and couldn't
@@ -176,7 +187,7 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
     START_PROFILER_TIMER(pendingRequest.timer);
 
     // Send the request to HDR+ service.
-    status_t res = mMessengerToService.submitCaptureRequest(request);
+    res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
     if (res != 0) {
         ALOGE("%s: Sending capture request to service failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);

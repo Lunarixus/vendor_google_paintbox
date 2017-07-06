@@ -331,6 +331,22 @@ status_t ApEaselMetadataManager::convertAndReturnStaticMetadata(
     return OK;
 }
 
+status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
+        pbcamera::RequestMetadata *requestMetadataDest,
+        const CameraMetadata &requestMetadataSrc) {
+    if (requestMetadataDest == nullptr) {
+        ALOGE("%s: requestMetadataDest cannot be null.", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    pbcamera::RequestMetadata dest = {};
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.cropRegion, requestMetadataSrc,
+            ANDROID_SCALER_CROP_REGION));
+
+    *requestMetadataDest = dest;
+    return OK;
+}
+
 status_t ApEaselMetadataManager::convertAndReturnPbFrameMetadata(
         pbcamera::FrameMetadata *frameMetadata,
         const CameraMetadata &cameraMetadata) {
