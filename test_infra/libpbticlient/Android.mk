@@ -15,7 +15,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libcutils \
     libeaselcontrol
 
-LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol libutils
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
