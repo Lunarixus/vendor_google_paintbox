@@ -1,0 +1,5 @@
+cc_library_headers {
+    name: "easel-kernel-headers",
+    vendor_available: true,
+    export_include_dirs: ["."],
+}
