@@ -16,6 +16,9 @@
 #include "HdrPlusProcessingBlock.h"
 #include "HdrPlusPipeline.h"
 
+// TODO: enable digital zoom when IPU supports it (b/63399843)
+#define ENABLE_DIGITAL_ZOOM (0)
+
 namespace pbcamera {
 
 std::once_flag loadPcgOnce;
@@ -264,11 +267,22 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     // Get the crop region.
     int32_t outputCropX, outputCropY, outputCropW, outputCropH;
 
+#if ENABLE_DIGITAL_ZOOM
+    status_t res = calculateCropRect(
+            outputRequest.metadata.requestMetadata->cropRegion[0],
+            outputRequest.metadata.requestMetadata->cropRegion[1],
+            outputRequest.metadata.requestMetadata->cropRegion[2],
+            outputRequest.metadata.requestMetadata->cropRegion[3],
+            outputRequest.buffers[0]->getWidth(),
+            outputRequest.buffers[0]->getHeight(),
+            &outputCropX, &outputCropY, &outputCropW, &outputCropH);
+#else
     // TODO: Consider digital zoom crop region instead of using full active array area. b/36492953
     status_t res = calculateCropRect(0, 0, mStaticMetadata->activeArraySize[2],
             mStaticMetadata->activeArraySize[3], outputRequest.buffers[0]->getWidth(),
             outputRequest.buffers[0]->getHeight(),
             &outputCropX, &outputCropY, &outputCropW, &outputCropH);
+#endif
     if (res != 0) {
         ALOGE("%s: Failed to get crop region: %s (%d).", __FUNCTION__, strerror(-res), res);
         return res;

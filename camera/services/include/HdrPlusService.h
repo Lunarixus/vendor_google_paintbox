@@ -48,7 +48,8 @@ private:
     status_t configureStreams(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) override;
     status_t setZslHdrPlusMode(bool enabled) override;
-    status_t submitCaptureRequest(const CaptureRequest &request) override;
+    status_t submitCaptureRequest(const CaptureRequest &request, const RequestMetadata &metadata)
+            override;
     void notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
             int64_t mockingEaselTimestampNs) override;
     void notifyFrameMetadata(const FrameMetadata &metadata) override;

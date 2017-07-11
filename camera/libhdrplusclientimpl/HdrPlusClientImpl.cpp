@@ -104,10 +104,10 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         return NO_INIT;
     }
 
-    std::shared_ptr<CameraMetadata> staticMetadataSrc = std::make_shared<CameraMetadata>();
-    *staticMetadataSrc.get() = &staticMetadata;
+    CameraMetadata staticMetadataSrc;
+    staticMetadataSrc = &staticMetadata;
 
-    std::shared_ptr<pbcamera::StaticMetadata> staticMetadataDest;
+    pbcamera::StaticMetadata staticMetadataDest;
     status_t res = ApEaselMetadataManager::convertAndReturnStaticMetadata(&staticMetadataDest,
             staticMetadataSrc);
     if (res != 0) {
@@ -118,7 +118,7 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
     {
         // This is to workaround HAL that doesn't support dynamic black level. Save static black
         // level to use as dynamic black level later.
-        camera_metadata_entry entry = staticMetadataSrc->find(ANDROID_SENSOR_BLACK_LEVEL_PATTERN);
+        camera_metadata_entry entry = staticMetadataSrc.find(ANDROID_SENSOR_BLACK_LEVEL_PATTERN);
         if (entry.count == 4) {
             for (size_t i = 0; i < entry.count; i++) {
                 mBlackLevelPattern[i] = entry.data.i32[i];
@@ -126,7 +126,7 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         }
     }
 
-    return mMessengerToService.setStaticMetadata(*staticMetadataDest.get());
+    return mMessengerToService.setStaticMetadata(staticMetadataDest);
 }
 
 status_t HdrPlusClientImpl::configureStreams(const pbcamera::InputConfiguration &inputConfig,
@@ -158,12 +158,23 @@ status_t HdrPlusClientImpl::setZslHdrPlusMode(bool enabled) {
     return mMessengerToService.setZslHdrPlusMode(enabled);
 }
 
-status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request) {
+status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request,
+        const CameraMetadata &requestMetadata) {
     ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
         ALOGE("%s: HDR+ service is in a fatal error state.", __FUNCTION__);
         return NO_INIT;
+    }
+
+
+    pbcamera::RequestMetadata requestMetadataDest = {};
+    status_t res = ApEaselMetadataManager::convertAndReturnRequestMetadata(&requestMetadataDest,
+            requestMetadata);
+    if (res != 0) {
+        ALOGE("%s: Converting request metadata failed: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return res;
     }
 
     // Lock here to prevent the case where the result comes back very quickly and couldn't
@@ -176,7 +187,7 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
     START_PROFILER_TIMER(pendingRequest.timer);
 
     // Send the request to HDR+ service.
-    status_t res = mMessengerToService.submitCaptureRequest(request);
+    res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
     if (res != 0) {
         ALOGE("%s: Sending capture request to service failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);

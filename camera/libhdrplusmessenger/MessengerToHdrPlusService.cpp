@@ -272,7 +272,8 @@ status_t MessengerToHdrPlusService::setZslHdrPlusMode(bool enabled) {
     return sendMessage(message);
 }
 
-status_t MessengerToHdrPlusService::submitCaptureRequest(CaptureRequest *request) {
+status_t MessengerToHdrPlusService::submitCaptureRequest(CaptureRequest *request,
+        const RequestMetadata &metadata) {
     if (request == nullptr) return -EINVAL;
 
     std::lock_guard<std::mutex> lock(mApiLock);
@@ -292,6 +293,9 @@ status_t MessengerToHdrPlusService::submitCaptureRequest(CaptureRequest *request
         RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(request->outputBuffers[i].streamId));
         // Skip request->outputBuffers[i].data
     }
+
+    // Serialize request metadata.
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.cropRegion));
 
     return sendMessage(message);
 }

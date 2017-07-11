@@ -38,8 +38,8 @@ ApEaselMetadataManager::~ApEaselMetadataManager() {
  * Return a pointer of type T to the data in a camera_metadata_entry.
  */
 template<typename T>
-static T *getMetadataEntryData(const camera_metadata_entry& entry) {
-    void *data = nullptr;
+static const T *getMetadataEntryData(const camera_metadata_ro_entry& entry) {
+    const void *data = nullptr;
     switch (entry.type) {
         case TYPE_BYTE:
             data = entry.data.u8;
@@ -61,7 +61,7 @@ static T *getMetadataEntryData(const camera_metadata_entry& entry) {
             data = nullptr;
     }
 
-    return static_cast<T*>(data);
+    return static_cast<const T*>(data);
 }
 
 /*
@@ -78,19 +78,14 @@ static T *getMetadataEntryData(const camera_metadata_entry& entry) {
  */
 template<typename T>
 static status_t fillMetadataValue(T *dest,
-        const std::shared_ptr<CameraMetadata> &metadataSrc, camera_metadata_tag tag) {
+        const CameraMetadata &metadataSrc, camera_metadata_tag tag) {
     if (dest == nullptr) {
         ALOGE("%s: dest is null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (metadataSrc == nullptr) {
-        ALOGE("%s: metadataSrc is null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
     // Find the entry and check the count.
-    camera_metadata_entry entry = metadataSrc->find(tag);
+    camera_metadata_ro_entry entry = metadataSrc.find(tag);
     if (entry.count != 1) {
         ALOGE("%s: %s has %d values (expecting 1).", __FUNCTION__,
                 get_camera_metadata_section_name(tag), static_cast<int>(entry.count));
@@ -121,19 +116,14 @@ static status_t fillMetadataValue(T *dest,
  */
 template<typename T, size_t SIZE>
 static status_t fillMetadataArray(std::array<T, SIZE> *dest,
-        const std::shared_ptr<CameraMetadata> &metadataSrc, camera_metadata_tag tag) {
+        const CameraMetadata &metadataSrc, camera_metadata_tag tag) {
     if (dest == nullptr) {
         ALOGE("%s: dest is null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (metadataSrc == nullptr) {
-        ALOGE("%s: metadataSrc is null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
     // Find the entry and check the count.
-    camera_metadata_entry entry = metadataSrc->find(tag);
+    camera_metadata_ro_entry entry = metadataSrc.find(tag);
     if (entry.count != dest->size()) {
         ALOGE("%s: %s has %d values (expecting %d).", __FUNCTION__,
                 get_camera_metadata_section_name(tag), static_cast<int>(entry.count),
@@ -167,18 +157,13 @@ static status_t fillMetadataArray(std::array<T, SIZE> *dest,
  */
 template<typename T>
 static status_t fillMetadataVector(std::vector<T> *dest,
-        const std::shared_ptr<CameraMetadata> &metadataSrc, camera_metadata_tag tag) {
+        const CameraMetadata &metadataSrc, camera_metadata_tag tag) {
     if (dest == nullptr) {
         ALOGE("%s: dest is null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (metadataSrc == nullptr) {
-        ALOGE("%s: metadataSrc is null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
-    camera_metadata_entry entry = metadataSrc->find(tag);
+    camera_metadata_ro_entry entry = metadataSrc.find(tag);
     for (size_t i = 0; i < entry.count; i++) {
         if (entry.type == TYPE_RATIONAL) {
             // If the entry is a rational number, convert it to the dest data type.
@@ -206,19 +191,14 @@ static status_t fillMetadataVector(std::vector<T> *dest,
  */
 template<typename T, size_t SIZE>
 static status_t fillMetadataVectorArray(std::vector<std::array<T, SIZE>> *dest,
-        const std::shared_ptr<CameraMetadata> &metadataSrc, camera_metadata_tag tag) {
+        const CameraMetadata &metadataSrc, camera_metadata_tag tag) {
     if (dest == nullptr) {
         ALOGE("%s: dest is null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (metadataSrc == nullptr) {
-        ALOGE("%s: metadataSrc is null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
     // Find the entry and check the count.
-    camera_metadata_entry entry = metadataSrc->find(tag);
+    camera_metadata_ro_entry entry = metadataSrc.find(tag);
     if (entry.count % SIZE != 0) {
         ALOGE("%s: %s has %d values (should be multiples of %d).", __FUNCTION__,
                 get_camera_metadata_section_name(tag), static_cast<int>(entry.count),
@@ -256,19 +236,14 @@ static status_t fillMetadataVectorArray(std::vector<std::array<T, SIZE>> *dest,
  */
 template<typename T, size_t SIZE1, size_t SIZE2>
 static status_t fillMetadataArrayArray(std::array<std::array<T, SIZE2>, SIZE1> *dest,
-        const std::shared_ptr<CameraMetadata> &metadataSrc, camera_metadata_tag tag) {
+        const CameraMetadata &metadataSrc, camera_metadata_tag tag) {
     if (dest == nullptr) {
         ALOGE("%s: dest is null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (metadataSrc == nullptr) {
-        ALOGE("%s: metadataSrc is null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
     // Find the data and check the count.
-    camera_metadata_entry entry = metadataSrc->find(tag);
+    camera_metadata_ro_entry entry = metadataSrc.find(tag);
     if (entry.count != SIZE1 * SIZE2) {
         ALOGE("%s: %s has %d values but expecting %d.", __FUNCTION__,
                 get_camera_metadata_section_name(tag), static_cast<int>(entry.count),
@@ -305,115 +280,119 @@ void ApEaselMetadataManager::setApTimestampOffset(int64_t timestampOffsetNs) {
 }
 
 status_t ApEaselMetadataManager::convertAndReturnStaticMetadata(
-        std::shared_ptr<pbcamera::StaticMetadata> *staticMetadataDest,
-        const std::shared_ptr<CameraMetadata> &staticMetadataSrc) {
+        pbcamera::StaticMetadata *staticMetadataDest,
+        const CameraMetadata &staticMetadataSrc) {
     if (staticMetadataDest == nullptr) {
         ALOGE("%s: staticMetadataDest cannot be null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (staticMetadataSrc == nullptr) {
-        ALOGE("%s: staticMetadataSrc cannot be null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
-    std::shared_ptr<pbcamera::StaticMetadata> dest = std::make_shared<pbcamera::StaticMetadata>();
-
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->flashInfoAvailable, staticMetadataSrc,
+    pbcamera::StaticMetadata dest = {};
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.flashInfoAvailable, staticMetadataSrc,
             ANDROID_FLASH_INFO_AVAILABLE));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->sensitivityRange, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.sensitivityRange, staticMetadataSrc,
             ANDROID_SENSOR_INFO_SENSITIVITY_RANGE));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->maxAnalogSensitivity, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.maxAnalogSensitivity, staticMetadataSrc,
             ANDROID_SENSOR_MAX_ANALOG_SENSITIVITY));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->pixelArraySize, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.pixelArraySize, staticMetadataSrc,
             ANDROID_SENSOR_INFO_PIXEL_ARRAY_SIZE));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->activeArraySize, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.activeArraySize, staticMetadataSrc,
             ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE));
-    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest->opticalBlackRegions, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest.opticalBlackRegions, staticMetadataSrc,
             ANDROID_SENSOR_OPTICAL_BLACK_REGIONS));
-    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest->availableStreamConfigurations,
+    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest.availableStreamConfigurations,
             staticMetadataSrc, ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->referenceIlluminant1, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.referenceIlluminant1, staticMetadataSrc,
             ANDROID_SENSOR_REFERENCE_ILLUMINANT1));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->referenceIlluminant2, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.referenceIlluminant2, staticMetadataSrc,
             ANDROID_SENSOR_REFERENCE_ILLUMINANT2));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->calibrationTransform1, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.calibrationTransform1, staticMetadataSrc,
             ANDROID_SENSOR_CALIBRATION_TRANSFORM1));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->calibrationTransform2, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.calibrationTransform2, staticMetadataSrc,
             ANDROID_SENSOR_CALIBRATION_TRANSFORM2));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->colorTransform1, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.colorTransform1, staticMetadataSrc,
             ANDROID_SENSOR_COLOR_TRANSFORM1));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->colorTransform2, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.colorTransform2, staticMetadataSrc,
             ANDROID_SENSOR_COLOR_TRANSFORM2));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->whiteLevel, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.whiteLevel, staticMetadataSrc,
             ANDROID_SENSOR_INFO_WHITE_LEVEL));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->colorFilterArrangement, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.colorFilterArrangement, staticMetadataSrc,
             ANDROID_SENSOR_INFO_COLOR_FILTER_ARRANGEMENT));
-    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest->availableApertures, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest.availableApertures, staticMetadataSrc,
             ANDROID_LENS_INFO_AVAILABLE_APERTURES));
-    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest->availableFocalLengths, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest.availableFocalLengths, staticMetadataSrc,
             ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->shadingMapSize, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.shadingMapSize, staticMetadataSrc,
             ANDROID_LENS_INFO_SHADING_MAP_SIZE));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->focusDistanceCalibration, staticMetadataSrc,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.focusDistanceCalibration, staticMetadataSrc,
             ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION));
 
     *staticMetadataDest = dest;
     return OK;
 }
 
+status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
+        pbcamera::RequestMetadata *requestMetadataDest,
+        const CameraMetadata &requestMetadataSrc) {
+    if (requestMetadataDest == nullptr) {
+        ALOGE("%s: requestMetadataDest cannot be null.", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    pbcamera::RequestMetadata dest = {};
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.cropRegion, requestMetadataSrc,
+            ANDROID_SCALER_CROP_REGION));
+
+    *requestMetadataDest = dest;
+    return OK;
+}
+
 status_t ApEaselMetadataManager::convertAndReturnPbFrameMetadata(
-        std::shared_ptr<pbcamera::FrameMetadata> *frameMetadata,
-        const std::shared_ptr<CameraMetadata> &cameraMetadata) {
+        pbcamera::FrameMetadata *frameMetadata,
+        const CameraMetadata &cameraMetadata) {
     if (frameMetadata == nullptr) {
         ALOGE("%s: cameraMetadata cannot be null.", __FUNCTION__);
         return BAD_VALUE;
     }
 
-    if (cameraMetadata == nullptr) {
-        ALOGE("%s: cameraMetadata cannot be null.", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
-    std::shared_ptr<pbcamera::FrameMetadata> dest = std::make_shared<pbcamera::FrameMetadata>();
-
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->exposureTime, cameraMetadata,
+    pbcamera::FrameMetadata dest = {};
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.exposureTime, cameraMetadata,
             ANDROID_SENSOR_EXPOSURE_TIME));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->sensitivity, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.sensitivity, cameraMetadata,
             ANDROID_SENSOR_SENSITIVITY));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->postRawSensitivityBoost,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.postRawSensitivityBoost,
             cameraMetadata, ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->flashMode, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.flashMode, cameraMetadata,
             ANDROID_FLASH_MODE));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->colorCorrectionGains, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.colorCorrectionGains, cameraMetadata,
             ANDROID_COLOR_CORRECTION_GAINS));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->colorCorrectionTransform,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.colorCorrectionTransform,
             cameraMetadata, ANDROID_COLOR_CORRECTION_TRANSFORM));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->neutralColorPoint, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.neutralColorPoint, cameraMetadata,
             ANDROID_SENSOR_NEUTRAL_COLOR_POINT));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->timestamp, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.timestamp, cameraMetadata,
             ANDROID_SENSOR_TIMESTAMP));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->blackLevelLock, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.blackLevelLock, cameraMetadata,
             ANDROID_BLACK_LEVEL_LOCK));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->faceDetectMode, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.faceDetectMode, cameraMetadata,
             ANDROID_STATISTICS_FACE_DETECT_MODE));
-    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest->faceIds, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest.faceIds, cameraMetadata,
             ANDROID_STATISTICS_FACE_IDS));
-    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest->faceLandmarks, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest.faceLandmarks, cameraMetadata,
             ANDROID_STATISTICS_FACE_LANDMARKS));
-    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest->faceRectangles, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest.faceRectangles, cameraMetadata,
             ANDROID_STATISTICS_FACE_RECTANGLES));
-    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest->faceScores, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest.faceScores, cameraMetadata,
             ANDROID_STATISTICS_FACE_SCORES));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->sceneFlicker, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.sceneFlicker, cameraMetadata,
             ANDROID_STATISTICS_SCENE_FLICKER));
-    RETURN_ERROR_ON_ERROR(fillMetadataArrayArray(&dest->noiseProfile, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataArrayArray(&dest.noiseProfile, cameraMetadata,
             ANDROID_SENSOR_NOISE_PROFILE));
-    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest->dynamicBlackLevel, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.dynamicBlackLevel, cameraMetadata,
             ANDROID_SENSOR_DYNAMIC_BLACK_LEVEL));
-    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest->lensShadingMap, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataVector(&dest.lensShadingMap, cameraMetadata,
             ANDROID_STATISTICS_LENS_SHADING_MAP));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest->focusDistance, cameraMetadata,
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.focusDistance, cameraMetadata,
             ANDROID_LENS_FOCUS_DISTANCE));
 
     *frameMetadata = dest;
@@ -451,8 +430,9 @@ bool ApEaselMetadataManager::tryAddingApEaselMetadataLocked(
     if (llabs(apTimestamp - mApTimestampOffsetNs - easelStartExpTime) <=
             kApEaselTimestampDiffToleranceNs) {
         // They match so create an entry in mApTimestampToMetadataMap.
-        std::shared_ptr<pbcamera::FrameMetadata> pbFrameMetadata;
-        status_t res = convertAndReturnPbFrameMetadata(&pbFrameMetadata, cameraMetadata);
+        auto pbFrameMetadata = std::make_shared<pbcamera::FrameMetadata>();
+        status_t res = convertAndReturnPbFrameMetadata(pbFrameMetadata.get(),
+                *cameraMetadata.get());
         if (res != OK) {
             return false;
         }

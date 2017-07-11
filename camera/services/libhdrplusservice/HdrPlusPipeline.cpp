@@ -312,7 +312,8 @@ void HdrPlusPipeline::abortRequest(PipelineBlock::OutputRequest *outputRequest) 
     returnBufferToStream(outputRequest->buffers);
 }
 
-status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request) {
+status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request,
+        const RequestMetadata &metadata) {
     ALOGV("%s", __FUNCTION__);
     status_t res = 0;
 
@@ -321,6 +322,8 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request) {
     // Prepare outputRequest
     PipelineBlock::OutputRequest outputRequest = {};
     outputRequest.metadata.requestId = request.id;
+    outputRequest.metadata.requestMetadata = std::make_shared<RequestMetadata>();
+    *outputRequest.metadata.requestMetadata = metadata;
 
     // Find all output buffers.
     for (auto bufferInRequest : request.outputBuffers) {

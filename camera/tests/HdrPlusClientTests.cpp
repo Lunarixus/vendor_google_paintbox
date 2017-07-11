@@ -615,6 +615,15 @@ protected:
             frameMetadata.unlock(metadata);
         }
 
+        CameraMetadata requestMetadata;
+
+        // Disable digital zoom by setting crop region to full active array.
+        entry = staticMetadata.find(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+        ASSERT_EQ(entry.count, static_cast<uint32_t>(4)) << "Active array size has " <<
+                entry.count << " entries. (Expecting 4)";
+        int32_t cropRegion[4] = { 0, 0, entry.data.i32[2], entry.data.i32[3] };
+        requestMetadata.update(ANDROID_SCALER_CROP_REGION, cropRegion, 4);
+
         std::vector<pbcamera::CaptureRequest> submittedRequests;
 
         // Submit requests.
@@ -641,7 +650,7 @@ protected:
             }
 
             // Issue a capture request.
-            ASSERT_EQ(mClient->submitCaptureRequest(&request), OK);
+            ASSERT_EQ(mClient->submitCaptureRequest(&request, requestMetadata), OK);
 
             submittedRequests.push_back(request);
         }

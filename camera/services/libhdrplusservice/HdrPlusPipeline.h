@@ -93,12 +93,13 @@ public:
      * MessengerToHdrPlusClient
      *
      * request is the capture request submitted.
+     * metadata is the metadata for this request.
      *
      * Returns:
      *  0:              on success.
      *  -EINVAL:        if the request is invalid such as containing invalid stream IDs.
      */
-    status_t submitCaptureRequest(const CaptureRequest &request);
+    status_t submitCaptureRequest(const CaptureRequest &request, const RequestMetadata &metadata);
 
     /*
      * Notify the pipeline of a DMA input buffer. The DMA image buffer will be transferred after

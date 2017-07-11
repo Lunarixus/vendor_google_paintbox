@@ -119,7 +119,8 @@ status_t HdrPlusService::setZslHdrPlusMode(bool enabled) {
     return mPipeline->setZslHdrPlusMode(enabled);
 }
 
-status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request) {
+status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request,
+        const RequestMetadata &metadata) {
     ALOGV("%s", __FUNCTION__);
     std::unique_lock<std::mutex> lock(mApiLock);
 
@@ -128,7 +129,7 @@ status_t HdrPlusService::submitCaptureRequest(const CaptureRequest &request) {
         return -ENODEV;
     }
 
-    return mPipeline->submitCaptureRequest(request);
+    return mPipeline->submitCaptureRequest(request, metadata);
 }
 
 void HdrPlusService::notifyDmaInputBuffer(const DmaImageBuffer &dmaInputBuffer,
