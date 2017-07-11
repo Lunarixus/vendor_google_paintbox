@@ -2,17 +2,22 @@
 #define GOOGLEX_GCAM_CREATIVE_CAMERA_PORTRAIT_MODE_PORTRAIT_REQUEST_H_
 
 #include "googlex/gcam/base/pixel_rect.h"
+#include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/image_rotation.h"
+#include "googlex/gcam/image_metadata/static_metadata.h"
 
 namespace creative_camera {
 
+// LINT.IfChange
 // A list of arguments used by Portrait Mode to finsh processing the image.
 struct GoudaRequest {
-  // The desired output width and height. The processed images will be upsampled
-  // to this resolution.
-  // TODO(nealw): Make the above sentence a reality.
+  // The desired output width and height. The processed images will be resampled
+  // to this resolution. 'output_width' and 'output_height' must positive.
   int output_width = 0;
   int output_height = 0;
+
+  // Amount to sharpen images after resampling to the requested resolution.
+  float post_resample_sharpening = 0.0f;
 
   // How the image should be transformed to be displayed on-screen with
   // the correct orientation. See googlex/gcam/image_metadata/image_rotation.h.
@@ -21,11 +26,22 @@ struct GoudaRequest {
   //  The bounding boxes of faces in the image.
   std::vector<gcam::PixelRect> faces;
 
-  // Metadata related to PD.
-  uint16_t pd_black_level = 0;
-  uint16_t pd_white_level = 0;
-};
+  // Merged frame and static metadata from HDR+.
+  gcam::FrameMetadata frame_metadata;
+  gcam::StaticMetadata static_metadata;
 
+  // A path at which to save the raw inputs to the GoudaProcessor. To skip
+  // saving raw inputs, leave this string empty. This field is not serialized.
+  std::string portrait_raw_path;
+
+  // A prefix to use for all artifacts saved to portrait_raw_path. Ideally, this
+  // should somehow be tied to the result images that come out of portrait mode,
+  // but anything unique would be fine. If left empty, a timestamp will be
+  // generated. This field is not serialized.
+  std::string shot_prefix;
+};
+// LINT.ThenChange(//depot/google3/googlex/gcam/creative_camera/portrait_mode/\
+//                 portrait_request_serialization.cc)
 }  // namespace creative_camera
 
 #endif  // GOOGLEX_GCAM_CREATIVE_CAMERA_PORTRAIT_MODE_PORTRAIT_REQUEST_H_

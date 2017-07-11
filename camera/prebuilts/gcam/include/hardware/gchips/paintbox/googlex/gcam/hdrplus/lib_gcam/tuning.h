@@ -7,7 +7,8 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
-#include <map>
+#include <initializer_list>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_proc/color_saturation.h"
+#include "googlex/gcam/image_proc/resampling_method.h"
 #include "googlex/gcam/image_proc/row_artifacts.h"
 #include "googlex/gcam/image_raw/raw.h"
 #include "googlex/gcam/tonemap/tonemap_yuv.h"
@@ -45,18 +47,26 @@ T LerpTuning(const T& a, const T& b, float t) {
 // A wrapper around std::map<float, T> that allows interpolating its values.
 template <typename T>
 class SmoothKeyValueMap {
+  // It turns out that std::map has at least two to-be-identified bugs in the
+  // Android STL implementation (see b/37967029), so this is actually
+  // implemented with a (sorted) vector of pairs.
+  static bool KeyValueLess(const std::pair<float, T>& l,
+                           const std::pair<float, T>& r) {
+    return l.first < r.first;
+  }
+
+  std::vector<std::pair<float, T>> map_;
+
  public:
   SmoothKeyValueMap() {}
-  explicit SmoothKeyValueMap(const std::map<float, T>& pairs) : map_(pairs) {}
 
-  // Replace the key-value pairs contained in this smooth map.
-  void SetMap(const std::map<float, T>& pairs) { map_ = pairs; }
-
-  // Replace the key-value pairs contained in this smooth map with a mapping to
-  // a constant.
-  void SetConstant(const T& value) {
-    map_.clear();
-    map_[0.0f] = value;
+  // Construct a smooth key-value map from an initializer list of key-value
+  // pairs. The pairs should be sorted.
+  SmoothKeyValueMap(std::initializer_list<std::pair<float, T>> pairs)
+      : map_(pairs) {
+    // To implement lookups, we need the keys to be sorted. They should be
+    // sorted already for this to make sense at all.
+    std::sort(map_.begin(), map_.end(), KeyValueLess);
   }
 
   // Perform a linearly interpolated lookup into this map. If the map is empty,
@@ -64,34 +74,26 @@ class SmoothKeyValueMap {
   // by the keys of the map, the function returns the nearest key (i.e. it does
   // not extrapolate values).
   T Get(float key) const {
-    // If we have no values, return a default constructed value.
     if (map_.empty()) {
+      // If we have no values, return a default constructed value.
       return T();
-    }
-
-    typename std::map<float, T>::const_iterator p2 = map_.upper_bound(key);
-
-    if (p2 == map_.end()) {
-      // There were no datapoints with noise less than var_noise, so just return
-      // the last element.
-      return map_.rbegin()->second;
-    } else if (p2 == map_.begin()) {
-      // If the upper bound is the first element in the dataset, there is no
-      // previous datapoint to interpolate with, so return the first datapoint.
-      return map_.begin()->second;
+    } else if (key <= map_.front().first) {
+      return map_.front().second;
+    } else if (key >= map_.back().first) {
+      return map_.back().second;
     } else {
+      std::pair<float, T> key_and_dummy(key, T());
+      auto p2 = std::upper_bound(map_.begin(), map_.end(), key_and_dummy,
+                                 KeyValueLess);
       // Get the previous datapoint, and interpolate.
-      typename std::map<float, T>::const_iterator p1 = p2;
-      --p1;
+      assert(p2 != map_.begin() && p2 != map_.end());
+      auto p1 = std::prev(p2);
 
       assert(p1->first <= key && key <= p2->first);
       float t = (key - p1->first) / (p2->first - p1->first);
       return LerpTuning(p1->second, p2->second, t);
     }
   }
-
- protected:
-  std::map<float, T> map_;
 };
 
 // Overload lerp to support tuning interpolation.
@@ -140,6 +142,15 @@ void RawNoiseModelFromDngNoiseModel(
     const DngNoiseModel dng_noise_model_bayer[4],
     const float black_levels_bayer[4], float white_level,
     RawNoiseModel* raw_noise_model);
+
+// Noise model from PD is specified based on the noise model for the green
+// channel. This function is only guaranteed to work with the 2017 phones.
+// 'pd_noise_model' contains the noise model for the left and right PD pixels
+// in that order.
+void PdNoiseModelFromRawNoiseModel(
+    const RawNoiseModel raw_noise_model[4],
+    BayerPattern bayer_pattern,
+    std::array<RawNoiseModel, 2>* pd_noise_model);
 
 // Compute the average SNR for a given raw frame, by evaluating the given noise
 // model at the mean signal level, approximated using a single green channel.
@@ -420,6 +431,9 @@ struct RawFinishParams {
   // Strength of sharpening after digital zoom as a function of the digital
   // zoom factor.
   SmoothKeyValueMap<float> post_zoom_sharpen_strength;
+
+  // Which method to use when resampling the final image.
+  ResamplingMethod resampling_method;
 
   // How much error to expect in the black level metadata, in DNs. If this is
   // greater than zero, we attempt to estimate an offset within the margin of

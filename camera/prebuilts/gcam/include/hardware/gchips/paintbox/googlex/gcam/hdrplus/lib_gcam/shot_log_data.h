@@ -70,10 +70,14 @@ struct ShotLogData {
   float ideal_range_compression;
   float actual_range_compression;
 
-  // This gives the fraction of pixels [0..1] that were unclipped (< 255
+  // These give the fraction of pixels [0..1] that were unclipped (< 255
   //   in all 3 color channels) at the *ideal* long-exposure TET (before any
   //   adjustment factor was applied).  Always valid.
-  float fraction_of_pixels_from_long_exposure;
+  // The 'pure' version weights all pixels equally; in the 'weighted' version,
+  //   the pixels are weighted by the spatial metering weight map, so faces,
+  //   weighted metering rectangles, and CWA all have an influence.
+  float pure_fraction_of_pixels_from_long_exposure;
+  float weighted_fraction_of_pixels_from_long_exposure;
 
   // If the ideal TET of the short or long exposure were adjusted, how were
   //   they adjusted?  These values tell you how they were scaled.  The values
@@ -148,15 +152,6 @@ struct ShotLogData {
   // The vector should be of length 'original_payload_frame_count'.
   std::vector<bool> was_payload_frame_merged;
 
-  // [YUV pipeline only]
-  // A vector of how much the contents of each merged frame were globally
-  //   translated (on x and y) in order to roughly match the contents of
-  //   the base frame.
-  // The list should contain (merged_frame_count - 1) entries, since this
-  //   information is only relevant for frames that were aligned & merged.
-  // The list is *unordered* (it's only meant for compiling statistics).
-  std::vector<Point2i> global_pixel_shifts;
-
   // Was the shot ZSL?
   bool zsl;
 
@@ -166,25 +161,6 @@ struct ShotLogData {
   // The number of payload frames that were merged together, including the
   //   base image.  Range is [1 .. original_payload_frame_count].
   int merged_frame_count;
-
-  // [YUV pipeline only]
-  // For non-HDR shots, this equals average_heat / merged_frame_count.
-  // For HDR shots, this value is based on that same formula, but is slightly
-  //   contaminated; the reason is that this value isn't computed until after
-  //   local gains (HDR) are applied, and when we apply those, we scale the
-  //   heat values by (1 / X) ^ 2, where X is the local gain (ranging from 1
-  //   to actual_range_compression).  (So, for HDR shots, it is possible to
-  //   see values here less than 1 / merged_frame_count.)
-  // For example, in an HDR shot, if roughly 80% of the pixels come from
-  //   the short exposure (no gain), and 20% are locally gained (by a factor
-  //   of 'actual_range_compression'), then (roughly) you'd see 20% of the
-  //   pixels have their heat value reduced by actual_range_compression ^ 2,
-  //   and the other 80% heat values would be unchanged.
-  // TODO(geiss): Find a way to compute this (for free) at an earlier stage,
-  //   before the heat values are modified (by PHDR), at a place that is
-  //   (ideally) common to both HDR- and non-HDR shots, and (ideally) during
-  //   the Finish phase (rather than during the time-critical Merge phase).
-  float average_heat_frac;
 
   // These track the two most important elements of capture timing.
   // 'time_to_shot' is the time between the call to StartShotCapture()
@@ -196,9 +172,38 @@ struct ShotLogData {
   float time_to_shot;       // In seconds.
   float time_to_postview;   // In seconds.
 
+  // Track the time to perform key blocks of processing, in seconds.
+  // 'capture_time' is the time spent processing and/or waiting for frames to be
+  //    captured. Some processing happens during this phase, such as postview
+  //    generation and some input frame preprocessing.
+  // 'postview_callback_time' is the time spent in the postview callback itself,
+  //    which is a subset of the time spent in capture_time.
+  // 'merge_process_time' is the time spent merging the burst, i.e. MergeShot.
+  // 'merged_raw_callback_time' is the time spent in the merged raw callback,
+  //    which is a subset of the time spent in merge_process_time.
+  // 'finish_process_time' is the time spent processing the merged frame to the
+  //    final image, i.e. most of FinishShot.
+  // 'final_image_callback_time' is the time spent in the final image callback,
+  //    which is a subset of the time spent in finish_process_time.
+  // 'jpeg_encode_time' is the time spent preparing and encoding the image to a
+  //    JPEG.
+  // 'jpeg_callback_time' is the time spent in the JPEG ready callback.
+  // A value of 0 means the information was not available.
+  float capture_time;
+  float postview_callback_time;
+  float merge_process_time;
+  float merged_raw_callback_time;
+  float finish_process_time;
+  float final_image_callback_time;
+  float jpeg_encode_time;
+  float jpeg_callback_time;
+
   // Indicates whether Hexagon or IPU were used to process the shot.
   bool used_hexagon;
   bool used_ipu;
+
+  // Indicates whether the shot was aborted (during capture or processing).
+  bool aborted;
 };
 
 // Fill in the AE-related fields of ShotLogData from AeResults.

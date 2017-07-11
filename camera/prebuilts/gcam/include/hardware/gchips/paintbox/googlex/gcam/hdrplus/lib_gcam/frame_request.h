@@ -11,7 +11,7 @@ namespace gcam {
 // Note: We don't necessary need/want to expose this enum, but we can't store
 // this state internally b/c the capture can be mocked... so, oh well.
 enum BurstFrameType {
-  kSingleExp = 0,  // X
+  kSingleExp = 0,  // X (deprecated; legacy raw/YUV bursts only)
   kShortExp,       // S
   kLongExp,        // L (deprecated; legacy YUV bursts only)
   kInvalidBurstFrameType

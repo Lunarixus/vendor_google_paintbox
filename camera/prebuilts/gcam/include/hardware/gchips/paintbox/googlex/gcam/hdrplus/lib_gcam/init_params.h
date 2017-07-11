@@ -7,6 +7,7 @@
 #include <string>
 
 #include "googlex/gcam/base/log_level.h"
+#include "googlex/gcam/base/file_saver.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_callbacks.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_types.h"
 #include "googlex/gcam/image/allocator.h"
@@ -224,10 +225,6 @@ struct InitParams {
   //   executes.)
   bool simultaneous_merge_and_finish;
 
-  // Whether temporal binning is enabled for low-light shots. See
-  // go/temporal-binning-doc.
-  bool temporal_binning_enabled;
-
   // Thread priority levels for various Gcam operations.
   //
   // By default, capture inherits the priority of the parent thread, and merge
@@ -242,8 +239,13 @@ struct InitParams {
 
   // This allows you to pass in custom versions of malloc and free,
   // to be used for the allocation of image data.
-  MallocFuncType custom_malloc;
-  FreeFuncType   custom_free;
+  MallocFunc custom_malloc;
+  FreeFunc   custom_free;
+
+  // This allows you to pass in a custom file saving function, to be used for
+  // saving image data and sidecar metadata for debugging (if the various
+  // GCAM_DEBUG_* flags are active).
+  FileSaverFunc custom_file_saver;
 
   // Callback ownership:
   // Gcam does not take ownership of callback objects passed in and expects them

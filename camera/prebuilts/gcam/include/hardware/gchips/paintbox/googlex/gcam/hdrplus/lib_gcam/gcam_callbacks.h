@@ -95,52 +95,83 @@ class ProgressCallback {
 class BackgroundAeResultsCallback {
  public:
   virtual ~BackgroundAeResultsCallback() = default;
-  virtual void Run(AeResults results) = 0;
+  virtual void Run(const AeResults& results) = 0;
 };
 
-// Called when the merged raw image is ready.
-// When the callback is invoked (via Run), iff the client provided a
-// preallocated buffer in which to store the merged raw image, then:
-//   - 'preallocated_merged_image_view' will contain (a view of) the merged
-//     result.
-//   - 'merged_image' will be nullptr.
-//   - The release callback for the preallocated buffer will be called once
-//     Run() completes.
-// Otherwise:
-//   - 'preallocated_merged_image_view' will be nullptr.
-//   - 'merged_image' will contain the merged result.
-//   - The client must call "delete merged_image" when it is finished with the
-//     image.
+// Callback to deliver PD updates.
+class PdImageCallback {
+ public:
+  virtual ~PdImageCallback() = default;
+
+  // Invoked when the merged PD data is available. 'merged_pd' is guaranteed to
+  // be not null. The client takes ownership of 'merged_pd' and must call
+  // "delete merged_pd" when it is finished with the image.
+  //
+  // PD data is vertically upsampled by a factor of two to Bayer plane
+  // resolution. If a crop is requested by the client, the merged PD will only
+  // contain data within that crop.
+  virtual void ImageReady(const IShot* shot,
+                          gcam::InterleavedImageU16* merged_pd) = 0;
+
+  // Invoked when the attempt to merge PD data fails.
+  virtual void MergePdFailed(const IShot* shot) = 0;
+};
+
+// Callback to deliver merged RAW images.
 class RawImageCallback {
  public:
   virtual ~RawImageCallback() = default;
-  virtual void Run(const IShot* shot, const ExifMetadata& metadata,
-                   const RawReadView& preallocated_merged_image_view,
-                   RawImage* merged_image) = 0;
+
+  // Invoked when the merged RAW image is ready. 'merged_raw' is guaranteed to
+  // be not null. The client takes ownership of 'merged_raw' and must call
+  // "delete merged_raw" when it is finished with the image.
+  virtual void ImageReady(const IShot* shot, const ExifMetadata& metadata,
+                          RawImage* merged_raw) = 0;
+
+  // Invoked when the merged RAW image is ready and the client passed in a
+  // preallocated buffer. The release callback for the preallocated buffer will
+  // be invoked once this function returns.
+  virtual void PreallocatedReady(const IShot* shot,
+                                 const ExifMetadata& metadata,
+                                 const RawReadView& merged_raw) = 0;
 };
 
-// Called when the final uncompressed image is ready.
-// The final image is unrotated, i.e. it matches the orientation of the payload
-//   images used to generate it.
-// Only one of the four image views/image pointers (preallocated_yuv_image_view,
-//   preallocated_rgb_image_view, yuv_image, rgb_image) will be valid, depending
-//   on the pixel_format requested and whether the client passed a preallocated
-//   output buffer.
-// If the memory for the final image was preallocated by the client, then
-//   'preallocated_yuv_image_view' or 'preallocated_rgb_image_view' will
-//   contain the result. In this case, after the callback completes, gcam will
-//   then invoke the release callback for the preallocated buffer.
-// If the client did not preallocate a buffer, gcam will allocate the buffer
-//   'yuv_image' or 'rgb_image'. It is the client's responsibility to call
-//   'delete yuv_image' or 'delete rgb_image'.
+// When the final uncompressed image is ready, exactly one of the member
+// functions will be invoked, depending on the format and buffer allocation
+// selected when the 'shot' was started. When invoked, we guarantee that the
+// function arguments will not be nullptr.
+//
+// The final image will be in the same orientation as the payload image(s) used
+// to generate it.
 class FinalImageCallback {
  public:
   virtual ~FinalImageCallback() = default;
-  virtual void Run(const IShot* shot,
-                   const YuvReadView& preallocated_yuv_image_view,
-                   const InterleavedReadViewU8& preallocated_rgb_image_view,
-                   YuvImage* yuv_image, InterleavedImageU8* rgb_image,
-                   GcamPixelFormat pixel_format) = 0;
+
+  // After this function returns, the preallocated buffer corresponding to
+  // 'image_view' will be released (i.e., ImageReleaseCallback::Run() will be
+  // invoked).
+  virtual void PreallocatedRgbReady(const IShot* shot,
+                                    const InterleavedReadViewU8& image_view,
+                                    const ExifMetadata& metadata,
+                                    GcamPixelFormat pixel_format) = 0;
+
+  // After this function returns, the preallocated buffer corresponding to
+  // 'image_view' will be released (i.e., ImageReleaseCallback::Run() will be
+  // invoked).
+  virtual void PreallocatedYuvReady(const IShot* shot,
+                                    const YuvReadView& image_view,
+                                    const ExifMetadata& metadata,
+                                    GcamPixelFormat pixel_format) = 0;
+
+  // The client is responsible for deleting 'image' with "delete image".
+  virtual void RgbReady(const IShot* shot, InterleavedImageU8* image,
+                        const ExifMetadata& metadata,
+                        GcamPixelFormat pixel_format) = 0;
+
+  // The client is responsible for deleting 'image' with "delete image".
+  virtual void YuvReady(const IShot* shot, YuvImage* image,
+                        const ExifMetadata& metadata,
+                        GcamPixelFormat pixel_format) = 0;
 };
 
 // TODO(ruiduoy): Get the client pass in a write view for the postview too.
@@ -178,6 +209,9 @@ struct ShotCallbacks {
   // At the moment, only RawBufferLayout::kRaw16 output is supported.
   // Guaranteed to be called before 'merged_dng_callback' below.
   RawImageCallback* merged_raw_image_callback = nullptr;
+
+  // Invoked when the merged PD data is available.
+  PdImageCallback* merged_pd_callback = nullptr;
 
   // Invoked by the raw pipeline when a merged DNG is available.
   EncodedBlobCallback* merged_dng_callback = nullptr;

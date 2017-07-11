@@ -237,6 +237,9 @@ struct StaticMetadata {
 bool CheckBlackRegions(const std::vector<PixelRect>& black_regions,
                        const StaticMetadata& static_metadata);
 
+// Returns a meaningless, randomly generated StaticMetadata.
+StaticMetadata GetRandomStaticMetadata();
+
 }  // namespace gcam
 
 #endif  // GOOGLEX_GCAM_IMAGE_METADATA_STATIC_METADATA_H_

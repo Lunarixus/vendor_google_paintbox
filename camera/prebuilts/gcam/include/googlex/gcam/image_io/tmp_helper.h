@@ -1,7 +1,6 @@
 #ifndef GOOGLEX_GCAM_IMAGE_IO_TMP_HELPER_H_
 #define GOOGLEX_GCAM_IMAGE_IO_TMP_HELPER_H_
 
-#include <cstdint>
 #include <string>
 
 #include "googlex/gcam/image/t_image.h"
