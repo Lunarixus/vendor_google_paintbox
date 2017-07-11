@@ -1,17 +1,21 @@
-// Copyright 2016 The Android Open Source Project
-
 cc_defaults {
     name: "libeaselcomm-defaults",
     owner: "google",
     export_include_dirs: ["include"],
-    header_libs: ["easel-kernel-headers"],
+    header_libs: [
+        "easel-kernel-headers",
+        "easel-prebuilts-headers"
+    ],
     export_header_lib_headers: ["easel-kernel-headers"],
     cppflags: [
         "-Wall",
         "-Werror",
         "-UNDEBUG",
     ],
-    srcs: ["EaselComm.cpp"],
+    srcs: [
+        "EaselComm.cpp",
+        "EaselHardwareBuffer.cpp",
+    ],
     shared_libs: ["liblog"],
 }
 
