@@ -44,5 +44,6 @@ LOCAL_CFLAGS += -Wno-unused-parameter
 LOCAL_MODULE:= hdrplus_client_tests
 LOCAL_MODULE_OWNER := google
 LOCAL_MODULE_TAGS := tests
+LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 
 include $(BUILD_NATIVE_TEST)
