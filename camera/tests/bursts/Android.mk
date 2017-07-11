@@ -15,6 +15,8 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
+LOCAL_VENDOR_MODULE := true
+
 LOCAL_BURST := 0080_20170616_120819_772
 LOCAL_BURST_DIR := $(LOCAL_PATH)/$(LOCAL_BURST)
 TARGET_OUT_DIR := $(TARGET_OUT_DATA)/nativetest/hdrplus_client_tests/bursts/$(LOCAL_BURST)

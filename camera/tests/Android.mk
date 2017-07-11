@@ -30,6 +30,9 @@ LOCAL_SHARED_LIBRARIES := \
     libhdrplusclient \
     liblog
 
+LOCAL_HEADER_LIBRARIES := \
+    libhardware_headers
+
 LOCAL_STATIC_LIBRARIES := \
     android.hardware.camera.common@1.0-helper
 
@@ -43,6 +46,7 @@ LOCAL_CFLAGS += -Wno-unused-parameter
 
 LOCAL_MODULE:= hdrplus_client_tests
 LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE_TAGS := tests
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 
