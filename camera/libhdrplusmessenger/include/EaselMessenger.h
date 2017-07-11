@@ -316,6 +316,13 @@ protected:
      * it returns, DMA buffer transfer is done and the caller still have the ownership of the DMA
      * buffer.
      *
+     * message is the message to send.
+     * dmaBufferSrc points to the source data to be DMA transferred. This must be nullptr if
+     *              dmaBufferSrcFd is valid.
+     * dmaBufferSrcSize is size of the source buffer.
+     * dmaBufferSrcFd is fd of the source ion buffer. If the buffer is an ION buffer, dmaBufferSrcFd
+     *                must be valid.
+     *
      * Returns:
      *  0:          on success.
      *  -EINVAL:    if message is null or the receiver returns -EINVAL for the message.
@@ -323,7 +330,7 @@ protected:
      *  Other non-zero errors are returned by the receiver depending on the message.
      */
     status_t sendMessageWithDmaBuffer(Message *message, void* dmaBufferSrc,
-            uint32_t dmaBufferSrcSize);
+            uint32_t dmaBufferSrcSize, int dmaBufferSrcFd);
 
     /*
      * Return a message without sending it.
@@ -367,6 +374,14 @@ private:
      * return until the listener receives and processes it. If a DMA buffer is specified, it cannot
      * be asynchronous.
      *
+     * message is the message to send.
+     * dmaBufferSrc points to the source data to be DMA transferred. This must be nullptr if
+     *              dmaBufferSrcFd is valid.
+     * dmaBufferSrcSize is size of the source buffer.
+     * dmaBufferSrcFd is fd of the source ion buffer. If the buffer is an ION buffer, dmaBufferSrcFd
+     *                must be valid.
+     * async indicates if the message will be sent asynchronously.
+     *
      * Returns:
      *  0:          on success.
      *  -EINVAL:    if message is null or the receiver returns -EINVAL for the message. Or
@@ -375,7 +390,7 @@ private:
      *  Other non-zero errors are returned by the receiver depending on the message.
      */
     status_t sendMessageInternal(Message *message, void* dmaBufferSrc,
-            uint32_t dmaBufferSrcSize, bool async);
+            uint32_t dmaBufferSrcSize, int dmaBufferFd, bool async);
 
     // Protect mAvailableMessages from being accessed simultaneously.
     std::mutex mAvailableMessagesLock;

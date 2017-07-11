@@ -306,16 +306,17 @@ status_t EaselMessenger::returnMessageLocked(Message *message) {
 }
 
 status_t EaselMessenger::sendMessage(Message *message, bool async) {
-    return sendMessageInternal(message, nullptr, 0, async);
+    return sendMessageInternal(message, nullptr, 0, /*dmaBufferSrcFd*/-1, async);
 }
 
 status_t EaselMessenger::sendMessageWithDmaBuffer(Message *message, void* dmaBufferSrc,
-        uint32_t dmaBufferSrcSize) {
-    return sendMessageInternal(message, dmaBufferSrc, dmaBufferSrcSize, /*async*/false);
+        uint32_t dmaBufferSrcSize, int dmaBufferSrcFd) {
+    return sendMessageInternal(message, dmaBufferSrc, dmaBufferSrcSize, dmaBufferSrcFd,
+            /*async*/false);
 }
 
 status_t EaselMessenger::sendMessageInternal(Message *message, void* dmaBufferSrc,
-            uint32_t dmaBufferSrcSize, bool async) {
+            uint32_t dmaBufferSrcSize, int dmaBufferSrcFd, bool async) {
     if (message == nullptr) return -EINVAL;
 
     std::lock_guard<std::mutex> lock(mEaselCommLock);
@@ -328,6 +329,11 @@ status_t EaselMessenger::sendMessageInternal(Message *message, void* dmaBufferSr
         return -EINVAL;
     }
 
+    if (dmaBufferSrc != nullptr && dmaBufferSrcFd != -1) {
+        ALOGE("%s: Both dmaBufferSrc and dmaBufferSrcFd are valid.", __FUNCTION__);
+        return -EINVAL;
+    }
+
     // Check if it's connected.
     if (mEaselComm == nullptr) return -ENODEV;
 
@@ -337,6 +343,12 @@ status_t EaselMessenger::sendMessageInternal(Message *message, void* dmaBufferSr
     easelMessage.need_reply = !async;
     easelMessage.dma_buf = dmaBufferSrc;
     easelMessage.dma_buf_size = dmaBufferSrcSize;
+    easelMessage.dma_buf_fd = dmaBufferSrcFd;
+    if (dmaBufferSrcFd >= 0) {
+        easelMessage.dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
+    } else {
+        easelMessage.dma_buf_type = EASELCOMM_DMA_BUFFER_USER;
+    }
 
     status_t res = 0;
     if (async) {
