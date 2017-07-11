@@ -20,18 +20,13 @@ LOCAL_SHARED_LIBRARIES:= \
     libgcam \
     libhdrplusmessenger \
     liblog \
-    libeaselcontrol
+    libeaselcontrol \
+    libeaselcomm
 
 LOCAL_HEADER_LIBRARIES := \
     libsystem_headers
 
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
-
-ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_SHARED_LIBRARIES += libmockeaselcomm
-else
-    LOCAL_SHARED_LIBRARIES += libeaselcomm
-endif
 
 LOCAL_C_INCLUDES += \
     hardware/google/easel/camera/include \

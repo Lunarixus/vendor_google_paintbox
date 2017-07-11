@@ -29,17 +29,10 @@ LOCAL_SRC_FILES :=  \
 
 LOCAL_SHARED_LIBRARIES:= \
     libutils \
-    liblog
+    liblog \
+    libeaselcomm
 
-ifeq ($(USE_LIB_EASEL), 0)
-       LOCAL_SHARED_LIBRARIES += libmockeaselcomm
-       LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libmockeaselcomm
-       LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
-else
-       LOCAL_SHARED_LIBRARIES += libeaselcomm
-       LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcomm
-       LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
-endif
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcomm
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \

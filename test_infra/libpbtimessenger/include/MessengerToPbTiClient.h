@@ -2,7 +2,7 @@
 #define PAINTBOX_MESSENGER_TO_PB_TI_CLIENT_H
 
 #include "EaselMessenger.h"
-#include "mockeaselcomm.h"
+#include "easelcomm.h"
 #include "PbTiMessageTypes.h"
 
 namespace pbti {
@@ -50,11 +50,7 @@ class MessengerToPbTiClient : public EaselMessenger {
     // If it's currently connected to paintbox test client.
     bool mConnected;
 
-#if USE_LIB_EASEL
     EaselCommServer mEaselCommServer;
-#else
-    EaselCommServerNet mEaselCommServer;
-#endif
 };
 
 }  // namespace pbti

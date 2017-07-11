@@ -4,7 +4,7 @@
 #include "EaselThermalMonitor.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
-#include "mockeaselcomm.h"
+#include "easelcomm.h"
 #include "LogClient.h"
 
 #include <thread>

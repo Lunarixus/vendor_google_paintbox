@@ -5,7 +5,7 @@
 
 #include "PbTiTestRequest.h"
 #include "EaselMessenger.h"
-#include "mockeaselcomm.h"
+#include "easelcomm.h"
 
 namespace pbti {
 
@@ -67,12 +67,7 @@ class MessengerToPbTiService : public EaselMessenger {
     // If it's currently connected to paintbox test service.
     bool mConnected;
 
-#if USE_LIB_EASEL
     EaselCommClient mEaselCommClient;
-#else
-    const char *mDefaultServerHost = "localhost";
-    EaselCommClientNet mEaselCommClient;
-#endif
 };
 
 }  // namespace pbti

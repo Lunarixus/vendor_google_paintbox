@@ -35,13 +35,9 @@ status_t EaselManagerClientImpl::open() {
 
     status_t res;
 
-#if !USE_LIB_EASEL
-    // Open Easel control.
-    res = mEaselControl.open(mDefaultServerHost);
-#else
     SCOPE_PROFILER_TIMER("Open EaselControl");
     res = mEaselControl.open();
-#endif
+
     if (res != OK) {
         ALOGE("%s: Failed to open Easel control: %s (%d).", __FUNCTION__, strerror(errno), -errno);
         return NO_INIT;
