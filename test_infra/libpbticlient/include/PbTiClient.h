@@ -106,11 +106,6 @@ class PbTiClient : public pbti::MessengerListenerFromPbTiService {
     status_t submitPbTiTestRequest(const pbti::PbTiTestRequest &request);
 
  private:
-#if !USE_LIB_EASEL
-    // Used to connect Easel control. Only needed for TCP/IP mock.
-    const char *mDefaultServerHost = "localhost";
-#endif
-
     // Callbacks from paintbox test service start here.
     // Override pbti::MessengerListenerFromPbTiService
     void notifyPbTiTestResult(const std::string &result) override;

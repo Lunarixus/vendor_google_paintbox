@@ -21,16 +21,3 @@ cc_library_shared {
     defaults: ["libeaselcomm-defaults"],
     vendor_available: true,
 }
-
-cc_library_shared {
-    name: "libmockeaselcomm",
-    owner: "google",
-    defaults: ["libeaselcomm-defaults"],
-    proprietary: true,
-    cppflags: [
-        "-DMOCKEASEL",
-    ],
-    srcs: [
-        "EaselCommNet.cpp",
-    ],
-}

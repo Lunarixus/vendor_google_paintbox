@@ -13,7 +13,8 @@ LOCAL_SHARED_LIBRARIES:= \
     liblog \
     libutils \
     libcutils \
-    libeaselcontrol
+    libeaselcontrol \
+    libeaselcomm
 
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol libutils
 
@@ -22,14 +23,6 @@ LOCAL_C_INCLUDES += \
     hardware/libhardware/include \
     system/core/include \
     vendor/google_paintbox/test_infra/include
-
-ifeq ($(USE_LIB_EASEL), 0)
-    LOCAL_SHARED_LIBRARIES += libmockeaselcomm
-    LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
-else
-    LOCAL_SHARED_LIBRARIES += libeaselcomm
-    LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
-endif
 
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include \
                                vendor/google_paintbox/test_infra/include

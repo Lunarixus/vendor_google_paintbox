@@ -20,7 +20,7 @@
 
 #include "EaselMessenger.h"
 #include "HdrPlusTypes.h"
-#include "mockeaselcomm.h"
+#include "easelcomm.h"
 
 namespace pbcamera {
 
@@ -155,12 +155,7 @@ private:
     // If it's currently connected to HDR+ service.
     bool mConnected;
 
-#if USE_LIB_EASEL
     EaselCommClient mEaselCommClient;
-#else
-    const char *mDefaultServerHost = "localhost";
-    EaselCommClientNet mEaselCommClient;
-#endif
 };
 
 } // namespace pbcamera

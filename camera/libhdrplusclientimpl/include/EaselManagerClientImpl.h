@@ -115,11 +115,6 @@ private:
     // Time to wait for HDR+ client opening to complete.
     const uint32_t kHdrPlusClientOpeningTimeoutMs = 5000; // 5 seconds.
 
-#if !USE_LIB_EASEL
-    // Used to connect Easel control. Only needed for TCP/IP mock.
-    const char *mDefaultServerHost = "localhost";
-#endif
-
     // If there is a pending open of HDR+ client. Must be called with mEaselControlLock held.
     bool isOpenFuturePendingLocked();
 

@@ -23,16 +23,6 @@ status_t MessengerToPbTiService::connect(EaselMessengerListener &listener) {
 
     status_t res;
 
-#if !USE_LIB_EASEL
-    // Only needed for TCP/IP mock
-    res = mEaselCommClient.connect(mDefaultServerHost);
-    if (res != 0) {
-        ALOGE("%s: Connecting to %s failed: %s (%d)", __FUNCTION__,
-              mDefaultServerHost, strerror(-errno), errno);
-        return -ENODEV;
-    }
-#endif
-
     res = mEaselCommClient.open(EaselComm::EASEL_SERVICE_TEST);
     if (res != 0) {
         ALOGE("%s: Opening EaselComm failed: %s (%d)", __FUNCTION__,

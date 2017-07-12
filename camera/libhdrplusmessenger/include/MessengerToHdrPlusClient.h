@@ -17,7 +17,7 @@
 #define PAINTBOX_MESSENGER_TO_HDR_PLUS_CLIENT_H
 
 #include "EaselMessenger.h"
-#include "mockeaselcomm.h"
+#include "easelcomm.h"
 #include "HdrPlusMessageTypes.h"
 #include "HdrPlusTypes.h"
 
@@ -79,12 +79,7 @@ private:
     // If it's currently connected to HDR+ client.
     bool mConnected;
 
-#if USE_LIB_EASEL
     EaselCommServer mEaselCommServer;
-#else
-    EaselCommServerNet mEaselCommServer;
-#endif
-
 };
 
 } // namespace pbcamera

@@ -30,7 +30,8 @@ LOCAL_SHARED_LIBRARIES := \
     libhdrplusmessenger \
     liblog \
     libutils \
-    libeaselcontrol
+    libeaselcontrol \
+    libeaselcomm
 
 LOCAL_STATIC_LIBRARIES := \
     android.hardware.camera.common@1.0-helper
@@ -47,14 +48,6 @@ LOCAL_C_INCLUDES += \
     system/core/include \
     system/media/camera/include \
     vendor/google_paintbox/camera/include
-
-ifeq ($(USE_LIB_EASEL), 0)
-       LOCAL_SHARED_LIBRARIES += libmockeaselcomm
-       LOCAL_CFLAGS += -DUSE_LIB_EASEL=0
-else
-       LOCAL_SHARED_LIBRARIES += libeaselcomm
-       LOCAL_CFLAGS += -DUSE_LIB_EASEL=1
-endif
 
 LOCAL_EXPORT_C_INCLUDE_DIRS += \
     $(LOCAL_PATH)/include

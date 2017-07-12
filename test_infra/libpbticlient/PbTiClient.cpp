@@ -35,12 +35,8 @@ status_t PbTiClient::openEasel() {
 
     status_t res;
 
-#if !USE_LIB_EASEL
-    // Open Easel control.
-    res = mEaselControl.open(mDefaultServerHost);
-#else
     res = mEaselControl.open();
-#endif
+
     if (res != OK) {
         ALOGE("%s: Failed to open Easel control: %s (%d).",
               __FUNCTION__, strerror(errno), -errno);

@@ -1,6 +1,8 @@
 #ifndef GOOGLE_PAINTBOX_MOCKEASELCOMM_H
 #define GOOGLE_PAINTBOX_MOCKEASELCOMM_H
 
+#error "mockeaselcomm.h is deprecated, please use easelcomm.h instead."
+
 /* TCP/IP-based mock AP/Easel transport */
 
 #include "easelcomm.h"
