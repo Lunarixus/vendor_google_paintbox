@@ -13,11 +13,6 @@
 
 class EaselControlImpl {
 public:
-#ifdef MOCKEASEL
-  // TCP/IP mock version uses this default TCP port
-  static const int kDefaultMockSysctrlPort = 4243;
-#endif
-
   // Control commands for the EaseControlImpl layer
   enum Command {
       CMD_ACTIVATE,        // Activate Easel

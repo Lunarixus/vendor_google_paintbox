@@ -24,10 +24,8 @@
 
 #define NSEC_PER_SEC    1000000000ULL
 
-#ifndef MOCKEASEL
 // Compensate +700 us to timestamp (arbitrary value based on experiments)
 #define ADJUSTED_TIMESTAMP_LATENCY_NS   700000ULL
-#endif
 
 // sysfs file to initiate kernel suspend
 #define KERNEL_SUSPEND_SYS_FILE    "/sys/power/state"
@@ -38,12 +36,7 @@
 #define WAFER_LOWER_PATH  "/sys/firmware/devicetree/base/chosen/wafer_lower"
 
 namespace {
-// Our EaselComm server object.  Mock uses the the network version.
-#ifdef MOCKEASEL
-EaselCommServerNet easel_conn;
-#else
 EaselCommServer easel_conn;
-#endif
 
 /*
  * Mutex protects access to gServerInitialized and easel_conn opened/closed
@@ -75,9 +68,7 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
 {
     // Save the AP's boottime clock at approx. now
     timesync_ap_boottime = boottime;
-#ifndef MOCKEASEL
     timesync_ap_boottime += ADJUSTED_TIMESTAMP_LATENCY_NS;
-#endif
 
     // Save our current boottime time to compute deltas later
     struct timespec ts;
@@ -88,16 +79,12 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
       assert(0);
         timesync_local_boottime = 0;
     }
-#ifndef MOCKEASEL    // System clock should not be modified when using libmockeasel
     uint64_t timesync_ap_realtime = realtime + ADJUSTED_TIMESTAMP_LATENCY_NS;
     ts.tv_sec = timesync_ap_realtime / NSEC_PER_SEC;
     ts.tv_nsec = timesync_ap_realtime - ts.tv_sec * NSEC_PER_SEC;
     if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
       assert(0);
     }
-#else
-    (void)realtime;
-#endif
 }
 
 // Handle incoming messages from EaselControlClient.
@@ -193,22 +180,17 @@ int initializeServer() {
     if (gServerInitialized)
         return ret;
 
-#ifdef MOCKEASEL
-    easel_conn.setListenPort(EaselControlImpl::kDefaultMockSysctrlPort);
-#endif
     ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
     if (ret) {
         ALOGE("%s: failed to open easel_conn (%d)", __FUNCTION__, ret);
         return ret;
     }
 
-#ifndef MOCKEASEL
     ret = easel_conn.initialHandshake();
     if (ret) {
         ALOGE("%s: Failed to handshake with client (%d)", __FUNCTION__, ret);
         return ret;
     }
-#endif
 
     easel_conn.startMessageHandlerThread(msgHandlerCallback);
     gServerInitialized = true;

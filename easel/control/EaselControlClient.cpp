@@ -26,12 +26,7 @@
 #define NSEC_PER_USEC   1000
 
 namespace {
-#ifdef MOCKEASEL
-// Mock EaselControl uses mock EaselComm
-EaselCommClientNet easel_conn;
-#else
 EaselCommClient easel_conn;
-#endif
 
 // EaselStateManager instance
 EaselStateManager stateMgr;
@@ -196,7 +191,6 @@ void easelConnThread()
         return;
     }
 
-#ifndef MOCKEASEL
     ALOGI("%s: waiting for handshake\n", __FUNCTION__);
     ret = easel_conn.initialHandshake();
     if (ret) {
@@ -210,7 +204,6 @@ void easelConnThread()
     }
     gHandshakeSuccessful = true;
     ALOGI("%s: handshake done\n", __FUNCTION__);
-#endif
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
         EaselControlImpl::DeactivateMsg ctrl_msg;
@@ -540,17 +533,6 @@ int EaselControlClient::open() {
 
     return ret;
 }
-
-// Temporary for the TCP/IP-based mock
-#ifdef MOCKEASEL
-int EaselControlClient::open(const char *easelhost) {
-    int ret = easel_conn.connect(easelhost,
-                                 EaselControlImpl::kDefaultMockSysctrlPort);
-    if (ret)
-        return ret;
-    return open();
-}
-#endif
 
 void EaselControlClient::close() {
     int ret;
