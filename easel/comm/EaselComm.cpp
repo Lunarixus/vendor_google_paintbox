@@ -11,6 +11,7 @@
 #include "uapi/linux/google-easel-comm.h"
 
 #include <cstdint>
+#include <string>
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +27,8 @@
 
 #include <log/log.h>
 
+#undef PROFILE_DMA
+
 namespace {
 // Device file path
 static const char *kEaselCommDevPathClient = "/dev/easelcomm-client";
@@ -37,6 +40,22 @@ enum {
     KBUF_FILL_MSG,
     KBUF_FILL_DMA,
 };
+
+static bool is_easelcomm_client() {
+    struct stat buffer;
+    return (stat(kEaselCommDevPathClient, &buffer) == 0);
+}
+
+static std::string get_env(const char* env_name) {
+  char* env_value = std::getenv(env_name);
+  return (env_value == nullptr) ? "" : std::string(env_value);
+}
+
+static bool is_server_logging_to_logcat() {
+    std::string dest = get_env("LOG_DEST");
+    // Same logic as getLogDest() in LogBufferEasel.cpp
+    return !((dest == "CONSOLE") || (dest == "FILE"));
+}
 
 static void fill_kbuf(easelcomm_kbuf_desc *buf_desc,
                       easelcomm_msgid_t message_id,
@@ -77,6 +96,16 @@ static void fill_kbuf(easelcomm_kbuf_desc *buf_desc,
 }
 
 /*
+ * If ALOG* is called inside sendAMessage(), on Easel side it might be calling
+ * sendAMessage() again by liblog, creating an infinite loop.
+ * Only print ALOG* on the client side or when the server is not sending the
+ * log back to AP logcat.
+ */
+static bool is_alog_ok(void) {
+    return is_easelcomm_client() || !is_server_logging_to_logcat();
+}
+
+/*
  * Helper for sending a message, called for all APIs that send a message
  * (sendMessage, sendMessageReceiveReply, sendReply).
  *
@@ -108,8 +137,12 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
      * Send the kernel message descriptor, which starts the outgoing message,
      * and read the updated descriptor with the assigned message ID.
      */
-    if (ioctl(fd, EASELCOMM_IOC_SENDMSG, kmsg_desc) == -1)
+    if (ioctl(fd, EASELCOMM_IOC_SENDMSG, kmsg_desc) == -1) {
+        if (is_alog_ok()) {
+            ALOGE("%s: SENDMSG failed (%d)", __FUNCTION__, errno);
+        }
         return -errno;
+    }
 
     /*
      * Fill out a kernel buffer descriptor for the message data and send
@@ -122,8 +155,12 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
     } else {
         fill_kbuf(&buf_desc, kmsg_desc->message_id, nullptr, KBUF_FILL_UNUSED);
     }
-    if (ioctl(fd, EASELCOMM_IOC_WRITEDATA, &buf_desc) == -1)
+    if (ioctl(fd, EASELCOMM_IOC_WRITEDATA, &buf_desc) == -1) {
+        if (is_alog_ok()) {
+            ALOGE("%s: WRITEDATA failed (%d)", __FUNCTION__, errno);
+        }
         return -errno;
+    }
 
     /*
      * If the message includes a DMA transfer then send the source DMA buffer
@@ -135,8 +172,12 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
     if (msg && msg->dma_buf_size) {
         fill_kbuf(&buf_desc, kmsg_desc->message_id, msg, KBUF_FILL_DMA);
 
-        if (ioctl(fd, EASELCOMM_IOC_SENDDMA, &buf_desc) == -1)
+        if (ioctl(fd, EASELCOMM_IOC_SENDDMA, &buf_desc) == -1) {
+            if (is_alog_ok()) {
+                ALOGE("%s: SENDDMA failed (%d)", __FUNCTION__, errno);
+            }
             return -errno;
+        }
     }
 
     return 0;
@@ -185,15 +226,18 @@ static int verifyHandshake(EaselComm::EaselMessage *msg, int seq) {
 EaselComm::EaselComm() {
     mEaselCommFd = -1;
     mClosed = true;
+    pthread_rwlock_init(&mFdRwlock, nullptr);
 }
 
 EaselComm::~EaselComm() {
     close();
+    pthread_rwlock_destroy(&mFdRwlock);
 }
 
 // Send a message without waiting for a reply.
 int EaselComm::sendMessage(const EaselMessage *msg) {
     struct easelcomm_kmsg_desc kmsg_desc;
+    int ret = 0;
 
     kmsg_desc.message_size = msg->message_buf_size;
     kmsg_desc.dma_buf_size = msg->dma_buf_size;
@@ -201,7 +245,11 @@ int EaselComm::sendMessage(const EaselMessage *msg) {
     kmsg_desc.need_reply = false;
     kmsg_desc.in_reply_to = 0;
     kmsg_desc.replycode = 0;
-    return sendAMessage(mEaselCommFd, &kmsg_desc, msg);
+
+    pthread_rwlock_rdlock(&mFdRwlock);   // Acquire rwlock as a reader
+    ret = sendAMessage(mEaselCommFd, &kmsg_desc, msg);
+    pthread_rwlock_unlock(&mFdRwlock);
+    return ret;
 }
 
 // Send a message and wait for a reply.
@@ -228,7 +276,9 @@ int EaselComm::sendMessageReceiveReply(
     // Wait for timeout_ms
     kmsg_desc.wait.timeout_ms = msg->timeout_ms;
 
+    pthread_rwlock_rdlock(&mFdRwlock);   // Acquire rwlock as a reader
     ret = sendAMessage(mEaselCommFd, &kmsg_desc, msg);
+    pthread_rwlock_unlock(&mFdRwlock);
     if (ret)
         return ret;
 
@@ -238,9 +288,13 @@ int EaselComm::sendMessageReceiveReply(
      * zero-lenth message data and no DMA transfer is returned, with the
      * remote's replycode.
      */
-    if (ioctl(mEaselCommFd, EASELCOMM_IOC_WAITREPLY, &kmsg_desc) == -1)
+    if (ioctl(mEaselCommFd, EASELCOMM_IOC_WAITREPLY, &kmsg_desc) == -1) {
+        ALOGE("%s: WAITREPLY failed (%d)", __FUNCTION__, errno);
         return -errno;
+    }
 
+    // Acquire rwlock as a reader; WAITREPLY does not need to acquire rdlock
+    pthread_rwlock_rdlock(&mFdRwlock);
     /*
      * Caller can omit the reply EaselMessage parameter.  Normally this is
      * expected only if the caller knows no reply message is sent, only a
@@ -262,12 +316,15 @@ int EaselComm::sendMessageReceiveReply(
             reply->message_buf = malloc(reply->message_buf_size);
             if (reply->message_buf == nullptr) {
                 ret = -errno;
+                pthread_rwlock_unlock(&mFdRwlock);
                 return ret;
             }
 
             fill_kbuf(&buf_desc, reply->message_id, reply, KBUF_FILL_MSG);
 
+
             if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1) {
+                ALOGE("%s: READDATA failed (%d)", __FUNCTION__, errno);
                 free(reply->message_buf);
                 reply->message_buf = nullptr;
                 ret = -errno;
@@ -282,13 +339,21 @@ int EaselComm::sendMessageReceiveReply(
         if (kmsg_desc.message_size || kmsg_desc.dma_buf_size)
             ret = -EIO;
         fill_kbuf(&buf_desc, kmsg_desc.message_id, nullptr, KBUF_FILL_UNUSED);
-        if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1)
+
+        if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1) {
+            ALOGE("%s: READDATA failed (%d)", __FUNCTION__, errno);
+            pthread_rwlock_unlock(&mFdRwlock);
             return -errno;
+        }
         if (kmsg_desc.dma_buf_size) {
-            if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1)
+            if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1) {
+                ALOGE("%s: RECVDMA failed (%d)", __FUNCTION__, errno);
+                pthread_rwlock_unlock(&mFdRwlock);
                 return -errno;
+            }
         }
     }
+    pthread_rwlock_unlock(&mFdRwlock);
 
     *replycode = kmsg_desc.replycode;
     return ret;
@@ -309,6 +374,7 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
     // Wait for timeout_ms
     kmsg_desc.wait.timeout_ms = msg->timeout_ms;
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_WAITMSG, &kmsg_desc) == -1) {
+        ALOGE("%s: WAITMSG failed (%d)", __FUNCTION__, errno);
         /*
          * If close() method was called by another thread in parallel the
          * fd may be invalid.  Treat the same as evicting a WAITMSG waiter and
@@ -333,7 +399,10 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
     }
 
     fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_MSG);
+    // Acquire rwlock as a reader; WAITMSG does not need to acquire rdlock
+    pthread_rwlock_rdlock(&mFdRwlock);
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_READDATA, &buf_desc) == -1) {
+        ALOGE("%s: READDATA failed (%d)", __FUNCTION__, errno);
         ret = -errno;
         free(msg->message_buf);
         msg->message_buf = nullptr;
@@ -346,9 +415,12 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
      */
     if (ret && kmsg_desc.dma_buf_size) {
         fill_kbuf(&buf_desc, kmsg_desc.message_id, nullptr, KBUF_FILL_UNUSED);
-        ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc);
+        if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1) {
+            ALOGE("%s: RECVDMA failed (%d)", __FUNCTION__, errno);
+        }
         msg->dma_buf_size = 0;
     }
+    pthread_rwlock_unlock(&mFdRwlock);
 
     return ret;
 }
@@ -357,6 +429,7 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
 int EaselComm::sendReply(EaselMessage *origmessage, int replycode,
                          EaselMessage *replymessage) {
     struct easelcomm_kmsg_desc kmsg_desc;
+    int ret = 0;
 
     kmsg_desc.message_id = 0;
     kmsg_desc.need_reply = false;
@@ -373,17 +446,41 @@ int EaselComm::sendReply(EaselMessage *origmessage, int replycode,
         kmsg_desc.dma_buf_size = 0;
     }
 
-    return sendAMessage(mEaselCommFd, &kmsg_desc, replymessage);
+    pthread_rwlock_rdlock(&mFdRwlock);
+    ret = sendAMessage(mEaselCommFd, &kmsg_desc, replymessage);
+    pthread_rwlock_unlock(&mFdRwlock);
+    return ret;
 }
 
 // Receive a DMA transfer for an Easel Message that requests DMA.
 int EaselComm::receiveDMA(const EaselMessage *msg) {
     struct easelcomm_kbuf_desc buf_desc;
 
+#ifdef PROFILE_DMA
+    struct timespec begin, end;
+    long diff_us;
+    clock_gettime(CLOCK_MONOTONIC, &begin);
+#endif
+
     fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_DMA);
 
-    if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1)
+    // Acquire rwlock as a reader
+    pthread_rwlock_rdlock(&mFdRwlock);
+    if (ioctl(mEaselCommFd, EASELCOMM_IOC_RECVDMA, &buf_desc) == -1) {
+        pthread_rwlock_unlock(&mFdRwlock);
+        ALOGE("%s: RECVDMA failed (%d)", __FUNCTION__, errno);
         return -errno;
+    }
+    pthread_rwlock_unlock(&mFdRwlock);
+
+#ifdef PROFILE_DMA
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    diff_us = (end.tv_sec - begin.tv_sec) * 1000000
+            + (end.tv_nsec - begin.tv_nsec) / 1000;
+    ALOGI("%s: receiveDMA done in %ld us, size=%zu",
+          __FUNCTION__, diff_us, msg->dma_buf_size);
+#endif
+
     return 0;
 }
 
@@ -412,7 +509,10 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
 
         retry++;
 
+        // Acquire rwlock as a writer
+        pthread_rwlock_wrlock(&mFdRwlock);
         mEaselCommFd = ::open(kEaselCommDevPathClient, O_RDWR);
+        pthread_rwlock_unlock(&mFdRwlock);
 
         clock_gettime(CLOCK_MONOTONIC, &now);
         diff_ms = (now.tv_sec - begin.tv_sec) * 1000
@@ -429,14 +529,17 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
         usleep(kOpenPollIntervalUs);   // Sleep to reduce retry attempts
     }
 
+    // Acquire rwlock as a writer
+    pthread_rwlock_wrlock(&mFdRwlock);
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
         int ret = -errno;
         ::close(mEaselCommFd);
-        mEaselCommFd = -1;
+        pthread_rwlock_unlock(&mFdRwlock);
         ALOGE("%s: Failed to register service %d (%d)",
               __FUNCTION__, service_id, ret);
         return ret;
     }
+    pthread_rwlock_unlock(&mFdRwlock);
     mClosed = false;
 
     return 0;
@@ -459,7 +562,10 @@ int EaselCommServer::open(int service_id, long timeout_ms) {
 
         retry++;
 
+        // Acquire rwlock as a writer
+        pthread_rwlock_wrlock(&mFdRwlock);
         mEaselCommFd = ::open(kEaselCommDevPathServer, O_RDWR);
+        pthread_rwlock_unlock(&mFdRwlock);
 
         clock_gettime(CLOCK_MONOTONIC, &now);
         diff_ms = (now.tv_sec - begin.tv_sec) * 1000
@@ -476,14 +582,17 @@ int EaselCommServer::open(int service_id, long timeout_ms) {
         usleep(kOpenPollIntervalUs);   // Sleep to reduce retry attempts
     }
 
+    // Acquire rwlock as a writer
+    pthread_rwlock_wrlock(&mFdRwlock);
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_REGISTER, service_id) < 0) {
         int ret = -errno;
         ::close(mEaselCommFd);
-        mEaselCommFd = -1;
+        pthread_rwlock_unlock(&mFdRwlock);
         ALOGE("%s: Failed to register service %d (%d)",
               __FUNCTION__, service_id, ret);
         return ret;
     }
+    pthread_rwlock_unlock(&mFdRwlock);
     mClosed = false;
 
     return 0;
@@ -496,9 +605,12 @@ void EaselComm::close() {
         if (mClosed) {
             return;
         }
+        // Acquire rwlock as a writer
+        pthread_rwlock_wrlock(&mFdRwlock);
         ioctl(mEaselCommFd, EASELCOMM_IOC_SHUTDOWN);
         ::close(mEaselCommFd);
         mEaselCommFd = -1;
+        pthread_rwlock_unlock(&mFdRwlock);
         mClosed = true;
     }
 
@@ -509,7 +621,10 @@ void EaselComm::close() {
 
 // Flush connection.
 void EaselComm::flush() {
+    // Acquire rwlock as a reader
+    pthread_rwlock_rdlock(&mFdRwlock);
     ioctl(mEaselCommFd, EASELCOMM_IOC_FLUSH);
+    pthread_rwlock_unlock(&mFdRwlock);
 }
 
 int EaselComm::startMessageHandlerThread(
