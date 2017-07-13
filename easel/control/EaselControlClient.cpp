@@ -42,6 +42,14 @@ EaselLog::LogClient gLogClient;
 
 bool gHandshakeSuccessful;
 
+// Fatal error callback registered by user
+easel_fatal_callback_t gFatalErrorCallback;
+
+int defaultFatalCallback(enum EaselFatalReason r) {
+    ALOGD("%s: Skip handling fatal error (reason %d)", __FUNCTION__, r);
+    return 0;
+}
+
 // Mutex to protect the current state of EaselControlClient
 std::mutex state_mutex;
 enum ControlState {
@@ -59,6 +67,17 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"back_therm",  1000, {40000, 45000, 50000, 55000}}, /* for muskie */
 };
 } // anonymous namespace
+
+static void reportFatalError(enum EaselFatalReason reason) {
+    int ret = gFatalErrorCallback(reason);
+
+    if (!ret) {
+        ALOGD("%s: Fatal error callback was handled", __FUNCTION__);
+    } else {
+        ALOGE("%s: Fatal error callback was not well handled (%d)",
+              __FUNCTION__, ret);
+    }
+}
 
 static int sendTimestamp(void) {
     int ret;
@@ -185,6 +204,7 @@ void easelConnThread()
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
         ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
+        reportFatalError(EaselFatalReason::BOOTSTRAP_FAIL);
         return;
     }
 
@@ -193,6 +213,7 @@ void easelConnThread()
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
+        reportFatalError(EaselFatalReason::OPEN_SYSCTRL_FAIL);
         return;
     }
 
@@ -206,6 +227,7 @@ void easelConnThread()
             ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
         }
         gHandshakeSuccessful = false;
+        reportFatalError(EaselFatalReason::HANDSHAKE_FAIL);
         return;
     }
     gHandshakeSuccessful = true;
@@ -225,6 +247,7 @@ void easelConnThread()
         ret = easel_conn.sendMessage(&msg);
         if (ret) {
             ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
+            reportFatalError(EaselFatalReason::IPU_RESET_REQ);
         }
     }
 }
@@ -516,10 +539,17 @@ int EaselControlClient::suspend() {
     return ret;
 }
 
+void EaselControlClient::registerFatalErrorCallback(easel_fatal_callback_t f) {
+    gFatalErrorCallback = std::move(f);
+}
+
 int EaselControlClient::open() {
     int ret = 0;
 
     ALOGD("%s\n", __FUNCTION__);
+
+    // Register default implemetation of fatal error callback
+    registerFatalErrorCallback(defaultFatalCallback);
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {

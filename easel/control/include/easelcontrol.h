@@ -29,6 +29,20 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
+enum class EaselFatalReason {
+    BOOTSTRAP_FAIL,     // AP didn't receive bootstrap msi
+    OPEN_SYSCTRL_FAIL,  // AP failed to open SYSCTRL service
+    HANDSHAKE_FAIL,     // Handshake failed
+    IPU_RESET_REQ,      // Easel requested AP to reset it
+};
+
+/*
+ * Callback on fatal error.
+ * r:  reason for fatal error, value is one of enum EaselFatalReason
+ * Please return 0 if the fatal error has been handled.
+ */
+using easel_fatal_callback_t = std::function<int(enum EaselFatalReason r)>;
+
 class EaselControlClient {
 public:
     enum Camera { MAIN, FRONT };
@@ -90,6 +104,16 @@ public:
      * Returns zero for success or error code for failure.
      */
     static int suspend();
+
+    /*
+     * Register a callback on fatal error.
+     *
+     * The registered callback will only be called when fatal error happens
+     * on threads that are separate from serialized functions such as resume(),
+     * suspend(), activate(), startMipi(), etc.
+     * User should continue to handle return value of resume(), suspend(), etc.
+     */
+    static void registerFatalErrorCallback(easel_fatal_callback_t f);
 };
 
 class EaselControlServer {
