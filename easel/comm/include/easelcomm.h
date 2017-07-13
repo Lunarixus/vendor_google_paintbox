@@ -211,6 +211,20 @@ protected:
 
     // File descriptor for easelcomm device
     int mEaselCommFd;
+
+    /*
+     * read-writer lock to protect "right to call ioctl"
+     *
+     * Multiple threads are allowed to issue multiple ioctl calls, so they
+     * acquire shared locking (readers).
+     * The restriction is on open() and close(), which acquire exclusive
+     * locking (writers).
+     *
+     * To acquire lock as a reader: pthread_rwlock_rdlock(&mFdRwlock)
+     * To acquire lock as a writer: pthread_rwlock_wrlock(&mFdRwlock)
+     */
+    pthread_rwlock_t mFdRwlock;
+
     std::thread mHandlerThread;
     bool mClosed;
     std::mutex mStatusMutex;  // Guards mClosed.
