@@ -43,23 +43,3 @@ LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
 
 include $(BUILD_STATIC_LIBRARY)
-
-include $(CLEAR_VARS)
-
-LOCAL_MODULE:= logdclient.easel
-
-LOCAL_SRC_FILES := LogClientDaemon.cpp
-
-LOCAL_STATIC_LIBRARIES := \
-    logdclient
-
-LOCAL_SHARED_LIBRARIES := \
-    liblog \
-    libeaselcomm
-
-LOCAL_CFLAGS := -Werror
-
-LOCAL_MODULE_OWNER := google
-LOCAL_PROPRIETARY_MODULE := true
-
-include $(BUILD_EXECUTABLE)

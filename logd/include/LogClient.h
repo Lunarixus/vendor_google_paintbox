@@ -17,6 +17,10 @@ class LogClient {
   // Starts receiving logging from server side and print to logcat.
   // Returns -EBUSY if failed or 0 if successful.
   int start();
+
+  // Waits for fully starting completed.
+  void waitForReadyToReceive();
+
   // Stops receiving logging from server side.
   void stop();
 

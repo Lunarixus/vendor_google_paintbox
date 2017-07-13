@@ -1,3 +1,5 @@
+#define LOG_TAG "ezlsh"
+
 #include "easelcomm.h"
 
 #include <thread>
@@ -20,6 +22,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include <log/log.h>
+
+#include "LogClient.h"
 
 namespace {
 static const int kMaxTtyDataBufferSize = 2048;
@@ -324,12 +330,13 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
 
 void client_exec_response_handler(EaselComm::EaselMessage *msg) {
     ExecResponse *resp = (ExecResponse *)msg->message_buf;
-    printf("%s\n", resp->output);
     if (resp->done) {
         if (resp->exit != 0) {
             fprintf(stderr, "exit %d\n", resp->exit);
         }
         client_exec_done();
+    } else {
+        printf("%s", resp->output);
     }
 }
 
@@ -530,11 +537,11 @@ void client_pull_file(char *remote_path, char *dest_arg) {
 int server_exec_cmd(std::string &cmd) {
     auto pipe = popen(cmd.c_str(), "r");
     if (!pipe) {
-        fprintf(stderr, "%s: %s could not execute %s", "ezlsh", __FUNCTION__, cmd.c_str());
+        ALOGE("%s: %s could not execute %s", "ezlsh", __FUNCTION__, cmd.c_str());
         return -1;
     }
     if (pclose(pipe) == -1) {
-        fprintf(stderr, "%s: %s pclose returns an error after executing %s",
+        ALOGE("%s: %s pclose returns an error after executing %s",
                 "ezlsh", __FUNCTION__, cmd.c_str());
         return -1;
     }
@@ -893,18 +900,19 @@ void server_ls_file(FileLsRequest *req) {
     msg.dma_buf_size = file_list.length() + 1;
     int ret = easel_comm_server.sendMessage(&msg);
     if (ret != 0) {
-        fprintf(stderr, "ezlsh: %s: failed to sendMessage (%d)\n",
+        ALOGE("ezlsh: %s: failed to sendMessage (%d)\n",
                 __FUNCTION__, ret);
     }
 }
 
 static int server_send_exec_response(const char *output, int size, bool done, int exit) {
     ExecResponse response;
-    size = strlcpy(response.output, output, size);
-    assert(size < kMaxTtyDataBufferSize);
+    if (output != nullptr && size > 0) {
+        size = strlcpy(response.output, output, kMaxTtyDataBufferSize);
+        response.h.datalen += size + 1;
+    }
     response.done = done;
     response.exit = exit;
-    response.h.datalen += size + 1;
     EaselComm::EaselMessage msg;
     msg.message_buf = &response;
     msg.message_buf_size = sizeof(response);
@@ -912,7 +920,7 @@ static int server_send_exec_response(const char *output, int size, bool done, in
     msg.dma_buf_size = 0;
     int ret = easel_comm_server.sendMessage(&msg);
     if (ret != 0) {
-        fprintf(stderr, "ezlsh: %s: failed to sendMessage (%d)\n",
+        ALOGE("ezlsh: %s: failed to sendMessage (%d)\n",
                 __FUNCTION__, ret);
     }
     return ret;
@@ -922,7 +930,7 @@ void server_exec_cmd(ExecRequest *request) {
     auto pipe = popen(request->cmd, "r");
     int ret = -1;
     if (!pipe) {
-        fprintf(stderr, "ezlsh: %s could not execute cmd %s\n",
+        ALOGE("ezlsh: %s could not execute cmd %s\n",
                 __FUNCTION__, request->cmd);
         return;
     } else {
@@ -930,7 +938,7 @@ void server_exec_cmd(ExecRequest *request) {
         while ((ret = read(fileno(pipe), output, kMaxTtyDataBufferSize)) > 0) {
             // read contains null terminator: ret == strlen(output) + 1
             if (ret > kMaxTtyDataBufferSize) {
-                fprintf(stderr, "ezlsh: %s output too long (%d)",
+                ALOGE("ezlsh: %s output too long (%d)",
                         __FUNCTION__, ret);
                 ret = kMaxTtyDataBufferSize;
             }
@@ -938,8 +946,7 @@ void server_exec_cmd(ExecRequest *request) {
         }
         ret = pclose(pipe);
     }
-
-    server_send_exec_response(std::string("").c_str(), 0, true, ret);
+    server_send_exec_response(nullptr, 0, true, ret);
 }
 
 void server_run(bool flush) {
@@ -947,7 +954,7 @@ void server_run(bool flush) {
 
     ret = easel_comm_server.open(EaselComm::EASEL_SERVICE_SHELL);
     if (ret) {
-        fprintf(stderr, "Failed to open server, service=%d, error=%d\n",
+        ALOGE("Failed to open server, service=%d, error=%d\n",
                 EaselComm::EASEL_SERVICE_SHELL, ret);
     }
 
@@ -962,7 +969,7 @@ void server_run(bool flush) {
             if (errno == ESHUTDOWN) {
                 server_kill_shell();
             } else {
-                fprintf(stderr, "ERROR: receiveMessage returns %d\n", ret);
+                ALOGE("ERROR: receiveMessage returns %d\n", ret);
             }
             continue;
         }
@@ -976,8 +983,7 @@ void server_run(bool flush) {
                 shell_session_thread =
                   new std::thread(shell_server_session);
                 if (shell_session_thread == nullptr)
-                    fprintf(stderr,
-                          "failed to allocate thread for shell session\n");
+                    ALOGE("failed to allocate thread for shell session\n");
                 break;
 
             case CMD_TTY_DATA:
@@ -1010,7 +1016,7 @@ void server_run(bool flush) {
                 break;
 
             default:
-                fprintf(stderr, "ERROR: unrecognized command %d\n",
+                ALOGE("ERROR: unrecognized command %d\n",
                         h->command);
             }
 
@@ -1026,12 +1032,14 @@ int main(int argc, char **argv) {
     int ch;
     int client = 1;
     int server_needs_flush = 0;  // 0 is not to flush.  Default is 0.
+    int enable_logging = 0;
 
     const char *short_opt = "dh";
     struct option long_opt[] =
         {
           {"daemon",  no_argument,   0, 'd'},
           {"flush",   no_argument,   &server_needs_flush, 1},
+          {"log",     no_argument,   &enable_logging, 1},
           {"help",    no_argument,   0, 'h'},
           {0, 0, 0, 0}
         };
@@ -1049,18 +1057,24 @@ int main(int argc, char **argv) {
             ;
           default:
             fprintf(stderr,
-                    "Usage: server: ezlsh <-d|--daemon> [--flush]\n");
+                    "Usage: server: ezlsh <-d|--daemon> [--flush] [--log]\n");
             fprintf(stderr,
                     "       client: ezlsh\n"
                     "       client: ezlsh pull <remote-path> [<local-path>]\n"
                     "       client: ezlsh push <local-path> <remote-path>\n"
-                    "       cliect: ezlsh exec \"<cmd>\"\n"
+                    "       cliect: ezlsh exec \"<cmd>\","
+                    "               to catch stderr, please append \"2>&1\" after cmd.\n"
                     );
             exit(1);
         }
     }
 
     if (client) {
+        EaselLog::LogClient logClient;
+        if (enable_logging) {
+            logClient.start();
+            logClient.waitForReadyToReceive();
+        }
         if (optind < argc) {
             if (!strcmp(argv[optind], "pull")) {
                 char *remote_path;
@@ -1115,6 +1129,7 @@ int main(int argc, char **argv) {
             // No command, run shell session
             shell_client_session();
         }
+        if (enable_logging) logClient.stop();
     } else {
         server_run(server_needs_flush);
     }
