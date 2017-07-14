@@ -11,7 +11,8 @@ namespace android {
 
 EaselManagerClientImpl::EaselManagerClientImpl() : mEaselControlOpened(false),
                                                    mEaselResumed(false),
-                                                   mEaselActivated(false) {
+                                                   mEaselActivated(false),
+                                                   mEaselManagerClientListener(nullptr) {
     mIsEaselPresent = ::isEaselPresent();
     ALOGI("%s: Easel is %s", __FUNCTION__, mIsEaselPresent ? "present" : "not present");
 }
@@ -43,9 +44,44 @@ status_t EaselManagerClientImpl::open() {
         return NO_INIT;
     }
 
+    mEaselControl.registerFatalErrorCallback(std::bind(&EaselManagerClientImpl::onEaselFatalError,
+            this, std::placeholders::_1));
     mEaselControlOpened = true;
     mEaselResumed = false;
     return res;
+}
+
+int EaselManagerClientImpl::onEaselFatalError(enum EaselFatalReason r) {
+
+    std::string errMsg;
+    switch (r) {
+        case EaselFatalReason::BOOTSTRAP_FAIL:
+            errMsg.append("AP didn't receive bootstrap msi.");
+            break;
+        case EaselFatalReason::OPEN_SYSCTRL_FAIL:
+            errMsg.append("AP failed to open SYSCTRL service.");
+            break;
+        case EaselFatalReason::HANDSHAKE_FAIL:
+            errMsg.append("Handshake failed.");
+            break;
+        case EaselFatalReason::IPU_RESET_REQ:
+            errMsg.append("Easel requested AP to reset it.");
+            break;
+        default:
+            errMsg.append("Unknown error.");
+            break;
+    }
+
+    ALOGE("%s: Got an Easel fatal error: %s (%d).", __FUNCTION__, errMsg.c_str(), r);
+
+    Mutex::Autolock l(mClientListenerLock);
+    if (mEaselManagerClientListener == nullptr) {
+        ALOGE("%s: Listener is not set.", __FUNCTION__);
+        return NO_INIT;
+    }
+
+    mEaselManagerClientListener->onEaselFatalError(errMsg);
+    return 0;
 }
 
 status_t EaselManagerClientImpl::suspend() {
@@ -86,7 +122,7 @@ status_t EaselManagerClientImpl::suspendLocked() {
     return res;
 }
 
-status_t EaselManagerClientImpl::resume() {
+status_t EaselManagerClientImpl::resume(EaselManagerClientListener *listener) {
     ALOGD("%s: Resuming Easel.", __FUNCTION__);
     Mutex::Autolock l(mEaselControlLock);
     if (!mEaselControlOpened) {
@@ -97,6 +133,11 @@ status_t EaselManagerClientImpl::resume() {
     if (mEaselResumed) {
         ALOGD("%s: Easel is already resumed.", __FUNCTION__);
         return -EUSERS;
+    }
+
+    {
+        Mutex::Autolock l(mClientListenerLock);
+        mEaselManagerClientListener = listener;
     }
 
     SCOPE_PROFILER_TIMER("Resume Easel");
