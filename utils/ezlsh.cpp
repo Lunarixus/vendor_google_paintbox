@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <dirent.h>
 #include <fcntl.h>
+#include <fstream>
 #include <getopt.h>
 #include <libgen.h>
 #include <limits.h>
@@ -32,6 +33,16 @@ static const int kMaxTtyDataBufferSize = 2048;
 
 // Dynamically generated files truncated to this max size in bytes
 static const int kDynamicMaxSize = 8 * 1024; // 8KB
+
+const char* kPowerOn = "/sys/devices/virtual/misc/mnh_sm/download";
+const char* kPowerOff = "/sys/devices/virtual/misc/mnh_sm/poweroff";
+const char* kStageFw = "/sys/devices/virtual/misc/mnh_sm/stage_fw";
+const char* kSysState = "/sys/devices/virtual/misc/mnh_sm/state";
+
+enum State {
+    POWER_ON = 1,
+    POWER_OFF = 0,
+};
 
 #define SHELL_PATH      "/bin/sh"
 
@@ -174,6 +185,36 @@ void client_exit(int exitcode) {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
     easel_comm_client.close();
     exit(exitcode);
+}
+
+// Returns true if easel power state matches expect_state.
+bool client_check_state(State expect_state) {
+    int state_value = 0;
+    std::ifstream f(kSysState);
+    f >> state_value;
+    State state = static_cast<State>(state_value);
+    if (state == expect_state) {
+        return true;
+    } else {
+        fprintf(stderr,
+                "Could not run ezlsh. Easel power state is %d, expect %d.\n",
+                state,
+                expect_state);
+        return false;
+    }
+}
+
+// Reads a sysfs node.
+void read_sysfs_node(const char *node) {
+    std::string s;
+    std::ifstream f(node);
+    f >> s;
+}
+
+// Writes a int to sysfs node.
+void write_sysfs_node(const char *node, int value) {
+    std::ofstream f(node);
+    f << value;
 }
 
 void client_xfer_done() {
@@ -1032,14 +1073,12 @@ int main(int argc, char **argv) {
     int ch;
     int client = 1;
     int server_needs_flush = 0;  // 0 is not to flush.  Default is 0.
-    int enable_logging = 0;
 
     const char *short_opt = "dh";
     struct option long_opt[] =
         {
           {"daemon",  no_argument,   0, 'd'},
           {"flush",   no_argument,   &server_needs_flush, 1},
-          {"log",     no_argument,   &enable_logging, 1},
           {"help",    no_argument,   0, 'h'},
           {0, 0, 0, 0}
         };
@@ -1057,12 +1096,14 @@ int main(int argc, char **argv) {
             ;
           default:
             fprintf(stderr,
-                    "Usage: server: ezlsh <-d|--daemon> [--flush] [--log]\n");
+                    "Usage: server: ezlsh <-d|--daemon> [--flush]\n");
             fprintf(stderr,
                     "       client: ezlsh\n"
+                    "       client: ezlsh poweron\n"
+                    "       client: ezlsh poweroff\n"
                     "       client: ezlsh pull <remote-path> [<local-path>]\n"
                     "       client: ezlsh push <local-path> <remote-path>\n"
-                    "       cliect: ezlsh exec \"<cmd>\","
+                    "       cliect: ezlsh exec \"<cmd>\",\n"
                     "               to catch stderr, please append \"2>&1\" after cmd.\n"
                     );
             exit(1);
@@ -1071,12 +1112,17 @@ int main(int argc, char **argv) {
 
     if (client) {
         EaselLog::LogClient logClient;
-        if (enable_logging) {
-            logClient.start();
-            logClient.waitForReadyToReceive();
-        }
+        logClient.start();
         if (optind < argc) {
-            if (!strcmp(argv[optind], "pull")) {
+            if (!strcmp(argv[optind], "poweron")) {
+                if (!client_check_state(POWER_OFF)) exit(1);
+                write_sysfs_node(kStageFw, 1);
+                read_sysfs_node(kPowerOn);
+            } else if (!strcmp(argv[optind], "poweroff")) {
+                if (!client_check_state(POWER_ON)) exit(1);
+                read_sysfs_node(kPowerOff);
+            } else if (!strcmp(argv[optind], "pull")) {
+                if (!client_check_state(POWER_ON)) exit(1);
                 char *remote_path;
                 char *local_path = NULL;
 
@@ -1090,8 +1136,8 @@ int main(int argc, char **argv) {
                 if (++optind < argc)
                     local_path = argv[optind];
                 client_pull_recursive_file(remote_path, local_path);
-
             } else if (!strcmp(argv[optind], "push")) {
+                if (!client_check_state(POWER_ON)) exit(1);
                 char *remote_path;
                 char *local_path;
 
@@ -1110,8 +1156,8 @@ int main(int argc, char **argv) {
                 }
                 remote_path = argv[optind];
                 client_push_file(local_path, remote_path);
-
             } else if (!strcmp(argv[optind], "exec")) {
+                if (!client_check_state(POWER_ON)) exit(1);
                 if (++optind >= argc) {
                     fprintf(stderr,
                           "ezlsh: exec: cmd missing\n");
@@ -1119,17 +1165,17 @@ int main(int argc, char **argv) {
                 }
 
                 client_exec_cmd(argv[optind]);
-
             } else {
                 fprintf(stderr,
                         "ezlsh: unknown command \"%s\"\n", argv[optind]);
                 exit(1);
             }
         } else {
+            if (!client_check_state(POWER_ON)) exit(1);
             // No command, run shell session
             shell_client_session();
         }
-        if (enable_logging) logClient.stop();
+        logClient.stop();
     } else {
         server_run(server_needs_flush);
     }
