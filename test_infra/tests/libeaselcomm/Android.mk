@@ -18,6 +18,8 @@ include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := easelcomm2_impl_test_proto
+LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE_CLASS := STATIC_LIBRARIES
 LOCAL_PROTOC_OPTIMIZE_TYPE := lite
 LOCAL_SRC_FILES := $(call all-proto-files-under)
@@ -27,9 +29,11 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := easelcomm2_impl_test
 LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
+LOCAL_PROPRIETARY_MODULE := true
 LOCAL_SRC_FILES := EaselComm2ImplTest.cpp
 LOCAL_SHARED_LIBRARIES := libnativewindow libeaselcomm libprotobuf-cpp-lite
-LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto
+LOCAL_HEADER_LIBRARIES := libutils_headers
+LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto libarect
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -39,5 +43,6 @@ LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_SRC_FILES := EaselComm2ImplTestServer.cpp
 LOCAL_SHARED_LIBRARIES := libeaselcomm libimageprocessor libbase libprotobuf-cpp-lite
+LOCAL_HEADER_LIBRARIES := libutils_headers
 LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto
 include $(BUILD_EXECUTABLE)

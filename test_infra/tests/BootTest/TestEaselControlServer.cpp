@@ -1,6 +1,8 @@
 #define LOG_TAG "EaselControlTest"
 
-#include <utils/Log.h>
+#include <unistd.h>
+
+#include <log/log.h>
 
 #include "easelcontrol.h"
 
