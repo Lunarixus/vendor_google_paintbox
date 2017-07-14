@@ -45,9 +45,7 @@ PRODUCT_PACKAGES += \
     libpbtimessenger \
     libpbtiservice \
     logd.easel \
-    logdclient.easel \
     pbserver \
     pbticlient \
     pbtiserver
-
 endif

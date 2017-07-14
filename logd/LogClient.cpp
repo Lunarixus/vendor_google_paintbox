@@ -28,6 +28,12 @@ int LogClient::start() {
   return 0;
 }
 
+void LogClient::waitForReadyToReceive() {
+  if (mReceivingThread.joinable()) {
+    mReceivingThread.join();
+  }
+}
+
 void LogClient::stop() {
   if (mReceivingThread.joinable()) {
     mReceivingThread.join();
@@ -42,7 +48,9 @@ void LogClient::stop() {
 void LogClient::receiveLogThread() {
   int ret = mCommClient.open(EaselComm::EASEL_SERVICE_LOG);
   if (ret != 0) {
-    ALOGE("open easelcomm client error (%d, %d)", ret, errno);
+    ALOGE("open easelcomm client error (%d, %d), "
+        "did you have two LogClient running at the same time? "
+        "e.g. ezlsh and camera app", ret, errno);
   } else {
     ret = mCommClient.startMessageHandlerThread(
         [this](EaselComm::EaselMessage *msg) {

@@ -9,7 +9,8 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/bin
 LOCAL_CFLAGS += -Wall -Werror -UNDEBUG
 LOCAL_SRC_FILES := ezlsh.cpp
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
-LOCAL_SHARED_LIBRARIES := libeaselcomm
+LOCAL_SHARED_LIBRARIES := libeaselcomm liblog
+LOCAL_STATIC_LIBRARIES := logdclient
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
