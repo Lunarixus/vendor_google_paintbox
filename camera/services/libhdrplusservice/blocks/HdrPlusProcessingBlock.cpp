@@ -419,8 +419,13 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
     int64_t imageId = (uintptr_t)input.buffers[0]->getPlaneData(0);
     gcam::RawWriteView raw(input.buffers[0]->getWidth(), input.buffers[0]->getHeight(),
             input.buffers[0]->getStride(0) - widthBytes, layout, input.buffers[0]->getPlaneData(0));
+
+    // Create unused phase detect data.
+    gcam::InterleavedWriteViewU16 pd_view;
+    int64_t pd_id = gcam::kInvalidImageId;
+
     if (!shot->AddPayloadFrame(frame->gcamFrameMetadata,
-            imageId, raw, *frame->gcamSpatialGainMap.get())) {
+            imageId, raw, pd_id, pd_view, *frame->gcamSpatialGainMap.get())) {
         ALOGE("%s: Adding a payload frame failed.", __FUNCTION__);
         return -ENODEV;
     }
@@ -874,6 +879,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
             /*base_frame_callback*/mGcamBaseFrameCallback.get(),
             /*postview_callback*/nullptr,
             /*merge_raw_image_callback*/nullptr,
+            /*merged_pd_callback*/nullptr,
             /*merged_dng_callback*/nullptr,
             /*final_image_callback*/mGcamFinalImageCallback.get(),
             /*jpeg_callback*/nullptr,
@@ -916,7 +922,10 @@ status_t HdrPlusProcessingBlock::initGcam() {
     debugParams.save_bitmask = kGcamDebugSaveBitmask;
 
     // Create a gcam instance.
-    mGcam = std::unique_ptr<gcam::Gcam>(gcam::Gcam::Create(initParams, gcamMetadataList,
+    mGcam = std::unique_ptr<gcam::Gcam>(gcam::Gcam::Create(
+            initParams,
+            gcamMetadataList.data(),
+            gcamMetadataList.size(),
             debugParams));
     if (mGcam == nullptr) {
         ALOGE("%s: Failed to create a Gcam instance.", __FUNCTION__);
@@ -996,24 +1005,21 @@ HdrPlusProcessingBlock::GcamFinalImageCallback::GcamFinalImageCallback(
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {
 }
 
-void HdrPlusProcessingBlock::GcamFinalImageCallback::Run(
+void HdrPlusProcessingBlock::GcamFinalImageCallback::YuvReady(
         const gcam::IShot* shot,
-        const gcam::YuvReadView&,
-        const gcam::InterleavedReadViewU8&,
         gcam::YuvImage* yuv_result,
-        gcam::InterleavedImageU8* rgb_result,
+        const gcam::ExifMetadata& metadata,
         gcam::GcamPixelFormat pixel_format) {
     ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, shot->shot_id());
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamFinalImage(shot->shot_id(), yuv_result, rgb_result, pixel_format);
+        block->onGcamFinalImage(shot->shot_id(), yuv_result, nullptr, pixel_format);
     } else {
         ALOGE("%s: Gcam sent a final image for request %d but block is destroyed.",
                 __FUNCTION__, shot->shot_id());
     }
 
     if (yuv_result != nullptr) delete yuv_result;
-    if (rgb_result != nullptr) delete rgb_result;
 }
 
 void HdrPlusProcessingBlock::addInputReference(int64_t id, Input input) {

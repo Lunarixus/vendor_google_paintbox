@@ -147,13 +147,18 @@ class ReadOnlyTImageView {
   // Construct a read-only image view and fast-crop it immediately.
   // Constructing an image view like this:
   //
-  //  ReadOnlyTImageView v2(v1, x0, y0, x1, y1);
+  //  ReadOnlyTImageView v2(v1, x0, y0, c0, x1, y1, c1);
   //
   // is equivalent to
   //
   //  ReadOnlyTImageView v2(v1);
-  //  v2.FastCrop(x0, y0, x1, y1);
+  //  v2.FastCrop(x0, y0, c0, x1, y1, c1);
   //
+  ReadOnlyTImageView(const ReadOnlyTImageView& other, int x0, int y0, int c0,
+                     int x1, int y1, int c1);
+
+  // ReadOnlyTImageView v2(v1, x0, y0, x1, y1) is equivalent to
+  //   ReadOnlyTImageView v2(v1, x0, y0, 0, x1, y1, v1.num_channels());
   ReadOnlyTImageView(const ReadOnlyTImageView& other,
                      int x0, int y0, int x1, int y1);
 
@@ -161,6 +166,8 @@ class ReadOnlyTImageView {
 
   // Interprets external memory passed in via 'base_pointer' as a read-only
   // image view. The resulting view does not take ownership of the memory.
+  // TODO(jiawen): Row padding calculation is cumbersome. It is more natural to
+  // simply specify x, y, and c strides in bytes.
   ReadOnlyTImageView(
       int width, int height, int num_channels, SampleType* base_pointer,
       size_t row_padding);
@@ -288,10 +295,11 @@ class ReadOnlyTImageView {
 
   // Cropping an image view:
   //
-  // FastCrop(x0, y0, x1, y1) crops an image view to a rectangle whose upper
-  // left and lower right corners are at (x0, y0) and (x1, y1) respectively.
-  // The top left corner is inclusive, while the bottom right corner is
-  // exclusive.
+  // FastCrop(x0, y0, c0, x1, y1, c1) crops an image view to a rectangle whose
+  // upper left and lower right corners are at (x0, y0, c0) and (x1, y1, c1)
+  // respectively--c0 and c1 specify the range of color channels to preserve in
+  // the cropped result.  The top left corner is inclusive, while the bottom
+  // right corner is exclusive.
   //
   // If the crop rectangle extends outside the bounds of the original image
   // view, then the crop rectangle itself is cropped before the image view
@@ -306,9 +314,13 @@ class ReadOnlyTImageView {
   // image views that share their sample memory with this image view.  A pixel
   // that is considered to be inside one view may count as padding for another
   // view.
+  void FastCrop(int x0, int y0, int c0, int x1, int y1, int c1);
+
+  // FastCrop(x0, y0, x1, y1) is equivalent to
+  //   FastCrop(x0, y0, 0, x1, y1, num_channels());
   void FastCrop(int x0, int y0, int x1, int y1);
 
-  // Test if the samples for this image view form a single compact block
+  // Tests if the samples for this image view form a single compact block
   // in memory, without padding between rows or channels.
   bool SamplesAreCompact() const;
 
@@ -334,13 +346,18 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   // Construct a read-write image view and fast-crop it immediately.
   // Constructing an image view like this:
   //
-  //  ReadWriteTImageView v2(v1, x0, y0, x1, y1);
+  //  ReadWriteTImageView v2(v1, x0, y0, c0, x1, y1, c1);
   //
   // is equivalent to
   //
   //  ReadWriteTImageView v2(v1);
-  //  v2.FastCrop(x0, y0, x1, y1);
+  //  v2.FastCrop(x0, y0, c0, x1, y1, c1);
   //
+  ReadWriteTImageView(const ReadWriteTImageView& other, int x0, int y0, int c0,
+                      int x1, int y1, int c1);
+
+  // ReadWriteTImageView v2(v1, x0, y0, x1, y1) is equivalent to
+  //   ReadWriteTImageView v2(v1, x0, y0, 0, x1, y1, v1.num_channels());
   ReadWriteTImageView(const ReadWriteTImageView& other,
                       int x0, int y0, int x1, int y1);
 
@@ -410,12 +427,14 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
   // CopyFrom(src) is equivalent to
   //    CopyFrom(src, 0, 0, src.width(), src.height(), 0, 0);
   //
+  // TODO(jiawen): Add Fill() and CopyFrom() flavors that accept a channel
+  // range.
   void Fill(const SampleType v, int x0, int y0, int x1, int y1) const;
   void Fill(const SampleType v) const;
 
-  // TODO(jiawen): Replace CopyFrom with a free function that accepts a readview
-  // as input and a writeview as output. There are already too many overlapping
-  // functions that do the same thing.
+  // TODO(jiawen): Replace CopyFrom with a free function that accepts a
+  // ReadOnlyView as input and a writeview as output. There are already too many
+  // overlapping functions that do the same thing.
 
   // This does copy with a cropped region.
   template <typename SourceType> void CopyFrom(const SourceType& source,
@@ -423,7 +442,7 @@ class ReadWriteTImageView : public ReadOnlyTImageView<T, layout> {
                                                int x, int y) const;
   template <typename SourceType> void CopyFrom(const SourceType& source) const;
 
-  // Test if the sample memory for this image view includes padding.
+  // Tests if the sample memory for this image view includes padding.
   using ReadOnlyView::SamplesAreCompact;
 
   using ReadOnlyView::sample_array_size;
@@ -444,56 +463,50 @@ class TImage : public ReadWriteTImageView<T, layout> {
   typedef ReadWriteTImageView<T, layout> ReadWriteView;
   typedef T SampleType;
 
-  // Constructor - creates a new image with the specified width, height,
-  // number of channels, memory layout and initial sample values.
+  // Constructs a 'null' image.
+  TImage() = default;
+
+  // Constructs a new image with the specified width, height, number of
+  // channels, memory layout and initial sample values.
   //
-  // Rows are padded with row_padding samples at the end.  This can be
-  // useful if the caller intends to initialize the samples by copying
-  // a contiguous block of memory from an existing buffer where the rows
-  // are already padded.
+  // Rows are padded with row_padding samples (not bytes) at the end. This can
+  // be useful if the caller intends to initialize the sample array where the
+  // start of each row must fall on a particular alignment.
   //
   // The provided pointer to a memory allocator is copied into the new
   // image object, and memory for the samples is acquired by calling the
-  // allocator's Allocate() function.  When the memory for the samples is
+  // allocator's Allocate() function. When the memory for the samples is
   // no longer needed, it is freed by calling the allocator's Deallocate()
   // function.
   //
-  // The memory allocator must persist until all TImages that use it have
-  // been destroyed.
+  // The memory allocator cannot be nullptr and must persist until all TImages
+  // that use it have been destroyed.
   TImage(int width, int height, int num_channels,
          TImageInit init = kInitUndefined, size_t row_padding = 0,
          TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
-  // Constructor with an existing base pointer. It takes ownership of the
-  // base_pointer. The base_pointer will be released in the destructor using the
-  // allocator.
-  TImage(int width, int height, int num_channels, size_t row_padding,
-         SampleType* base_pointer,
-         TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
-
-  // Deep copy constructor - creates a new image by copying an existing
-  // image, including its samples.  Any padding present in the original
-  // image is copied, too.
+  // Constructs a TImage by taking ownership of an existing buffer
+  // 'base_pointer' and interpreting it as an image with the given extents and
+  // row padding.
   //
-  // The new image uses the specified memory allocator for its samples;
-  // passing a null allocator means "use the same allocator as the
-  // original image."
-  // TODO(ruiduoy): This constructor should be refactored to the one taking
-  // view as input.
-  // TODO(jiawen): Get rid of the allocator parameter altogether and make the
-  // copy constructor a true copy, including the allocator. An optional
-  // allocator makes downstream code hard to reason about and is not available
-  // to operator =. In the proposed design, if the client wants to use a custom
-  // allocator for a new image and only copy the contents, they should allocate
-  // a TImage explicitly then call call CopyContents(src_view, dst_image).
-  TImage(const TImage& other, TImageSampleAllocator* allocator = nullptr);
+  // 'base_pointer' must have been allocated with 'allocator' and will be
+  // freed by calling 'allocator->Deallocate()' when memory is no longer needed.
+  //
+  // The memory allocator cannot be nullptr and must persist until all TImages
+  // that use it have been destroyed.
+  TImage(int width, int height, int num_channels, size_t row_padding,
+         SampleType* base_pointer, TImageSampleAllocator* allocator);
 
-  TImage() = default;
-  TImage(TImage&& other);
-  TImage& operator=(TImage&& other);
+  // Constructs a new image by deep copying an existing image, including its
+  // samples and any padding present. Sample memory is allocated using the same
+  // allocator as 'other'.
+  TImage(const TImage& other);
   TImage& operator=(const TImage& other);
 
-  // Destructor - deletes the samples.
+  // The move constructor constructs a new image by moving the contents of an
+  // existing image. After a move, 'other' will be a 'null' image.
+  TImage(TImage&& other);
+  TImage& operator=(TImage&& other);
   ~TImage() override;
 
   // Width, height, number of channels and layout of the image.
@@ -525,7 +538,7 @@ class TImage : public ReadWriteTImageView<T, layout> {
   // Set the image to a null image. This will release the underlying image data.
   TImage& operator=(std::nullptr_t) override;
 
-  // Test if the sample memory for this image view includes padding.
+  // Tests if the sample memory for this image view includes padding.
   using ReadOnlyView::SamplesAreCompact;
 
   // Access to the memory allocator for the samples.
@@ -915,6 +928,14 @@ ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
 
 template <typename T, TImageLayout layout>
 ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
+    const ReadOnlyTImageView& other, int x0, int y0, int c0, int x1, int y1,
+    int c1)
+    : ReadOnlyTImageView(other) {
+  FastCrop(x0, y0, c0, x1, y1, c1);
+}
+
+template <typename T, TImageLayout layout>
+ReadOnlyTImageView<T, layout>::ReadOnlyTImageView(
     const TImageStrides<layout>& strides,
     SampleType* base_pointer) : strides_(strides),
                                 base_pointer_(base_pointer) {}
@@ -961,17 +982,27 @@ ReadOnlyTImageView<T, layout>::sample_iterator(int c) const {
 
 template <typename T, TImageLayout layout>
 void ReadOnlyTImageView<T, layout>::FastCrop(int x0, int y0, int x1, int y1) {
+  FastCrop(x0, y0, 0, x1, y1, num_channels());
+}
+
+template <typename T, TImageLayout layout>
+void ReadOnlyTImageView<T, layout>::FastCrop(int x0, int y0, int c0, int x1,
+                                             int y1, int c1) {
   if (*this == nullptr) {
     return;
   }
 
   x0 = std::max(x0, 0);
   y0 = std::max(y0, 0);
+  c0 = std::max(c0, 0);
   x1 = std::min(x1, strides_.width_);
   y1 = std::min(y1, strides_.height_);
-  base_pointer_ += x0 * strides_.x_stride_ + y0 * strides_.y_stride_;
+  c1 = std::min(c1, strides_.num_channels_);
+  base_pointer_ += x0 * strides_.x_stride_ + y0 * strides_.y_stride_ +
+                   c0 * strides_.c_stride_;
   strides_.width_  = std::max(0, x1 - x0);
   strides_.height_ = std::max(0, y1 - y0);
+  strides_.num_channels_ = std::max(0, c1 - c0);
 }
 
 template <typename T, TImageLayout layout>
@@ -1002,6 +1033,12 @@ template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>::ReadWriteTImageView(
     const ReadWriteTImageView& other, int x0, int y0, int x1, int y1)
     : ReadOnlyView(other, x0, y0, x1, y1) {}
+
+template <typename T, TImageLayout layout>
+ReadWriteTImageView<T, layout>::ReadWriteTImageView(
+    const ReadWriteTImageView& other, int x0, int y0, int c0, int x1, int y1,
+    int c1)
+    : ReadOnlyView(other, x0, y0, c0, x1, y1, c1) {}
 
 template <typename T, TImageLayout layout>
 ReadWriteTImageView<T, layout>::ReadWriteTImageView(
@@ -1191,11 +1228,9 @@ TImage<T, layout>::TImage(int width, int height, int num_channels,
 }
 
 template <typename T, TImageLayout layout>
-TImage<T, layout>::TImage(const TImage& other, TImageSampleAllocator* allocator)
-    : ReadWriteView(other.strides_, nullptr) {
-  // If the user specified an allocator, then use it. Otherwise, use the
-  // allocator from 'other'.
-  allocator_ = allocator ? allocator : other.allocator_;
+TImage<T, layout>::TImage(const TImage& other)
+    : ReadWriteView(other.strides_, /*base_pointer=*/nullptr),
+      allocator_(other.allocator_) {
   assert(allocator_ != nullptr);
   if (other) {
     memory_ = AllocateMemory(strides_.num_samples_);
@@ -1267,10 +1302,6 @@ TImage<T, layout>::~TImage() {
 template <typename T, TImageLayout layout>
 TImage<T, layout>& TImage<T, layout>::operator=(std::nullptr_t) {
   ReleaseMemory();
-  base_pointer_ = nullptr;
-  memory_ = nullptr;
-  allocator_ = TImageDefaultSampleAllocator();
-  strides_ = TImageStrides<layout>(0, 0, 0, 0);
   return *this;
 }
 
@@ -1284,8 +1315,11 @@ template <typename T, TImageLayout layout>
 void TImage<T, layout>::ReleaseMemory() {
   if (*this) {
     allocator_->Deallocate(memory_, strides_.num_samples_ * sizeof(SampleType));
-    memory_ = nullptr;
   }
+  memory_ = nullptr;
+  base_pointer_ = nullptr;
+  allocator_ = TImageDefaultSampleAllocator();
+  strides_ = TImageStrides<layout>(0, 0, 0, 0);
 }
 
 }  // namespace gcam

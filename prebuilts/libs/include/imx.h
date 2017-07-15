@@ -558,10 +558,25 @@ ImxError ImxCompileGraph(
 
 ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
 
+/* Update image dimensions (width/height) of the compiled graph with the
+ * dimensions specified in the transfer node.
+ * This can be used for late-bound image dimension parameters. PCG is generated
+ * with maximum image dimensions. Then, this function can update the compiled
+ * graph with late-bound image dimensions.
+ */
+ImxError ImxUpdateCompiledGraphImageDimensions(
+    ImxNodeHandle *transfer_nodes, const char **transfer_node_names,
+    int transfer_node_count, ImxCompiledGraphHandle compiled_graph_handle);
+
 /* Saves a copy of compiled_graph (and related structures) to file(s) in the
- * directory save_dir_path. Currently, multiple files are saved: the
- * precompiled graph configuration (save_dir_path/file_name) and binary pISA
- * files (*.bpisa in save_dir_path) for the stencil-processor program kernels.
+ * directory: save_dir_path. Function will overwrite if there exists any
+ * identical name within the save_dir_path. Function reports an error if the
+ * specified save directory cannot be created. This API function is typically
+ * used in conjunction with ImxLoadMatchingPrecompiledGraph()
+ *
+ * Currently, multiple files are saved: the precompiled graph configuration
+ * (save_dir_path/file_name) and binary pISA files (*.bpisa in save_dir_path)
+ * for the stencil-processor program kernels.
  */
 /* TODO(ahalambi): Change this API (or provide a new one) that returns a
  * binary blob containing all saved state. Application can decide how to use it.
@@ -605,7 +620,7 @@ ImxError ImxLoadPrecompiledGraph(
  * Returns IMX_SUCCESS if a matching precompiled graph configuration was found;
  * IMX_FAILURE (or another error code) otherwise.
  * Note: This API function is typically used in conjunction with
- * ImxSaveAsUniqueCompiledGraph
+ * ImxSaveCompiledGraph() or ImxSaveAsUniqueCompiledGraph()
  */
 ImxError ImxLoadMatchingPrecompiledGraph(
     const char *load_dir_base_path,
@@ -1108,6 +1123,15 @@ ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
  */
 ImxError ImxUntileBufferLayout(const ImxParameterType* buffer_type,
                                void *buffer_address);
+
+/* Allow profiler to show information about the execution phases
+ * All Profiler descriptions will be prefixed with the phase_name
+ */
+ImxError ImxProfilerSetPhaseName(const char* phase_name);
+
+/* Enable profiling to the file path profiler_file
+ */
+ImxError ImxEnableProfiling(const char *profiler_file);
 
 #ifdef __cplusplus
 } /* extern "C" */

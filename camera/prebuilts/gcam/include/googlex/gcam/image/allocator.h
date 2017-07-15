@@ -25,12 +25,12 @@ namespace gcam {
 // that follow the prototypes for malloc() and free(). This is exposed via a
 // C-based API.
 
-typedef void* (*MallocFuncType)(size_t);
-typedef void (*FreeFuncType)(void*);
+typedef void* (*MallocFunc)(size_t);
+typedef void (*FreeFunc)(void*);
 
 // Initialize custom memory allocation.
-void InitCustomMemoryAllocator(MallocFuncType custom_malloc,
-                               FreeFuncType custom_free);
+void InitCustomMemoryAllocator(MallocFunc custom_malloc,
+                               FreeFunc custom_free);
 
 //-----------------------------------------------------------------------------
 // Memory allocation with memory alignment and tracking of the current

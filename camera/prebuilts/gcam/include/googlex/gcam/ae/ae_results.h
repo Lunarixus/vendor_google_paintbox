@@ -178,8 +178,10 @@ struct AeResults {
 
   // A (very) rough estimate of the % of pixels that would likely come from
   //   the long exposure, in an HDR shot.
-  // Needed to convert these AE results into a payload burst spec.
-  float fraction_of_pixels_from_long_exposure = 0.0f;
+  // The pure version weights each pixel equally; the weighted version uses
+  //   the weights from the spatial metering weight map (for kHdrLong).
+  float pure_fraction_of_pixels_from_long_exposure = 0.0f;
+  float weighted_fraction_of_pixels_from_long_exposure = 0.0f;
 
   // Whether the scene appears to be flickering, and its estimated frequency,
   //   based on the related metadata, FrameMetadata::scene_flicker, for the

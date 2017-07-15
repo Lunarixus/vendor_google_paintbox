@@ -88,12 +88,27 @@ private:
     public:
         GcamFinalImageCallback(std::weak_ptr<PipelineBlock> block);
         virtual ~GcamFinalImageCallback() = default;
-        virtual void Run(const gcam::IShot* shot,
-            const gcam::YuvReadView& yuv_view,
-            const gcam::InterleavedReadViewU8& rgb_view,
-            gcam::YuvImage* yuv_result,
-            gcam::InterleavedImageU8* rgb_result,
-            gcam::GcamPixelFormat pixel_format) override;
+
+        virtual void YuvReady(const gcam::IShot* shot,
+                gcam::YuvImage* yuv_result,
+                const gcam::ExifMetadata& metadata,
+                gcam::GcamPixelFormat pixel_format) override;
+
+        void RgbReady(const gcam::IShot* shot,
+            gcam::InterleavedImageU8* image,
+            const gcam::ExifMetadata& metadata,
+            gcam::GcamPixelFormat pixel_format) override {};
+
+        void PreallocatedRgbReady(const gcam::IShot* shot,
+                const gcam::InterleavedReadViewU8& image_view,
+                const gcam::ExifMetadata& metadata,
+                gcam::GcamPixelFormat pixel_format) override {};
+
+        void PreallocatedYuvReady(const gcam::IShot* shot,
+                const gcam::YuvReadView& image_view,
+                const gcam::ExifMetadata& metadata,
+                gcam::GcamPixelFormat pixel_format) override {};
+
         std::weak_ptr<PipelineBlock> mBlock;
     };
 

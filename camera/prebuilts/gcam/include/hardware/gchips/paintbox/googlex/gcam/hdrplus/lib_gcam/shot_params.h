@@ -14,6 +14,7 @@
 #include "googlex/gcam/image_metadata/flash.h"
 #include "googlex/gcam/image_metadata/image_rotation.h"
 #include "googlex/gcam/image_metadata/static_metadata.h"
+#include "googlex/gcam/image_proc/resampling_method.h"
 
 namespace gcam {
 
@@ -22,6 +23,7 @@ extern const char* const kShotParamsFilename;
 static const int kDefaultFullMeteringSweepFrameCount = 6;
 static const int kDebugFullMeteringSweepFrameCount = 9;
 
+// TODO(murthykk): Move this parameter to StaticMetadata.
 static const float kDefaultFrameReadoutTimeMs = 33.33f;
 
 // Parameters for each 'shot' (from the user's point of view).
@@ -222,6 +224,14 @@ struct ShotParams {
   //   device tuning when not equal to IccProfile::kInvalid.
   // Default: IccProfile::kInvalid.
   IccProfile icc_profile_override;
+
+  // Whether temporal binning should be allowed. See go/temporal-binning-doc.
+  bool allow_temporal_binning;
+
+  // Override for how to resample the final image, overriding the device tuning
+  //   when not equal to ResamplingMethod::kInvalid.
+  // Default: ResamplingMethod::kInvalid.
+  ResamplingMethod resampling_method_override;
 };
 
 // Generate random ShotParams.

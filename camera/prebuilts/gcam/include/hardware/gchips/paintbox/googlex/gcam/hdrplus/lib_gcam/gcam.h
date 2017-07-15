@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>  // NOLINT
 #include <string>
 #include <vector>
 
@@ -42,6 +43,7 @@ namespace gcam {
 class AeTraining;
 class PipelineManager;
 class IShot;
+class PersistentFrameTracker;
 struct Camera;
 struct ShotMemInfo;
 
@@ -53,6 +55,7 @@ struct ShotMemInfo;
 // Note that only one instance of this class should be created at a time,
 //   so that future peak memory estimation is accurate.
 // TODO(hasinoff): Enforce this property in Gcam::Create().
+// LINT.IfChange
 class Gcam {
  public:
   // Creates an instance of Gcam with the given parameters, supporting a list
@@ -96,6 +99,16 @@ class Gcam {
   //
   static Gcam* Create(const InitParams& init_params,
                       const std::vector<StaticMetadata>& static_metadata_list,
+                      const DebugParams& debug_params = DebugParams());
+
+  // (b/63406793) Creates the Gcam instance with StaticMetadata array instead of
+  // std::vector for Android platform build compatibility. This fix works around
+  // one build issues when building inside Android platform, but the ABI
+  // compatibility may still not be guaranteed with other STLs in public API,
+  // e.g. std::string and std::vector in StaticMetadata.
+  static Gcam* Create(const InitParams& init_params,
+                      const StaticMetadata* static_metadata_list,
+                      int static_metadata_list_size,
                       const DebugParams& debug_params = DebugParams());
 
   // IMPORTANT:
@@ -445,6 +458,7 @@ class Gcam {
   // Misc
   //----------------------------------------------------------
 
+  int GetNumCameras() const;
   const StaticMetadata& GetStaticMetadata(int camera_id) const;
   const Tuning& GetTuning(int camera_id) const;
 
@@ -499,9 +513,20 @@ class Gcam {
   // background-processing work.
   std::unique_ptr<PipelineManager> pipeline_manager_;
 
+  // Protects tracker_.
+  // The tracker_ instance can be accessed concurrently by different capture
+  // processing threads (e.g. EndPayloadFrames_ProcessZslShot). This mutex
+  // ensures that tracker_ is accessed in a thread-safe way.
+  std::mutex tracker_mutex_;
+
+  // Pointer to object that tracks frame metadata across shots.
+  std::unique_ptr<PersistentFrameTracker> tracker_;
+
   friend class PayloadFrameProcessor;
   friend class Viewfinder;
 };
+// LINT.ThenChange(//depot/google3/java/com/google/googlex/gcam/\
+//                 gcam_minimal.swig)
 
 // Return Gcam's version number, as a string taking the form
 // "[major version].[google3 sync CL]", for example, "1.0.61087839".

@@ -32,6 +32,7 @@ class SaveInfo;
 //   from thread 3; this is safe.  The IShot objects are independent from each
 //   other, and are immune to concurrent changes in the Gcam object that created
 //   them.
+// LINT.IfChange
 class IShot {
  public:
   virtual ~IShot() {}
@@ -171,7 +172,7 @@ class IShot {
   //     and the client should do the same.
   //   CLEANUP:
   //     Gcam requires that non-null input image views be valid until
-  //     image_release_callback (mandatory; set in InitParams) is called.
+  //     image_release_callback (mandatory; set in InitParams) is invoked.
   //   ISP CONFIGURATION:
   //     AWB should (ideally) be in a zero-damping mode.  This means that
   //     auto white balance analysis should, ideally, be done on each
@@ -197,12 +198,6 @@ class IShot {
   //   SPATIAL GAIN MAPS:
   //     The lens shading correction (LSC) maps for the raw payload
   //     frames, corresponding to the full active area.
-  //   PERSISTENCE:
-  //     Upon the return of each function, the following objects are
-  //     done being used by Gcam, are no longer needed, and can be freed
-  //     by the client:
-  //       AddPayloadFrames:     [none]
-  //       EndPayloadFrames:     exif_data
   //   WARNINGS and ERRORS:
   //     Generally, if you have any warnings or errors to report for a
   //     metering or payload frame, you should add them to the warnings or
@@ -250,14 +245,33 @@ class IShot {
   //   you must pass in an empty (default) BurstSpec.
   virtual void BeginPayloadFrames(const BurstSpec& payload_burst_spec) = 0;
 
-  // - raw_id: A unique ID associated with each image. The client must ensure
-  // that memory associated remains valid until it receives a release callback
-  // for that image ID. IDs must be globally unique across all image types and
-  // be non-negative. The constant gcam::kInvalidImageId is reserved for invalid
-  // images, in which case the client will not receive a callback.
-  virtual bool AddPayloadFrame(const FrameMetadata& metadata,  // Required.
+  // - raw_id and pd_id: A unique ID associated with each raw and PD image
+  // respectively. The client must ensure that memory associated remains valid
+  // until it receives a release callback for that image ID. IDs must be
+  // globally unique across all image types and be non-negative. The constant
+  // gcam::kInvalidImageId is reserved for invalid images, in which case the
+  // client will not receive a callback.
+  //
+  // - pd: Raw phase detection (PD) data, with content from the left and right
+  // subpixels interleaved into a single image. Optional. If provided,
+  // it will be aligned and merged. If PD data is provided but the raw frame is
+  // missing, the PD data will be ignored and its release callback will be
+  // called immediately.
+  //
+  // Image release timing depends on the mode in which Gcam was initialized
+  // (InitParams::payload_frame_copy_mode).
+  // - PayloadFrameCopyMode::kCopyAndFreeAsap: frames are copied to internal
+  //   buffers are released as soon as possible.
+  // - PayloadFrameCopyMode::kDelayCopyDuringPostviewGen: frames are copied to
+  //   internal buffers ASAP unless postview generation is in progress, in
+  //   which case it waits until postview generation is complete.
+  // - PayloadFrameCopyMode::kNeverCopy: frames are retained until the pipeline
+  //   no longer references any input data.
+  virtual bool AddPayloadFrame(const FrameMetadata& metadata,
                                int64_t raw_id, const RawWriteView& raw,
-                               const SpatialGainMap& sgm) = 0;  // Required.
+                               int64_t pd_id,  // Optional.
+                               const InterleavedWriteViewU16& pd,  // Optional.
+                               const SpatialGainMap& sgm) = 0;
 
   // Add metadata for an arbitrary set of frames, logged to file and MakerNote.
   // Generally these frames are not part of any burst. This extra metadata is
@@ -267,6 +281,8 @@ class IShot {
   virtual bool AddFrameMetadataForLogging(const FrameMetadata& metadata) = 0;
 
   // Call EndPayloadFrames once all payload frames have been submitted.
+  // All parameters are optional (may be nullptr). They can be freed by the
+  // client once this function returns.
   virtual bool EndPayloadFrames(
       const ClientExifMetadata* client_exif_metadata,       // Optional.
       const std::vector<std::string>* general_warnings,     // Optional.
@@ -300,6 +316,8 @@ class IShot {
   virtual const ShotParams& shot_params() const = 0;
   virtual const StaticMetadata& static_metadata() const = 0;
 };
+// LINT.ThenChange(//depot/google3/java/com/google/googlex/gcam/\
+//                 gcam_minimal.swig)
 
 }  // namespace gcam
 

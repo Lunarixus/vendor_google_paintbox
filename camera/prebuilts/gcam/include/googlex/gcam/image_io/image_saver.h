@@ -43,15 +43,17 @@ class ImageSaver {
   //   called, to ensure that the filename is unique.
   // For both of these functions, if a prefix or suffix were specified in
   //   ImageSaverParams, these will get applied to the filename.
-  std::string GetPath(const char* filename) const;
-  std::string GetUniquePath(const char* filename);
+  std::string GetPath(const std::string& filename) const;
+  std::string GetUniquePath(const std::string& filename);
 
   // Save the given image to the folder specified in ImageSaverParams, with a
   //   unique name determined by GetUniquePath().
   // The YUV variants assume standard YUV matrix.
   // Returns the full path where the image was saved; this is typically ignored.
-  std::string Save(const InterleavedReadViewU8& map, const char* filename);
-  std::string Save(const InterleavedReadViewU16& map, const char* filename);
+  std::string Save(const InterleavedReadViewU8& map,
+                   const std::string& filename);
+  std::string Save(const InterleavedReadViewU16& map,
+                   const std::string& filename);
 
  private:
   const ImageSaverParams image_saver_params_;

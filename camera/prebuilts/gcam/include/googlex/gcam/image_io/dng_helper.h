@@ -2,6 +2,7 @@
 #define GOOGLEX_GCAM_IMAGE_IO_DNG_HELPER_H_
 
 #include <cstdint>
+#include <string>
 
 #include "googlex/gcam/image/t_image.h"
 #include "googlex/gcam/image_metadata/exif_metadata.h"
@@ -23,21 +24,17 @@ void GetFinalDngImageSize(const InterleavedReadViewU16& image,
 // Returns whether it succeeded.
 // If 'compress_output' is set to true, compresses the DNG contents using
 // lossless Huffman JPG.
-bool WriteDng(const char* filename,
-              const InterleavedReadViewU16& image,
-              const ExifMetadata& exif_metadata,
-              bool compress_output = false,
+bool WriteDng(const std::string& filename, const InterleavedReadViewU16& image,
+              const ExifMetadata& exif_metadata, bool compress_output = false,
               const Context* context = nullptr);
-bool WriteDng(const char* filename,
-              const RawReadView& image,
-              const ExifMetadata& exif_metadata,
-              bool compress_output = false,
+bool WriteDng(const std::string& filename, const RawReadView& image,
+              const ExifMetadata& exif_metadata, bool compress_output = false,
               const Context* context = nullptr);
 
 // Write a raw image with metadata to a DNG file in memory.
 // Returns whether it succeeded.
 // This function will allocate the memory and return the buffer, as well as
-// its dimensions. The caller must free the memory later using delete[].
+// its size in bytes. The caller must free the memory later using delete[].
 bool WriteDngToMemory(uint8_t** out_buffer,
                       uint32_t* out_buffer_size_bytes,
                       const InterleavedReadViewU16& image,
@@ -57,11 +54,10 @@ bool WriteDngToMemory(uint8_t** out_buffer,
 // DNG files in their full generality are not handled. For example, we hardcode
 // assumptions about the number of Bayer channels and the number of color planes
 // (4 and 3, respectively), and do not currently handle bit packing.
-RawImage ReadDng(const char* filename,
-                 ExifMetadata* exif_metadata,
-                 TImageSampleAllocator* custom_allocator =
-                     TImageDefaultSampleAllocator(),
-                 const Context* context = nullptr);
+RawImage ReadDng(
+    const std::string& filename, ExifMetadata* exif_metadata,
+    TImageSampleAllocator* custom_allocator = TImageDefaultSampleAllocator(),
+    const Context* context = nullptr);
 
 }  // namespace gcam
 

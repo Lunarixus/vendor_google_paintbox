@@ -27,10 +27,10 @@ const int kDefaultJpgQualityThumbnail = 60;
 //
 // By default, no EXIF data or ICC profile will be written, unless the optional
 // 'exif_data' field is specified.
-bool WriteJpg(const char* filename, const InterleavedReadViewU8& image,
+bool WriteJpg(const std::string& filename, const InterleavedReadViewU8& image,
               int quality = kDefaultJpgQuality,
               const ExifMetadata* exif_data = nullptr);
-bool WriteJpg(const char* filename, const YuvReadView& image,
+bool WriteJpg(const std::string& filename, const YuvReadView& image,
               int quality, const ExifMetadata* exif_data);
 
 // Encodes image data to a JPG file in memory, with support for grayscale
@@ -58,7 +58,7 @@ bool WriteJpgToMemory(uint8_t** out_buffer, uint32_t* out_buffer_size_bytes,
 //   desination for this is provided by the caller.
 // NOTE: EXIF decoding is *extremely* limited. Only a few tags are parsed.
 // Returns a null image on failure.
-InterleavedImageU8 DecodeJpgFromDisk(const char* filename,
+InterleavedImageU8 DecodeJpgFromDisk(const std::string& filename,
                                      ExifMetadata* exif_metadata = nullptr);
 
 // Decodes a compressed JPG image in memory, to an uncompressed buffer
