@@ -1,7 +1,10 @@
+#include "EaselComm2ImplTest.h"
+
 #include <gtest/gtest.h>
 #include <utils/Errors.h>
 #include <vndk/hardware_buffer.h>
 
+#include "EaselComm2Message.h"
 #include "EaselHardwareBuffer.h"
 #include "easelcomm.h"
 #include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
@@ -150,8 +153,9 @@ class EaselComm2ImplTest : public ::testing::Test {
     int ret = mClient.receiveMessage(&message);
     if (ret != NO_ERROR) return ret;
 
-    if (message.message_buf_size != sizeof(EaselComm2::HardwareBuffer::Desc))
+    if (message.message_buf_size != sizeof(EaselComm2::HardwareBuffer::Desc)) {
       return BAD_VALUE;
+    }
     auto desc = reinterpret_cast<EaselComm2::HardwareBuffer::Desc*>(
         message.message_buf);
     if (message.dma_buf_size != EaselComm2::HardwareBuffer::size(*desc))
@@ -176,19 +180,13 @@ class EaselComm2ImplTest : public ::testing::Test {
   // Sends the proto buffer to server.
   // Returns NO_ERROR if successful, otherwise error code.
   int sendProtoBuffer(const test::Request& request) {
-    size_t size = request.ByteSize();
-    void* buffer = malloc(size);
-    bool success = request.SerializeToArray(buffer, size);
-    if (!success) return BAD_VALUE;
+    EaselComm2::Message message2(kProtoChannel, request);
 
     EaselComm::EaselMessage message;
-    message.message_buf = buffer;
-    message.message_buf_size = size;
-    message.dma_buf = nullptr;
-    message.dma_buf_size = 0;
+    message.message_buf = message2.getMessageBuf();
+    message.message_buf_size = message2.getMessageBufSize();
 
     int ret = mClient.sendMessage(&message);
-    free(buffer);
     return ret;
   }
 
@@ -198,16 +196,63 @@ class EaselComm2ImplTest : public ::testing::Test {
     EaselComm::EaselMessage message;
     int ret = mClient.receiveMessage(&message);
     if (ret != NO_ERROR) return ret;
-    bool success =
-        response->ParseFromArray(message.message_buf, message.message_buf_size);
+    EaselComm2::Message message2(message.message_buf, message.message_buf_size,
+                                 message.dma_buf_fd, message.dma_buf_size,
+                                 message.message_id);
+    bool success = message2.toProto(response);
     free(message.message_buf);
     return success ? NO_ERROR : BAD_VALUE;
   }
 
- protected:
-  void SetUp() override {
-    ASSERT_EQ(mClient.open(EASEL_SERVICE_TEST), OK);
+  int sendString(const std::string& s) {
+    EaselComm2::Message message2(kStringChannel, s);
+
+    EaselComm::EaselMessage message;
+    message.message_buf = message2.getMessageBuf();
+    message.message_buf_size = message2.getMessageBufSize();
+
+    int ret = mClient.sendMessage(&message);
+    return ret;
   }
+
+  std::string receiveString() {
+    EaselComm::EaselMessage message;
+    int ret = mClient.receiveMessage(&message);
+    if (ret != NO_ERROR) return "";
+    EaselComm2::Message message2(message.message_buf, message.message_buf_size,
+                                 message.dma_buf_fd, message.dma_buf_size,
+                                 message.message_id);
+    std::string s = message2.toString();
+    free(message.message_buf);
+    return s;
+  }
+
+  int sendStruct(const TestStruct t) {
+    EaselComm2::Message message2(kStructChannel, &t, sizeof(t));
+
+    EaselComm::EaselMessage message;
+    message.message_buf = message2.getMessageBuf();
+    message.message_buf_size = message2.getMessageBufSize();
+
+    int ret = mClient.sendMessage(&message);
+    return ret;
+  }
+
+  TestStruct receiveStruct() {
+    EaselComm::EaselMessage message;
+    int ret = mClient.receiveMessage(&message);
+    TestStruct t{};
+    if (ret != NO_ERROR) return t;
+    EaselComm2::Message message2(message.message_buf, message.message_buf_size,
+                                 message.dma_buf_fd, message.dma_buf_size,
+                                 message.message_id);
+    t = *(message2.toStruct<TestStruct>());
+    free(message.message_buf);
+    return t;
+  }
+
+ protected:
+  void SetUp() override { ASSERT_EQ(mClient.open(EASEL_SERVICE_TEST), OK); }
 
   void TearDown() override { mClient.close(); }
 
@@ -282,6 +327,18 @@ TEST_F(EaselComm2ImplTest, MathRpc) {
   mathResult = response.results(3);
   EXPECT_EQ(mathResult.result(), 0);
   EXPECT_EQ(mathResult.expression(), "7 / 8 = 0");
+}
+
+TEST_F(EaselComm2ImplTest, SyncAck) {
+  ASSERT_EQ(sendString("SYNC"), NO_ERROR);
+  EXPECT_EQ(receiveString(), "ACK");
+}
+
+TEST_F(EaselComm2ImplTest, Reverse) {
+  ASSERT_EQ(sendStruct({10, true}), NO_ERROR);
+  TestStruct t = receiveStruct();
+  EXPECT_EQ(t.number, -10);
+  EXPECT_FALSE(t.flag);
 }
 
 }  // namespace android
