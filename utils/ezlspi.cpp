@@ -168,6 +168,7 @@ int main(int argc, char **argv) {
         printf("ERROR: usage:\n");
         printf("           For reads,  ezlspi {addr}\n");
         printf("           For writes, ezlspi {addr} [data]\n");
+        exit(EXIT_FAILURE);
     }
 
     addr = (uint32_t)strtol(argv[1], NULL, 0);
@@ -178,7 +179,7 @@ int main(int argc, char **argv) {
     ret = spi_init();
     if (ret < 0) {
         printf("ERROR: failed to initialize spi device (%d)\n", ret);
-        return ret;
+        exit(EXIT_FAILURE);
     }
 
     if (argc == 2) {
