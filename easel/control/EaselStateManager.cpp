@@ -70,7 +70,7 @@ int EaselStateManager::startMipi(struct EaselMipiConfig *config)
         .rx_rate = config->rxRate,
         .tx_rate = config->txRate,
         .mode = config->mode,
-        .vc_en_mask = MNH_MIPI_VC_ALL_EN_MASK,
+        .vc_en_mask = 0,
     };
 
     if (ioctl(mFd, MNH_SM_IOC_CONFIG_MIPI, &mnhConfig) == -1)
