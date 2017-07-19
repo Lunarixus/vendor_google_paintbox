@@ -2,6 +2,7 @@
 #include <utils/Errors.h>
 #include <vndk/hardware_buffer.h>
 
+#include "EaselHardwareBuffer.h"
 #include "easelcomm.h"
 #include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
 
@@ -9,38 +10,53 @@ namespace android {
 namespace {
 using AHardwareBufferHandle = AHardwareBuffer*;
 
+// Returns image channel counts, 0 for unsupported formats.
 uint32_t getChannelSize(const AHardwareBuffer_Desc& desc) {
   if (desc.format == AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM) return 3;
   return 0;
 }
 
-size_t getBufferSize(const AHardwareBuffer_Desc& desc) {
-  return desc.stride * desc.height * desc.layers * getChannelSize(desc);
-}
-
 uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c) {
-  return (x + y * 2 + c * 3) % 256;
+  return static_cast<uint8_t>(x * 11 + y * 13 + c * 17);
 }
 
+// HardwareBuffer does not take ownership of the input buffer.
+std::unique_ptr<EaselComm2::HardwareBuffer> convertToHardwareBuffer(
+    AHardwareBufferHandle buffer) {
+  AHardwareBuffer_Desc aDesc;
+  AHardwareBuffer_describe(buffer, &aDesc);
+  EaselComm2::HardwareBuffer::Desc desc;
+  desc.width = aDesc.width;
+  desc.stride = aDesc.stride;
+  desc.height = aDesc.height;
+  desc.layers = aDesc.layers;
+  desc.bits_per_pixel = getChannelSize(aDesc) * 8;
+  return std::make_unique<EaselComm2::HardwareBuffer>(
+      AHardwareBuffer_getNativeHandle(buffer)->data[0], desc);
+}
 }  // namespace
 
 // Test class for easelcomm2 usecases
 class EaselComm2ImplTest : public ::testing::Test {
  public:
-  // Allocates an AHardwareBuffer with format of RGB. This buffer is accessible from CPU rarely.
+  // Allocates an AHardwareBuffer with format
+  // AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM. This buffer is with usage
+  // CPU_READ_RARELY and CPU_WRITE_RARELY.
   // Returns NO_ERROR if successful, otherwise error code.
-  int allocBuffer(uint32_t width, uint32_t height, AHardwareBufferHandle* buffer) {
+  int allocBuffer(uint32_t width, uint32_t height,
+                  AHardwareBufferHandle* bufferOut) {
     AHardwareBuffer_Desc desc = {
-      width,
-      height,
-      /*layers=*/1,
-      AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM,
-      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY | AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY,
-      0,
-      0,
-      0,
+        width,
+        height,
+        /*layers=*/1,
+        AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM,
+        AHARDWAREBUFFER_USAGE_CPU_READ_RARELY |
+            AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY,
+        0,
+        0,
+        0,
     };
-    return AHardwareBuffer_allocate(&desc, buffer);
+    return AHardwareBuffer_allocate(&desc, bufferOut);
   }
 
   // Releases the AHardwareBuffer.
@@ -52,9 +68,8 @@ class EaselComm2ImplTest : public ::testing::Test {
 
   // Repeatedly writes pattern to the buffer.
   // Returns NO_ERROR if successful, otherwise error code.
-  int writePattern(
-        std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-        AHardwareBufferHandle buffer) {
+  int writePattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
+                   AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
@@ -80,15 +95,14 @@ class EaselComm2ImplTest : public ::testing::Test {
 
   // Checks if the buffer is filled with the pattern.
   // Returns NO_ERROR if checking passed otherwise BAD_VALUE.
-  int checkPattern(
-        std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-        const AHardwareBufferHandle buffer) {
+  int checkPattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
+                   const AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
     void* vaddr;
     int ret = AHardwareBuffer_lock(
-        buffer, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, nullptr, &vaddr);
+        buffer, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, -1, nullptr, &vaddr);
     if (ret != NO_ERROR) return ret;
 
     bool match = true;
@@ -114,35 +128,44 @@ class EaselComm2ImplTest : public ::testing::Test {
 
   // Sends the buffer to server.
   // Returns NO_ERROR if successful, otherwise error code.
-  int sendBuffer(AHardwareBufferHandle buffer) {
-    AHardwareBuffer_Desc desc;
-    AHardwareBuffer_describe(buffer, &desc);
+  int sendBuffer(const EaselComm2::HardwareBuffer& src) {
+    EaselComm2::HardwareBuffer::Desc desc = src.desc();
 
     EaselComm::EaselMessage message;
     message.message_buf = &desc;
-    message.message_buf_size = sizeof(AHardwareBuffer_Desc);
+    message.message_buf_size = sizeof(EaselComm2::HardwareBuffer::Desc);
     message.dma_buf = nullptr;
-    message.dma_buf_fd = AHardwareBuffer_getNativeHandle(buffer)->data[0];
+    message.dma_buf_fd = src.ionFd();
     message.dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
-    message.dma_buf_size = getBufferSize(desc);
+    message.dma_buf_size = src.size();
 
     return mClient.sendMessage(&message);
   }
 
-  // Receives the buffer from server.
+  // Receives the buffer from server and write to dst.
   // Returns NO_ERROR if successful, otherwise error code.
-  int receiveBuffer(AHardwareBufferHandle* buffer) {
+  int receiveBuffer(EaselComm2::HardwareBuffer* dest) {
+    if (dest == nullptr) return BAD_VALUE;
     EaselComm::EaselMessage message;
     int ret = mClient.receiveMessage(&message);
     if (ret != NO_ERROR) return ret;
 
-    if (message.message_buf_size != sizeof(AHardwareBuffer_Desc)) return BAD_VALUE;
-    AHardwareBuffer_Desc* desc = reinterpret_cast<AHardwareBuffer_Desc*>(message.message_buf);
-    if (message.dma_buf_size != getBufferSize(*desc)) return BAD_VALUE;
+    if (message.message_buf_size != sizeof(EaselComm2::HardwareBuffer::Desc))
+      return BAD_VALUE;
+    auto desc = reinterpret_cast<EaselComm2::HardwareBuffer::Desc*>(
+        message.message_buf);
+    if (message.dma_buf_size != EaselComm2::HardwareBuffer::size(*desc))
+      return BAD_VALUE;
 
-    allocBuffer(desc->width, desc->height, buffer);
+    // This check is tricky. stride for AHardwareBuffer allocation is provided
+    // by the system. We assumes that same allocation configuration will give
+    // the same stride for loopback. If the stride does not match, BAD_VALUE is
+    // returned  for now. In the future, we will do a memcpy to support more
+    // formats.
+    if (*desc != dest->desc()) return BAD_VALUE;
+
     message.dma_buf = nullptr;
-    message.dma_buf_fd = AHardwareBuffer_getNativeHandle(*buffer)->data[0];
+    message.dma_buf_fd = dest->ionFd();
     message.dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
 
     ret = mClient.receiveDMA(&message);
@@ -171,11 +194,12 @@ class EaselComm2ImplTest : public ::testing::Test {
 
   // Receives the proto buffer from server.
   // Returns NO_ERROR if successful, otherwise error code.
-  int receiveProtoBuffer(test::Response *response) {
+  int receiveProtoBuffer(test::Response* response) {
     EaselComm::EaselMessage message;
     int ret = mClient.receiveMessage(&message);
     if (ret != NO_ERROR) return ret;
-    bool success = response->ParseFromArray(message.message_buf, message.message_buf_size);
+    bool success =
+        response->ParseFromArray(message.message_buf, message.message_buf_size);
     free(message.message_buf);
     return success ? NO_ERROR : BAD_VALUE;
   }
@@ -185,9 +209,7 @@ class EaselComm2ImplTest : public ::testing::Test {
     ASSERT_EQ(mClient.open(EaselComm::EASEL_SERVICE_TEST), OK);
   }
 
-  void TearDown() override {
-    mClient.close();
-  }
+  void TearDown() override { mClient.close(); }
 
  private:
   EaselCommClient mClient;
@@ -205,10 +227,12 @@ TEST_F(EaselComm2ImplTest, AHardareBufferEaselLoopback) {
   AHardwareBufferHandle txBuffer;
   ASSERT_EQ(allocBuffer(32, 24, &txBuffer), NO_ERROR);
   ASSERT_EQ(writePattern(patternSimple, txBuffer), NO_ERROR);
-  ASSERT_EQ(sendBuffer(txBuffer), NO_ERROR);
+  ASSERT_EQ(sendBuffer(*convertToHardwareBuffer(txBuffer)), NO_ERROR);
 
   AHardwareBufferHandle rxBuffer;
-  ASSERT_EQ(receiveBuffer(&rxBuffer), NO_ERROR);
+  ASSERT_EQ(allocBuffer(32, 24, &rxBuffer), NO_ERROR);
+
+  ASSERT_EQ(receiveBuffer(convertToHardwareBuffer(rxBuffer).get()), NO_ERROR);
   EXPECT_EQ(checkPattern(patternSimple, rxBuffer), NO_ERROR);
 
   releaseBuffer(txBuffer);
@@ -260,4 +284,4 @@ TEST_F(EaselComm2ImplTest, MathRpc) {
   EXPECT_EQ(mathResult.expression(), "7 / 8 = 0");
 }
 
-}  // namespace androids
+}  // namespace android
