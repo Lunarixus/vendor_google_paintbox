@@ -478,19 +478,19 @@ typedef struct ImxLateBufferConfig {
 ImxError ImxCreateGraph(
     const char *graph_name,
     const char *visa_string,
-    ImxNodeHandle *transfer_nodes, /* Input - Array of nodes */
+    ImxNodeHandle *nodes, /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
-    const char **transfer_node_names,
-    int transfer_node_count,  /* Size of previous two arrays */
+    const char **node_names,
+    int node_count,  /* Size of previous two arrays */
     ImxGraphHandle *graph_handle_ptr /* Output */);
 
 /* DEPRECATED; use ImxCreateGraphFromVisaString instead */
 ImxError ImxCreateGraphHack(
     const char *visa_string,
-    ImxNodeHandle *transfer_nodes, /* Input - Array of nodes */
+    ImxNodeHandle *nodes, /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
-    const char **transfer_node_names,
-    int transfer_node_count,  /* Size of previous two arrays */
+    const char **node_names,
+    int node_count,  /* Size of previous two arrays */
     ImxGraphHandle *graph_handle_ptr /* Output */);
 
 /* Option flags when compiling a graph.
@@ -741,8 +741,58 @@ typedef struct ImxCreateTransferNodeInfo {
   int stripe_width;  /* 0 means no striping */
 } ImxCreateTransferNodeInfo;
 
+typedef enum ImxGatherChannelType {
+  IMX_GATHER_COORDINATE = 0,
+  IMX_GATHER_DATA = 1
+} ImxGatherChannelType;
+
+typedef struct ImxGatherInfo {
+  /* coordinate channel or image data channel */
+  ImxGatherChannelType type;
+
+  /* The 2 fields below are the sheet width and height of the dma channel.
+   * As mentioned in the dma design doc, for coordinate channel, the sheet is
+   * always 4x4 like this:
+   *   X0  X1  X2  X3
+   *   Y0  Y1  Y2  Y3
+   *   P0  P1  P2  P3
+   *   M0  M1  M2  M3
+   * Where Xn/Yn are the coordinates, Pn is the plane, and Mn is the active mask
+   * (only LSB is valid).
+   * For image data channel, the sheet width and height specifies the size of
+   * the block the dma channel will be gathering, i.e., the size of the block
+   * that will be consumed by the 16x16 simd lanes, e.g.,
+   * If the input inst is like [x*2+st0][y*2+st1], then sheet size for gather
+   * data channel is 32x32.
+   */
+  int sheet_width;
+  int sheet_height;
+
+  /* Gather mode is ALWAYS configured in pair, in order to know which
+   * two channels form a pair (and there might be multiple gather pairs),
+   * fifo_id is used to show two dma channels are in the same fifo/pair.
+   * In other words, transfer nodes in the same fifo will have same fifo_id.
+   * Undefined error may appear if the pair is not formed properly in the input.
+   */
+  int fifo_id;
+} ImxGatherInfo;
+
 ImxError ImxCreateTransferNode(
     const ImxCreateTransferNodeInfo *info,
+    ImxNodeHandle *node_handle_ptr);
+
+typedef struct ImxCreatePaddingNodeInfo {
+  ImxShape padding_region;  /* Must be two-dimensional. */
+  ImxBorder border;
+} ImxCreatePaddingNodeInfo;
+
+ImxError ImxCreateInternalNode(
+    const ImxCreatePaddingNodeInfo *info,
+    ImxNodeHandle *node_handle_ptr);
+
+ImxError ImxCreateTransferNodeWithGatherInfo(
+    const ImxCreateTransferNodeInfo *info,
+    const ImxGatherInfo *gather_info,
     ImxNodeHandle *node_handle_ptr);
 
 ImxError ImxDeleteNode(

@@ -34,10 +34,12 @@ struct GoudaRequest {
   // saving raw inputs, leave this string empty. This field is not serialized.
   std::string portrait_raw_path;
 
-  // A prefix to use for all artifacts saved to portrait_raw_path. Ideally, this
-  // should somehow be tied to the result images that come out of portrait mode,
-  // but anything unique would be fine. If left empty, a timestamp will be
-  // generated. This field is not serialized.
+  // TODO(nealw): Remove this field and encode per-shot information in the
+  //   portrait_raw_path.
+  // The name of a subfolder to save portrait inputs and artifacts into.
+  // Ideally, this should somehow be tied to the result images that come out of
+  // portrait mode, but anything unique would be fine. If left empty, a
+  // timestamp will be generated. This field is not serialized.
   std::string shot_prefix;
 };
 // LINT.ThenChange(//depot/google3/googlex/gcam/creative_camera/portrait_mode/\

@@ -9,7 +9,7 @@
 
 namespace gcam {
 
-class Context;
+struct Context;
 class RawImage;
 class RawReadView;
 
