@@ -90,14 +90,10 @@ T GetSaturationCenterValueX2(T min_val, T max_val) {
 
 class ColorSatParams {
  public:
-  static const int kLutSize = (128 * (128 + 1) / 2);
-
   ColorSatParams();
-  ~ColorSatParams();
 
   // Copy constructors.
   ColorSatParams(const ColorSatParams& src) {
-    lut_ = nullptr;
     CopyFrom(src);
   }
   ColorSatParams& operator=(const ColorSatParams& src) {
@@ -105,16 +101,12 @@ class ColorSatParams {
     return *this;
   }
 
-  inline bool IsReady() const { return (lut_ != nullptr) || !UsesVibrance(); }
-
-  // This call applies new settings for the saturation and vibrance.
-  // Note that this call will be very fast iff sat_exp is 1.0f (~no vibrance),
-  //   as the LUT generation can be skipped.
+  // This call applies new settings for the saturation.
   void Update(float highlight_saturation,
               float shadow_saturation,
               float sat_exp);
 
-  // Applies the current settings for saturation & vibrance to an image.
+  // Applies the current settings for saturation to an image.
   void ProcessImage(const InterleavedWriteViewU8& rgb,
                     const Context& gcam_context) const;
   void ProcessImageReference(const InterleavedWriteViewU8& image) const;
@@ -123,27 +115,15 @@ class ColorSatParams {
     return (fabsf(highlight_saturation_ - 0) >= (1.0f / 256.0f)) ||
            (fabsf(shadow_saturation_ - 0) >= (1.0f / 256.0f));
   }
-  inline bool UsesVibrance() const {
-    return (fabsf(sat_exp_ - 1) >= (1.0f / 256.0f));
-  }
   inline bool IsIdentity() const {
-    return !(UsesSaturation() || UsesVibrance());
+    return !UsesSaturation();
   }
   inline float GetHighlightSaturation() const { return highlight_saturation_; }
   inline float GetShadowSaturation() const { return shadow_saturation_; }
   inline float GetSatExp() const { return sat_exp_; }
 
-  // You should only call this function if vibrance is being used (i.e.
-  // UsesVibrance() returns true).
-  inline int16_t ReadLut(int index) const {
-    assert(UsesVibrance());
-    assert(lut_ != nullptr);
-    assert(index >= 0 && index < kLutSize);
-    return lut_[index];
-  }
-
  protected:
-  void Clear();  // Frees the old LUT, if any.
+  void Clear();
 
   // The amount by which to increase color saturation in (gamma-corrected) sRGB
   //   space, where color saturation is defined as the separation between the
@@ -174,21 +154,6 @@ class ColorSatParams {
   //  > 1 = decrease color saturation (in unsaturated colors only).
   // Recommended: 0.75.
   float sat_exp_;
-
-  // LUT that helps us use two values (min(r,g,b) and max(r,g,b)) to look
-  // up a single precomputed value that will make saturation changes fast.
-  // Only allocated and used when vibrance is needed.
-  int16_t* lut_;
-
-  // max_val ranges from [0..255] in steps of 2.
-  // min_val ranges from [0..max_val] in steps of 2.
-  // Therefore, instead of storing 128 * 128 values,
-  //   we can do smart indexing and store half as many values;
-  //   the table ends up being 8K entries, and at 2 bytes/entry,
-  //   that's 16 KB -- small enough to fit in L1 cache.
-  static inline int GetColorSatLutIndex(uint8_t min_val, uint8_t max_val) {
-    return ((((max_val >> 1) * ((max_val >> 1) + 1)) >> 1) + (min_val >> 1));
-  }
 
   void CopyFrom(const ColorSatParams& src);
 };
