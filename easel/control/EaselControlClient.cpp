@@ -219,9 +219,8 @@ void easelConnThread()
             ALOGD("%s: connection was closed during handshake", __FUNCTION__);
         } else {
             ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
+            reportFatalError(EaselFatalReason::HANDSHAKE_FAIL);
         }
-        gHandshakeSuccessful = false;
-        reportFatalError(EaselFatalReason::HANDSHAKE_FAIL);
         return;
     }
     gHandshakeSuccessful = true;
