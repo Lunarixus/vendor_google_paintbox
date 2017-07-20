@@ -161,6 +161,53 @@ struct AfMetadata {
   std::vector<WeightedPixelRect> metering_rectangles;
 };
 
+// The position of the lens at a certain time.
+struct OisPosition {
+  // Time in nanoseconds at which the OIS position is recorded. This is on the
+  // the same clock as OisMetadata::timestamp_ois_clock_ns.
+  int64_t timestamp_ns;
+
+  // Raw register readouts for the X and Y position of the lens. The positive
+  // direction is from right to left and bottom to top respectively. The range
+  // should be within [-32768, 32767].
+  int32_t raw_readout_x;
+  int32_t raw_readout_y;
+
+  bool Check() const;
+  bool Equals(const OisPosition& other) const;
+};
+
+// The maximum number of OisPositions that should be added by the client.
+const int kMaxOisPositions = 16;
+
+// Metadata related to optical image stabilization (OIS). This contains
+// the lens position at several times during frame capture.
+// https://cs.corp.google.com/android/vendor/google/frameworks/camera/experimental2017/java/com/google/android/camera/experimental2017/ExperimentalKeys.java
+// See b/62091252 for upcoming API changes.
+// TODO(nealw): Update this struct when this API is updated during the 2017 MR1
+//   release.
+struct OisMetadata {
+  // Time in nanoseconds at which the first row of the frame is exposed as
+  // recorded by the CPU clock. All OIS timestamps are on the same clock.
+  // The zero point is arbitrary and not necessarily consistent with the Camera2
+  // frame timestamp recorded in FrameMetadata::timestamp_ns.
+
+  int64_t timestamp_ois_clock_ns = 0;
+
+  // A multiplicative factor to convert the values in OisPosition::raw_readout_x
+  // and OisPosition::raw_readout_y to pixels. In pixel units, the positive
+  // direction corresponds to going from left to right and top to bottom.
+  float raw_to_pixels = -1.0f;
+
+  // OIS position data of where the lens was at several times during frame
+  // capture. The client should not add more than kMaxOisPositions values to
+  // this vector. This limit is not enforced in gcam.
+  std::vector<OisPosition> ois_positions;
+
+  bool Check() const;
+  bool Equals(const OisMetadata& other) const;
+};
+
 // This structure contains metadata for an actual frame captured by the HAL
 //   and then passed to Gcam.  It is usually produced by the client and
 //   passed into Gcam.  (This is usually in response to a FrameRequest
@@ -294,9 +341,9 @@ struct FrameMetadata {
   //   parallel, fresh AWB is computed from the [raw] frame.  Both of these
   //   results come in at around the same time: the finished frame (but with
   //   potentially 'off' WB gains), and the 'ideal' WB gains that would have
-  //   been used (had they magically been known earlier).
-  // During gcam's processing, we can convert the image back to linear and
-  //   apply the difference, so that we end up with the ideal WB.
+  //   been used (had they magically been known earlier).  During gcam's
+  //   processing, we can convert the image back to linear and apply the
+  //   difference, so that we end up with the ideal WB.
   AwbInfo wb_capture;  // Corresponds to the actual captured image.
   AwbInfo wb_ideal;    // 'Better' information, computed post-capture.
 
@@ -443,6 +490,11 @@ struct FrameMetadata {
 
   // Current lens status.
   LensState lens_state;
+
+  // --------------------------------------------------------------------------
+  // Vendor-specific metadata plumbed through Camera2
+  // experimental tags.
+  OisMetadata ois_metadata;
 };
 
 // Write the metadata for a burst of captured frames to a string.
