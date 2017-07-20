@@ -26,22 +26,22 @@ LOCAL_SRC_FILES := $(call all-proto-files-under)
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := easelcomm2_impl_test
+LOCAL_MODULE := easelcomm2_test
 LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
-LOCAL_SRC_FILES := EaselComm2ImplTest.cpp
+LOCAL_SRC_FILES := EaselComm2Test.cpp
 LOCAL_SHARED_LIBRARIES := libnativewindow libeaselcomm libprotobuf-cpp-lite
 LOCAL_HEADER_LIBRARIES := libutils_headers
 LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := easelcomm2_impl_test_server
+LOCAL_MODULE := easelcomm2_test_server
 LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
-LOCAL_SRC_FILES := EaselComm2ImplTestServer.cpp
+LOCAL_SRC_FILES := EaselComm2TestServer.cpp
 LOCAL_SHARED_LIBRARIES := libeaselcomm libimageprocessor libbase libprotobuf-cpp-lite
 LOCAL_HEADER_LIBRARIES := libutils_headers
 LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto
