@@ -34,10 +34,12 @@ LOCAL_HEADER_LIBRARIES := \
     libhardware_headers
 
 LOCAL_STATIC_LIBRARIES := \
-    android.hardware.camera.common@1.0-helper
+    android.hardware.camera.common@1.0-helper \
+    libgtest
 
 LOCAL_C_INCLUDES += \
-    system/media/camera/include
+    system/media/camera/include \
+    external/googletest/googletest/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
@@ -49,5 +51,6 @@ LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE_TAGS := tests
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
+LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/bin
 
-include $(BUILD_NATIVE_TEST)
+include $(BUILD_EXECUTABLE)
