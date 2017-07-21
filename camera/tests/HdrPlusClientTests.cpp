@@ -51,6 +51,7 @@ const char kDefaultOutputDiffThreshold[] = "0.01";
 const char kDefaultNumRequests[] = "1";
 
 class HdrPlusClientTest : public HdrPlusClientListener,
+                          public EaselManagerClientListener,
                           public ::testing::Test {
 
 public:
@@ -59,6 +60,11 @@ public:
     void onOpenFailed(status_t) override {};
     void onFatalError() override {
         ASSERT_FALSE(true) << "HDR+ client has a fatal error.";
+    };
+
+    // Easel manager client callbacks
+    void onEaselFatalError(std::string errMsg) {
+        ASSERT_FALSE(true) << "Easel has encountered a fatal error: " << errMsg;
     };
 
     // Override HdrPlusClientListener::onCaptureResult to receive capture results.
@@ -188,7 +194,7 @@ protected:
             return res;
         }
 
-        res = mEaselManagerClient->resume();
+        res = mEaselManagerClient->resume(this);
         if (res != 0) {
             ALOGE("%s: Resuming Easel failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             disconnectClient();
