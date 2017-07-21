@@ -258,6 +258,7 @@ void EaselMessenger::disconnect() {
         // Close listener thread.
         if (mListenerThread != nullptr){
             mListenerThread->join();
+            delete mListenerThread;
             mListenerThread = nullptr;
         }
 
