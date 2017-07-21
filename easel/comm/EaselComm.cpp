@@ -374,14 +374,18 @@ int EaselComm::receiveMessage(EaselMessage *msg) {
     // Wait for timeout_ms
     kmsg_desc.wait.timeout_ms = msg->timeout_ms;
     if (ioctl(mEaselCommFd, EASELCOMM_IOC_WAITMSG, &kmsg_desc) == -1) {
-        ALOGE("%s: WAITMSG failed (%d)", __FUNCTION__, errno);
         /*
          * If close() method was called by another thread in parallel the
          * fd may be invalid.  Treat the same as evicting a WAITMSG waiter and
          * return "connection shut down" status.
          */
-        if (errno == EBADF)
+        if (errno == EBADF) {
                 errno = ESHUTDOWN;
+        }
+
+        if (errno != ESHUTDOWN) {
+            ALOGE("%s: WAITMSG failed (%d)", __FUNCTION__, errno);
+        }
         return -errno;
     }
 
