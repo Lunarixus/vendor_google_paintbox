@@ -47,5 +47,6 @@ PRODUCT_PACKAGES += \
     logd.easel \
     pbserver \
     pbticlient \
-    pbtiserver
+    pbtiserver \
+    hdrplus_client_tests
 endif

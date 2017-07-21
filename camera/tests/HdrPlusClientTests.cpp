@@ -48,6 +48,8 @@ const int32_t kInvalidFd = -1;
 
 const char kDefaultOutputDiffThreshold[] = "0.01";
 
+const char kDefaultNumRequests[] = "1";
+
 class HdrPlusClientTest : public HdrPlusClientListener,
                           public ::testing::Test {
 
@@ -300,6 +302,8 @@ protected:
             ASSERT_EQ(hdrplus_client_utils::comparePpm(mGoldenImagePath, *config, buffer,
                     &diffRatio), OK);
             ASSERT_LE(diffRatio, diffThreshold);
+
+            fprintf(stderr, "diffRatio %f (threshold %f)\n", diffRatio, diffThreshold);
         }
     }
 
@@ -535,7 +539,8 @@ protected:
     }
 
     // Test capture requests with specified output formats and number of requests.
-    void testCaptureRequests(const std::vector<uint32_t> &outputFormats, uint32_t numRequests) {
+    void testCaptureRequests(const std::vector<uint32_t> &outputFormats, uint32_t numRequests,
+                             bool backToBackProcessing) {
         ASSERT_EQ(connectClient(), OK);
 
         HdrPlusTestBurstInput burstInput(kBurstInputDir);
@@ -652,12 +657,21 @@ protected:
             // Issue a capture request.
             ASSERT_EQ(mClient->submitCaptureRequest(&request, requestMetadata), OK);
 
-            submittedRequests.push_back(request);
+            if (backToBackProcessing) {
+                fprintf(stderr, "Submit request %d/%d\n", i, numRequests);
+                ASSERT_EQ(waitForResults(request, kResultTimeoutMs), OK);
+                fprintf(stderr, "Request %d done!\n", i);
+            }
+            else {
+                submittedRequests.push_back(request);
+            }
         }
 
-        // Wait for results of all requests.
-        for (auto request : submittedRequests) {
-            ASSERT_EQ(waitForResults(request, kResultTimeoutMs), OK);
+        if (!backToBackProcessing) {
+           // Wait for results of all requests.
+           for (auto request : submittedRequests) {
+               ASSERT_EQ(waitForResults(request, kResultTimeoutMs), OK);
+           }
         }
 
         // TODO: Verify the content of the output buffers if possible.
@@ -707,7 +721,7 @@ TEST_F(HdrPlusClientTest, CaptureRequest) {
     for (uint32_t i = 0; i < sizeof(kDefaultOutputFormats) / sizeof(uint32_t); i++) {
         outputFormats.push_back(kDefaultOutputFormats[i]);
     }
-    testCaptureRequests(outputFormats, kNumTestCaptureRequests);
+    testCaptureRequests(outputFormats, kNumTestCaptureRequests, false);
 }
 
 // Test capture requests with NV21.
@@ -716,13 +730,36 @@ TEST_F(HdrPlusClientTest, CaptureSingleYuv) {
     mVerifyOutput = true;
     mGoldenImagePath.append(kBurstInputDir);
     mGoldenImagePath.append("golden.ppm");
-    testCaptureRequests(outputFormats, /* numRequests */1);
+    testCaptureRequests(outputFormats, /* numRequests*/1, false);
 }
 
 // Test capture requests with RAW16.
 TEST_F(HdrPlusClientTest, CaptureSingleRaw16) {
     std::vector<uint32_t> outputFormats = { HAL_PIXEL_FORMAT_RAW16 };
-    testCaptureRequests(outputFormats, /* numRequests */1);
+    testCaptureRequests(outputFormats, /* numRequests */1, false);
+}
+
+// Test capture requests with NV21.
+TEST_F(HdrPlusClientTest, CaptureMultiYuv) {
+    std::vector<uint32_t> outputFormats = { HAL_PIXEL_FORMAT_YCrCb_420_SP };
+    char value[256];
+    property_get("persist.hdrplus_client_test.num_requests", value,
+                kDefaultNumRequests);
+    int32_t numRequests = std::atoi(value);
+
+    mVerifyOutput = property_get_bool("persist.hdrplus_client_test.verify_output", true);
+    if (mVerifyOutput) {
+        mGoldenImagePath.append(kBurstInputDir);
+        mGoldenImagePath.append("golden.ppm");
+    }
+    testCaptureRequests(outputFormats, numRequests, true);
 }
 
 } // namespace android
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+
