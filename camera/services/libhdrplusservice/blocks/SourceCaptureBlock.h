@@ -85,7 +85,7 @@ private:
 
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
-        const CaptureConfig &config);
+        const paintbox::CaptureConfig &config);
 
     // Create capture service.
     status_t createCaptureService();
@@ -125,10 +125,10 @@ private:
     bool mIsMipiInput;
 
     // Capture service for MIPI capture.
-    std::unique_ptr<CaptureService> mCaptureService;
+    std::unique_ptr<paintbox::CaptureService> mCaptureService;
 
     // Capture config used to create the capture service.
-    const CaptureConfig mCaptureConfig;
+    const paintbox::CaptureConfig mCaptureConfig;
 
     // A DequeueRequestThread to dequeue completed buffers from capture service.
     std::unique_ptr<DequeueRequestThread> mDequeueRequestThread;
