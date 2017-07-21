@@ -496,7 +496,7 @@ bool EaselComm::isConnected() {
 /*
  * Open communications, register the Easel service ID.
  */
-int EaselCommClient::open(int service_id, long timeout_ms) {
+int EaselCommClient::open(EaselService service_id, long timeout_ms) {
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
@@ -549,7 +549,7 @@ int EaselCommClient::open(int service_id, long timeout_ms) {
     return 0;
 }
 
-int EaselCommServer::open(int service_id, long timeout_ms) {
+int EaselCommServer::open(EaselService service_id, long timeout_ms) {
     struct timespec begin;
     clock_gettime(CLOCK_MONOTONIC, &begin);
 

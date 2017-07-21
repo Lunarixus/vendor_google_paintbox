@@ -117,7 +117,7 @@ int main() {
 
   // Repeatedly receives test requests.
   while (true) {
-    CHECK_EQ(server.open(EaselComm::EASEL_SERVICE_TEST), android::NO_ERROR);
+    CHECK_EQ(server.open(EASEL_SERVICE_TEST), android::NO_ERROR);
     CHECK_EQ(server.startMessageHandlerThread(messageHandlerThreadFunc),
              android::NO_ERROR);
     server.joinMessageHandlerThread();

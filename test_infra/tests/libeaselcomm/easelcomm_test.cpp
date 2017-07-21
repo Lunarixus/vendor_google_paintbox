@@ -280,7 +280,7 @@ static void msgReceiverTest(EaselComm *receiver) {
 
 #ifdef EASEL_SERVER
 static void test_server() {
-    ASSERT_EQ(easelcomm_server.open(EaselComm::EASEL_SERVICE_TEST), 0);
+    ASSERT_EQ(easelcomm_server.open(EASEL_SERVICE_TEST), 0);
     easelcomm_server.flush();
 
     msgReceiverTest(&easelcomm_server);
@@ -295,7 +295,7 @@ TEST(EaselCommClientTest, MessagePassing) {
     // Let server flush before test start.
     sleep(1);
 
-    ASSERT_EQ(easelcomm_client.open(EaselComm::EASEL_SERVICE_TEST), 0);
+    ASSERT_EQ(easelcomm_client.open(EASEL_SERVICE_TEST), 0);
 
     ALOGI("easelcomm_test: start to pass client as sender\n");
     msgSenderTest(&easelcomm_client);

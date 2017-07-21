@@ -73,7 +73,7 @@ LogBufferEasel::LogBufferEasel()
     : mLogLevel(getLogLevel()), mLogDest(getLogDest()) {
   std::string logFilePath = getEnv(LOG_FILE);
   if (mLogDest == LogDest::LOGCAT) {
-    int ret = mCommServer.open(EaselComm::EASEL_SERVICE_LOG);
+    int ret = mCommServer.open(EASEL_SERVICE_LOG);
     // Falls back to LogDest::FILE if mCommServer open fails.
     if (ret != 0) {
       mLogDest = LogDest::FILE;

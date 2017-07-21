@@ -21,7 +21,7 @@ status_t MessengerToPbTiClient::connect(EaselMessengerListener &listener) {
     }
 
     // Connect to paintbox test service.
-    status_t res = mEaselCommServer.open(EaselComm::EASEL_SERVICE_TEST);
+    status_t res = mEaselCommServer.open(EASEL_SERVICE_TEST);
     if (res != 0) {
         ALOGE("%s: Opening EaselCommServer failed: %s (%d).",
               __FUNCTION__, strerror(-res), res);

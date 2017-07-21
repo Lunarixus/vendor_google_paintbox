@@ -204,7 +204,7 @@ void easelConnThread()
     }
 
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
-    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
