@@ -45,7 +45,7 @@ public:
      *
      * Resume Easel from suspend mode.
      */
-    status_t resume() override;
+    status_t resume(EaselManagerClientListener *listener) override;
 
     /*
      * Start MIPI with an output pixel lock rate for a camera.
@@ -120,6 +120,9 @@ private:
     const char *mDefaultServerHost = "localhost";
 #endif
 
+    // Callback registered for Easel fatal errors.
+    int onEaselFatalError(enum EaselFatalReason r);
+
     // If there is a pending open of HDR+ client. Must be called with mEaselControlLock held.
     bool isOpenFuturePendingLocked();
 
@@ -159,6 +162,12 @@ private:
     std::future<status_t> mOpenFuture;
 
     Mutex mEaselControlLock;
+
+    // Easel status listener. Protected by mClientListenerLock.
+    EaselManagerClientListener *mEaselManagerClientListener;
+
+    Mutex mClientListenerLock;
+
 };
 
 } // namespace android
