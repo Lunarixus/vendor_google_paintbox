@@ -180,7 +180,7 @@ int initializeServer() {
     if (gServerInitialized)
         return ret;
 
-    ret = easel_conn.open(EaselComm::EASEL_SERVICE_SYSCTRL);
+    ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
     if (ret) {
         ALOGE("%s: failed to open easel_conn (%d)", __FUNCTION__, ret);
         return ret;

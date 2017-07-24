@@ -46,7 +46,7 @@ void LogClient::stop() {
 // Running in mReceivingThread.
 // mCommClient is opened async to save camera boot time.
 void LogClient::receiveLogThread() {
-  int ret = mCommClient.open(EaselComm::EASEL_SERVICE_LOG);
+  int ret = mCommClient.open(EASEL_SERVICE_LOG);
   if (ret != 0) {
     ALOGE("open easelcomm client error (%d, %d), "
         "did you have two LogClient running at the same time? "

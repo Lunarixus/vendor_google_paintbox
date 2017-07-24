@@ -29,30 +29,13 @@
 
 #include <uapi/linux/google-easel-comm.h>
 
+#include "EaselService.h"
+
 #define DEFAULT_OPEN_TIMEOUT_MS 5000
 
 /* Defines and data types used by API clients and servers. */
 class EaselComm {
 public:
-    /*
-     * Easel service identifiers registered by clients and servers to
-     * route messages to each other.
-     */
-    enum {
-        // Easel system control
-        EASEL_SERVICE_SYSCTRL = 0,
-        // Easel shell
-        EASEL_SERVICE_SHELL,
-        // Used by unit tests
-        EASEL_SERVICE_TEST,
-        // HDR+ via Paintbox camera framework service
-        EASEL_SERVICE_HDRPLUS,
-        // Logging service.
-        EASEL_SERVICE_LOG,
-        // Max service ID
-        EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
-    };
-
     /*
      * Easel message identifier, unique on the originating side of
      * the link.
@@ -174,7 +157,7 @@ public:
      *
      * Returns 0 for success, -1 for failure.
      */
-    virtual int open(int service_id, long timeout_ms) = 0;
+    virtual int open(EaselService service_id, long timeout_ms) = 0;
 
     /*
      * Close down communication via this object.  Cancel any pending
@@ -243,7 +226,7 @@ protected:
 
 class EaselCommClient : public EaselComm {
 public:
-    virtual int open(int service_id,
+    virtual int open(EaselService service_id,
                      long timeout_ms = DEFAULT_OPEN_TIMEOUT_MS) override;
 
     /*
@@ -258,7 +241,7 @@ public:
 
 class EaselCommServer : public EaselComm {
 public:
-    virtual int open(int service_id,
+    virtual int open(EaselService service_id,
                      long timeout_ms = DEFAULT_OPEN_TIMEOUT_MS) override;
 
     /*

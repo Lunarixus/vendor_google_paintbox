@@ -206,7 +206,7 @@ class EaselComm2ImplTest : public ::testing::Test {
 
  protected:
   void SetUp() override {
-    ASSERT_EQ(mClient.open(EaselComm::EASEL_SERVICE_TEST), OK);
+    ASSERT_EQ(mClient.open(EASEL_SERVICE_TEST), OK);
   }
 
   void TearDown() override { mClient.close(); }

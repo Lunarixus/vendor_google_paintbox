@@ -23,7 +23,7 @@ status_t MessengerToPbTiService::connect(EaselMessengerListener &listener) {
 
     status_t res;
 
-    res = mEaselCommClient.open(EaselComm::EASEL_SERVICE_TEST);
+    res = mEaselCommClient.open(EASEL_SERVICE_TEST);
     if (res != 0) {
         ALOGE("%s: Opening EaselComm failed: %s (%d)", __FUNCTION__,
               strerror(-res), res);

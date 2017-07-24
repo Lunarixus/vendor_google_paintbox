@@ -57,7 +57,7 @@ status_t MessengerToHdrPlusService::connect(EaselMessengerListener &listener) {
 
     status_t res;
 
-    res = mEaselCommClient.open(EaselComm::EASEL_SERVICE_HDRPLUS);
+    res = mEaselCommClient.open(EASEL_SERVICE_HDRPLUS);
     if (res != 0) {
         ALOGE("%s: Opening EaselComm failed: %s (%d)", __FUNCTION__, strerror(-res), res);
         return res;
