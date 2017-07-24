@@ -312,7 +312,8 @@ void MessengerToHdrPlusService::notifyInputBuffer(const StreamBuffer &inputBuffe
     RETURN_ON_WRITE_ERROR(message->writeUint32(inputBuffer.streamId));
     RETURN_ON_WRITE_ERROR(message->writeInt64(timestampNs));
 
-    res = sendMessageWithDmaBuffer(message, inputBuffer.data, inputBuffer.dataSize);
+    res = sendMessageWithDmaBuffer(message, inputBuffer.data, inputBuffer.dataSize,
+            inputBuffer.dmaBufFd);
     if (res != 0) {
         ALOGE("%s: Sending a message with DMA buffer failed: %s (%d).", __FUNCTION__,
                 strerror(-res), res);

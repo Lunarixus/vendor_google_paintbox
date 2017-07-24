@@ -249,6 +249,9 @@ private:
 
     // Pipeline state
     PipelineState mState;
+
+    // IMX memory allocate handle to allocate IMX buffers.
+    ImxMemoryAllocatorHandle mImxMemoryAllocatorHandle;
 };
 
 } // namespace pbcamera

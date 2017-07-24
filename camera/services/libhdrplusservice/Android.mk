@@ -17,11 +17,12 @@ LOCAL_SRC_FILES :=  \
 
 LOCAL_SHARED_LIBRARIES:= \
     libcapture \
+    libeaselcomm \
+    libeaselcontrol \
     libgcam \
     libhdrplusmessenger \
     liblog \
-    libeaselcontrol \
-    libeaselcomm
+    libimageprocessor
 
 LOCAL_HEADER_LIBRARIES := \
     libsystem_headers

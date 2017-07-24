@@ -539,13 +539,14 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
     // Copy HDR+ processed final image to block output buffers. This won't be needed for PB
     // version.
     for (auto outputBuffer : outputResult.buffers) {
-        uint8_t *lumaDst = outputBuffer->getPlaneData(0);
-
         // The following assumes format is NV21.
         if (outputBuffer->getFormat() != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
             ALOGE("%s: Only NV21 output buffer is supported.", __FUNCTION__);
             break;
         }
+
+        outputBuffer->lockData();
+        uint8_t *lumaDst = outputBuffer->getPlaneData(0);
 
         // Copy luma line by line from the final image.
         const gcam::InterleavedImageU8 &lumaImageSrc = yuvResult->luma_image();
@@ -568,6 +569,8 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
             std::memcpy(chromaDst + y * outputBuffer->getStride(1), &chromaImageSrc.at(0, y, 0),
                     lineBytesToCopy);
         }
+
+        outputBuffer->unlockData();
     }
 
     // Set frame metadata.

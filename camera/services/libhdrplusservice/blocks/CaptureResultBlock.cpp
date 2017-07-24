@@ -62,6 +62,9 @@ bool CaptureResultBlock::doWorkLocked() {
     for (auto buffer : blockResult.buffers) {
         StreamBuffer resultBuffer = {};
 
+        // TODO(b/63809896): Locking data isn't necessary once it switches to ION buffers.
+        buffer->lockData();
+
         std::shared_ptr<PipelineStream> stream = buffer->getStream().lock();
         if (stream == nullptr) {
             ALOGE("%s: Stream has been destroyed for request %d.", __FUNCTION__,
@@ -70,6 +73,7 @@ bool CaptureResultBlock::doWorkLocked() {
         } else {
             resultBuffer.streamId = stream->getStreamId();
             resultBuffer.data = buffer->getPlaneData(0);
+            resultBuffer.dmaBufFd = buffer->getFd();
             resultBuffer.dataSize = buffer->getDataSize();
             captureResult.outputBuffers.push_back(resultBuffer);
         }
@@ -80,6 +84,10 @@ bool CaptureResultBlock::doWorkLocked() {
         mMessengerToClient->notifyCaptureResult(&captureResult);
     } else {
         ALOGE("%s: Messenger to client is null.", __FUNCTION__);
+    }
+
+    for (auto buffer : blockResult.buffers) {
+        buffer->unlockData();
     }
 
     auto pipeline = mPipeline.lock();

@@ -123,7 +123,7 @@ void MessengerToHdrPlusClient::notifyCaptureResult(CaptureResult *result) {
         RETURN_ON_WRITE_ERROR(message->writeInt64(result->metadata.timestamp));
 
         // Send to client.
-        res = sendMessageWithDmaBuffer(message, buffer.data, buffer.dataSize);
+        res = sendMessageWithDmaBuffer(message, buffer.data, buffer.dataSize, buffer.dmaBufFd);
         if (res != 0) {
             ALOGE("%s: Sending message with DMA buffer failed: %s (%d).", __FUNCTION__,
                     strerror(-res), res);
