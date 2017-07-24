@@ -20,13 +20,14 @@ PipelineStream::~PipelineStream() {
 }
 
 std::shared_ptr<PipelineStream> PipelineStream::newPipelineStream(
-        const StreamConfiguration &config, int numBuffers) {
+        ImxMemoryAllocatorHandle imxMemoryAllocatorHandle, const StreamConfiguration &config,
+        int numBuffers) {
     std::shared_ptr<PipelineStream> stream = std::shared_ptr<PipelineStream>(new PipelineStream());
     if (stream == nullptr) {
         ALOGE("%s: Creating a pipeline stream instance failed.", __FUNCTION__);
         return nullptr;
     }
-    status_t res = stream->create(config, numBuffers);
+    status_t res = stream->create(imxMemoryAllocatorHandle, config, numBuffers);
     if (res != 0) {
         ALOGE("%s: Creating a pipeline stream failed: %s (%d).", __FUNCTION__, strerror(-res),
                 res);
@@ -36,7 +37,8 @@ std::shared_ptr<PipelineStream> PipelineStream::newPipelineStream(
     return stream;
 }
 
-status_t PipelineStream::create(const StreamConfiguration &config, int numBuffers) {
+status_t PipelineStream::create(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
+        const StreamConfiguration &config, int numBuffers) {
     std::unique_lock<std::mutex> lock(mApiLock);
 
     if (mAllBuffers.size() > 0) {
@@ -45,14 +47,14 @@ status_t PipelineStream::create(const StreamConfiguration &config, int numBuffer
     }
 
     for (int i = 0; i < numBuffers; i++) {
-        std::unique_ptr<PipelineBuffer> buffer =
-                std::make_unique<PipelineHeapBuffer>(shared_from_this(), config);
+        std::unique_ptr<PipelineImxBuffer> buffer =
+                std::make_unique<PipelineImxBuffer>(shared_from_this(), config);
         if (buffer == nullptr) {
             ALOGE("%s: Creating a buffer instance failed.", __FUNCTION__);
             destroyLocked();
             return -EINVAL;
         }
-        status_t res = buffer->allocate();
+        status_t res = buffer->allocate(imxMemoryAllocatorHandle);
         if (res != 0) {
             ALOGE("%s: Allocating stream (%ux%u format %d with %d buffers) failed: %s (%d)",
                     __FUNCTION__, config.image.width, config.image.height, config.image.format,
