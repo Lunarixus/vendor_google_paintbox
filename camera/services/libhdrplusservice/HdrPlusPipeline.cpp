@@ -19,7 +19,8 @@ std::shared_ptr<HdrPlusPipeline> HdrPlusPipeline::newPipeline(
 
 HdrPlusPipeline::HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messengerToClient) :
         mMessengerToClient(messengerToClient),
-        mState(STATE_UNCONFIGURED) {
+        mState(STATE_UNCONFIGURED),
+        mImxMemoryAllocatorHandle(nullptr) {
 }
 
 HdrPlusPipeline::~HdrPlusPipeline() {
@@ -232,11 +233,27 @@ void HdrPlusPipeline::destroyLocked() {
     mHdrPlusProcessingBlock = nullptr;
     mCaptureResultBlock = nullptr;
 
+    if (mImxMemoryAllocatorHandle != nullptr) {
+        ImxDeleteMemoryAllocator(mImxMemoryAllocatorHandle);
+        mImxMemoryAllocatorHandle = nullptr;
+    }
+
     mState = STATE_UNCONFIGURED;
 }
 
 status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs) {
+
+    if (mImxMemoryAllocatorHandle == nullptr) {
+        // TODO(b/63809896): Switch to ION.
+        ImxError err = ImxGetMemoryAllocator(IMX_MEMORY_ALLOCATOR_MALLOC,
+                &mImxMemoryAllocatorHandle);
+        if (err != 0) {
+            ALOGE("%s: Creating IMX memory allocator failed.", __FUNCTION__);
+            return -ENOMEM;
+        }
+    }
+
     // TODO: Avoid recreate input stream if it has not changed. b/35673698
     mInputStream = PipelineStream::newInputPipelineStream(inputConfig, kDefaultNumInputBuffers);
     if (mInputStream == nullptr) {
@@ -249,8 +266,8 @@ status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputCon
 
     // Allocate output streams.
     for (auto outputConfig : outputConfigs) {
-        std::shared_ptr<PipelineStream> stream = PipelineStream::newPipelineStream(outputConfig,
-                kDefaultNumOutputBuffers);
+        std::shared_ptr<PipelineStream> stream = PipelineStream::newPipelineStream(
+                mImxMemoryAllocatorHandle, outputConfig, kDefaultNumOutputBuffers);
         if (stream == nullptr) {
             ALOGE("%s: Initialize output stream failed.", __FUNCTION__);
             return -ENODEV;

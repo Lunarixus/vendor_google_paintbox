@@ -10,6 +10,7 @@
 #include "PipelineBuffer.h"
 #include "PipelineStream.h"
 #include "HdrPlusTypes.h"
+#include "imx.h"
 
 namespace pbcamera {
 
@@ -54,6 +55,11 @@ int32_t PipelineBuffer::getFormat() const {
 int32_t PipelineBuffer::getStride(uint32_t planeNum) const {
     return mAllocatedConfig.image.planes.size() > planeNum ?
            mAllocatedConfig.image.planes[planeNum].stride : 0;
+}
+
+int PipelineBuffer::getFd() {
+    ALOGE("%s: Not supported.", __FUNCTION__);
+    return -1;
 }
 
 status_t PipelineBuffer::clear() {
@@ -169,26 +175,33 @@ status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
 }
 
 /********************************************
- * PipelineHeapBuffer implementation starts.
+ * PipelineImxBuffer implementation starts.
  ********************************************/
-PipelineHeapBuffer::PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
+PipelineImxBuffer::PipelineImxBuffer(const std::weak_ptr<PipelineStream> &stream,
         const StreamConfiguration &config) :
     PipelineBuffer(stream, config),
-    mData(nullptr),
+    mImxDeviceBufferHandle(nullptr),
+    mLockedData(nullptr),
     mDataSize(0) {
 }
 
-PipelineHeapBuffer::~PipelineHeapBuffer() {
-    if (mData != nullptr) {
-        free(mData);
-        mData = nullptr;
+PipelineImxBuffer::~PipelineImxBuffer() {
+    if (mImxDeviceBufferHandle != nullptr) {
+        ImxDeleteDeviceBuffer(mImxDeviceBufferHandle);
+        mImxDeviceBufferHandle = nullptr;
+        mLockedData = nullptr;
         mDataSize = 0;
     }
 }
 
-status_t PipelineHeapBuffer::allocate() {
+status_t PipelineImxBuffer::allocate() {
+    ALOGE("%s: Use ImxMemoryAllocatorHandle to allocate capture frame buffers.", __FUNCTION__);
+    return -EINVAL;
+}
+
+status_t PipelineImxBuffer::allocate(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle) {
     // Check if buffer is already allocated.
-    if (mData != nullptr) return -EEXIST;
+    if (mImxDeviceBufferHandle != nullptr) return -EEXIST;
 
     status_t res = validateConfig(mRequestedConfig);
     if (res != 0) {
@@ -203,9 +216,14 @@ status_t PipelineHeapBuffer::allocate() {
         numBytes += plane.stride * plane.scanline;
     }
 
-    mData = (uint8_t*)malloc(numBytes);
-    if (mData == nullptr) {
-        ALOGE("%s: Allocating buffer failed.", __FUNCTION__);
+    ImxError err = ImxCreateDeviceBufferManaged(imxMemoryAllocatorHandle,
+            numBytes,
+            kImxDefaultDeviceBufferAlignment,
+            kImxDefaultDeviceBufferHeap,
+            /*flags*/0,
+            &mImxDeviceBufferHandle);
+    if (err != 0) {
+        ALOGE("%s: Allocate %zu bytes failed: %d", __FUNCTION__, numBytes, err);
         return -ENOMEM;
     }
 
@@ -214,8 +232,16 @@ status_t PipelineHeapBuffer::allocate() {
     return 0;
 }
 
-uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
-    if (mData == nullptr || planeNum >= mAllocatedConfig.image.planes.size()) {
+uint8_t* PipelineImxBuffer::getPlaneData(uint32_t planeNum) {
+    if (mImxDeviceBufferHandle == nullptr) {
+        ALOGE("%s: Device buffer is nullptr.", __FUNCTION__);
+        return nullptr;
+    } else if(planeNum >= mAllocatedConfig.image.planes.size()) {
+        ALOGE("%s: Getting plane %d but the image has %lu planes.", __FUNCTION__, planeNum,
+                mAllocatedConfig.image.planes.size());
+        return nullptr;
+    } else if (mLockedData == nullptr) {
+        ALOGE("%s: Data is not locked.", __FUNCTION__);
         return nullptr;
     }
 
@@ -225,20 +251,51 @@ uint8_t* PipelineHeapBuffer::getPlaneData(uint32_t planeNum) {
                         mAllocatedConfig.image.planes[i].scanline);
     }
 
-    return mData + planeOffset;
+    return static_cast<uint8_t*>(mLockedData) + planeOffset;
 }
 
-uint32_t PipelineHeapBuffer::getDataSize() const {
+int PipelineImxBuffer::getFd() {
+    int fd = -1;
+    ImxShareDeviceBuffer(mImxDeviceBufferHandle, &fd);
+    return fd;
+}
+
+
+uint32_t PipelineImxBuffer::getDataSize() const {
     return mDataSize;
 }
 
-status_t PipelineHeapBuffer::lockData() {
-    // Do nothing.
+status_t PipelineImxBuffer::lockData() {
+    if (mImxDeviceBufferHandle == nullptr) {
+        ALOGE("%s: Device buffer is nullptr.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    if (mLockedData != nullptr) {
+        return 0;
+    }
+
+    ImxError err = ImxLockDeviceBuffer(mImxDeviceBufferHandle, &mLockedData);
+    if (err != 0) {
+        ALOGE("%s: Locking buffer failed: %d", __FUNCTION__, err);
+        mLockedData = nullptr;
+        return -ENOMEM;
+    }
+
     return 0;
 }
 
-void PipelineHeapBuffer::unlockData() {
-    // Do nothing.
+void PipelineImxBuffer::unlockData() {
+    if (mLockedData == nullptr)
+        return;
+
+    ImxError err = ImxUnlockDeviceBuffer(mImxDeviceBufferHandle);
+    if (err != 0) {
+        ALOGE("%s: Unlocking buffer failed: %d", __FUNCTION__, err);
+        return;
+    }
+
+    mLockedData = nullptr;
 }
 
 /***************************************************
@@ -330,6 +387,11 @@ uint32_t PipelineCaptureFrameBuffer::getDataSize() const {
                  mAllocatedConfig.image.planes[i].scanline);
     }
     return size;
+}
+
+int PipelineCaptureFrameBuffer::getFd() {
+    ALOGE("%s: Getting FD of a capture frame buffer is not supported.", __FUNCTION__);
+    return -1;
 }
 
 status_t PipelineCaptureFrameBuffer::lockData() {

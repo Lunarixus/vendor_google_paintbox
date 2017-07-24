@@ -28,13 +28,15 @@ public:
      * If the pipeline stream will be used to capture frames from MIPI, must use
      * newInputPipelineStream to create the stream.
      *
+     * imxMemoryAllocatorHandle is the handle to allocate IMX buffers.
      * config is the configuration to create the stream of.
      * numBuffers is the number of buffers to create for the stream.
      *
      * Returns a std::shared_ptr<PipelineStream> pointing to a PipelineStream on success.
      * Returns a std::shared_ptr<PipelineStream> pointing to nullptr if it failed.
      */
-    static std::shared_ptr<PipelineStream> newPipelineStream(const StreamConfiguration &config,
+    static std::shared_ptr<PipelineStream> newPipelineStream(
+            ImxMemoryAllocatorHandle imxMemoryAllocatorHandle, const StreamConfiguration &config,
             int numBuffers);
 
     /*
@@ -91,6 +93,7 @@ private:
     /**
      * Create a stream based on stream configuration.
      *
+     * imxMemoryAllocatorHandle is the handle to allocate IMX buffers.
      * config is the configuration to create the stream of.
      * numBuffers is the number of buffers to create for the stream.
      *
@@ -99,7 +102,8 @@ private:
      *  -EINVAL:        if config is not supported or invalid.
      *  -EEXIST:        if stream is already created.
      */
-    status_t create(const StreamConfiguration &config, int numBuffers);
+    status_t create(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
+            const StreamConfiguration &config, int numBuffers);
 
     /**
      * Create an input stream based on input configuration.

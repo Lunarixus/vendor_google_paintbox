@@ -61,6 +61,9 @@ public:
     // Unlock the data of the frame buffer.
     virtual void unlockData() = 0;
 
+    // Get the file descriptor for this buffer.
+    virtual int getFd() = 0;
+
     // Set each pixel to black.
     status_t clear();
 
@@ -101,32 +104,30 @@ private:
 };
 
 /**
- * PipelineHeapBuffer
+ * PipelineImxBuffer
  *
- * PipelineHeapBuffer inherited from PipelineBuffer defines HDR+ buffers allocated using heap
- * memory.
+ * PipelineImxBuffer inherited from PipelineBuffer defines HDR+ buffers allocated using IMX API.
  */
-class PipelineHeapBuffer : public PipelineBuffer {
+class PipelineImxBuffer : public PipelineBuffer {
 public:
-    PipelineHeapBuffer(const std::weak_ptr<PipelineStream> &stream,
+    PipelineImxBuffer(const std::weak_ptr<PipelineStream> &stream,
             const StreamConfiguration &config);
-    virtual ~PipelineHeapBuffer();
+    virtual ~PipelineImxBuffer();
 
-    /*
-     * Allocate the image data on the heap.
-     *
-     * Returns:
-     *  0:          on success.
-     *  -EINVAL:    if the stream configuration is invalid or not supported.
-     *  -EEXIST:    if the image data is already allocated.
-     */
+    // Use ImxMemoryAllocatorHandle to allocate a buffer instead.
     virtual status_t allocate() override;
+
+     // Allocate a IMX buffer.
+    status_t allocate(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle);
 
     // Return the pointer to the raw data of an image plane.
     virtual uint8_t* getPlaneData(uint32_t planeNum) override;
 
     // Return the size of the data.
     virtual uint32_t getDataSize() const override;
+
+    // Get the file descriptor for this buffer.
+    virtual int getFd() override;
 
     // Lock data of the frame buffer. It must be called before calling getPlaneData() to access
     // the plane data. After accessc finishes, call unlockData to unlock data.
@@ -137,10 +138,9 @@ public:
 
 private:
     // Raw data of the image.
-    uint8_t *mData;
+    ImxDeviceBufferHandle mImxDeviceBufferHandle;
+    void* mLockedData; // pointer to access data when it's locked.
     uint32_t mDataSize;
-
-    // Free the memory of the buffer.
 };
 
 /**
@@ -166,6 +166,9 @@ public:
 
     // Return the size of the data.
     virtual uint32_t getDataSize() const override;
+
+    // Get the file descriptor for this buffer.
+    virtual int getFd() override;
 
     // Lock data of the frame buffer. It must be called before calling getPlaneData() to access
     // the plane data. After accessc finishes, call unlockData to unlock data.
