@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -o errexit
+
+if [ "$#" -lt 1 ]
+then
+	echo "Please input the debug dumpfile."
+	exit -1
+fi
+
+RAMDISK_DIR="${ANDROID_PRODUCT_OUT}/obj/ETC/easel_ramdisk.img_intermediates/prebuilt/"
+ADDR2LINE="aarch64-linux-android-addr2line"
+
+pc_regex="EASEL.+#[0-9]+ pc ([0-9A-Fa-f]+)[ ]+([^ ]+)"
+
+while read line; do
+	if [[ $line =~ $pc_regex ]]; then
+		echo "$line <-- `$ADDR2LINE -e ${RAMDISK_DIR}/${BASH_REMATCH[2]} 0x${BASH_REMATCH[1]} -Cfp`"
+	else
+		echo "$line"
+	fi
+done < $1
