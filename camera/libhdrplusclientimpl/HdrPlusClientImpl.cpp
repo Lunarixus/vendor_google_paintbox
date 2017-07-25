@@ -167,6 +167,10 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
         return NO_INIT;
     }
 
+    if (request == nullptr) {
+        ALOGE("%s: request is nullptr.", __FUNCTION__);
+        return BAD_VALUE;
+    }
 
     pbcamera::RequestMetadata requestMetadataDest = {};
     status_t res = ApEaselMetadataManager::convertAndReturnRequestMetadata(&requestMetadataDest,
@@ -183,6 +187,9 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
 
     PendingRequest pendingRequest;
     pendingRequest.request = *request;
+    for (auto &outputBuffer : request->outputBuffers) {
+        pendingRequest.outputBufferStatuses.emplace(outputBuffer.streamId, OUTPUT_BUFFER_REQUESTED);
+    }
 
     START_PROFILER_TIMER(pendingRequest.timer);
 
@@ -353,63 +360,85 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
             for (uint32_t j = 0; j < mPendingRequests[i].request.outputBuffers.size(); j++) {
                 pbcamera::StreamBuffer *requestBuffer =
                         &mPendingRequests[i].request.outputBuffers[j];
-                if (requestBuffer->streamId == result->buffer.streamId) {
-                    // Found the output buffer. Now transfer the content of DMA buffer to this
-                    // output buffer.
-                    status_t res = mMessengerToService.transferDmaBuffer(result->buffer.dmaHandle,
-                            requestBuffer->dmaBufFd, requestBuffer->data, requestBuffer->dataSize);
+                if (requestBuffer->streamId != result->buffer.streamId) continue;
 
-                    if (res != 0) {
-                        ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
-                                strerror(-res), res);
-                        successfulResult = false;
-                    }
+                // Found the output buffer. Now transfer the content of DMA buffer to this
+                // output buffer.
+                status_t res = mMessengerToService.transferDmaBuffer(result->buffer.dmaHandle,
+                        requestBuffer->dmaBufFd, requestBuffer->data, requestBuffer->dataSize);
 
-                    END_PROFILER_TIMER(mPendingRequests[i].timer);
-
-                    // Get the result metadata using the AP timestamp.
-                    const camera_metadata_t *resultMetadata = nullptr;
-                    std::shared_ptr<CameraMetadata> cameraMetadata;
-                    res = mApEaselMetadataManager.getCameraMetadata(&cameraMetadata,
-                            result->metadata.timestamp);
-                    if (res != OK) {
-                        ALOGE("%s: Failed to get camera metadata for timestamp %" PRId64
-                                ": %s (%d)", __FUNCTION__, result->metadata.timestamp,
-                                strerror(-res), res);
-                        successfulResult = false;
-                    } else {
-                        resultMetadata = cameraMetadata->getAndLock();
-                    }
-
-                    pbcamera::CaptureResult clientResult = {};
-                    clientResult.requestId = result->requestId;
-                    clientResult.outputBuffers.push_back(*requestBuffer);
-
-                    if (successfulResult) {
-                        // Invoke client listener callback for the capture result.
-                        mClientListener->onCaptureResult(&clientResult, *resultMetadata);
-                    } else {
-                        // Invoke client listener callback for the failed capture result.
-                        mClientListener->onFailedCaptureResult(&clientResult);
-                    }
-
-                    // Release metadata
-                    if (resultMetadata != nullptr) {
-                        cameraMetadata->unlock(resultMetadata);
-                    }
-
-                    // Remove the buffer from pending request.
-                    auto bufferIter = mPendingRequests[i].request.outputBuffers.begin() + j;
-                    mPendingRequests[i].request.outputBuffers.erase(bufferIter);
-
-                    // Remove the pending request if it has no more pending buffers.
-                    if (mPendingRequests[i].request.outputBuffers.size() == 0) {
-                        auto requestIter = mPendingRequests.begin() + i;
-                        mPendingRequests.erase(requestIter);
-                    }
-
-                    return;
+                if (res != 0) {
+                    ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
+                            strerror(-res), res);
+                    successfulResult = false;
                 }
+
+                std::unordered_map<uint32_t, OutputBufferStatus> *bufferStatuses =
+                        &mPendingRequests[i].outputBufferStatuses;
+
+                // Update output buffer status.
+                auto bufferStatus = bufferStatuses->find(requestBuffer->streamId);
+                if (bufferStatus != bufferStatuses->end()) {
+                    if (bufferStatus->second != OUTPUT_BUFFER_REQUESTED) {
+                        ALOGW("%s: Aleady received result for request %d stream %d",
+                                __FUNCTION__, result->requestId, result->buffer.streamId);
+                    }
+                    bufferStatus->second = successfulResult ?
+                            OUTPUT_BUFFER_CAPTURED : OUTPUT_BUFFER_FAILED;
+                } else {
+                    ALOGW("%s: Cannot find output buffer status for stream %d", __FUNCTION__,
+                            requestBuffer->streamId);
+                }
+
+                // Check if all results are back.
+                for (auto &status : *bufferStatuses) {
+                    if (status.second == OUTPUT_BUFFER_REQUESTED) {
+                        // Return if not all output buffers in this request are back.
+                        return;
+                    } else if (status.second == OUTPUT_BUFFER_FAILED) {
+                        successfulResult = false;
+                    }
+                }
+
+                // All output buffers in this request are back, ready to send capture result.
+                END_PROFILER_TIMER(mPendingRequests[i].timer);
+
+                // Get the result metadata using the AP timestamp.
+                const camera_metadata_t *resultMetadata = nullptr;
+                std::shared_ptr<CameraMetadata> cameraMetadata;
+                res = mApEaselMetadataManager.getCameraMetadata(&cameraMetadata,
+                        result->metadata.timestamp);
+                if (res != OK) {
+                    ALOGE("%s: Failed to get camera metadata for timestamp %" PRId64
+                            ": %s (%d)", __FUNCTION__, result->metadata.timestamp,
+                            strerror(-res), res);
+                    successfulResult = false;
+                } else {
+                    resultMetadata = cameraMetadata->getAndLock();
+                }
+
+                pbcamera::CaptureResult clientResult = {};
+                clientResult.requestId = result->requestId;
+                clientResult.outputBuffers = mPendingRequests[i].request.outputBuffers;
+
+                if (successfulResult) {
+                    // Invoke client listener callback for the capture result.
+                    mClientListener->onCaptureResult(&clientResult, *resultMetadata);
+                } else {
+                    // Invoke client listener callback for the failed capture result.
+                    mClientListener->onFailedCaptureResult(&clientResult);
+                }
+
+                // Release metadata
+                if (resultMetadata != nullptr) {
+                    cameraMetadata->unlock(resultMetadata);
+                }
+
+                // Remove the pending request.
+                auto requestIter = mPendingRequests.begin() + i;
+                mPendingRequests.erase(requestIter);
+
+                return;
             }
         }
     }
