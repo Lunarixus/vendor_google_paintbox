@@ -33,37 +33,32 @@ struct Context;
 //     r = r + gcam::RoundToNearest((r - center) * saturation);
 //     g = g + gcam::RoundToNearest((g - center) * saturation);
 //     b = b + gcam::RoundToNearest((b - center) * saturation);
-//
-// IMPORTANT: There is one significant exception: The raw finish pipeline
-// doesn't actually use 'GetSaturationCenterValue'; it uses a different
-// formula: the average of the RGB values.  This means AE's predictions are
-// actually incorrect.  For more information, see the notes in
-// finish_raw_halide.cc.
-// TODO(geiss): Fix this.
 
+// LINT.IfChange
 // GetSaturationStrength():
 // During color saturation enhancement, for a given sRGB pixel, this helper
 //   function determines what the saturation strength should be.
 // Templatized so that it can be called from C or Halide.
-// 'white_level' should contain the maximum possible value of 'max_rgb'.
+// 'white_level' should contain the maximum possible value of 'lightness'.
 //   (It is given as a template parameter to ensure that taking its reciprocal
 //   is done at compile-time, to guarantee fast runtime performance.)
-// 'max_rgb' should be set to max(r,g,b) for the pixel.
+// 'lightness' should be set to (min(r,g,b) + max(r,g,b))/2 for the pixel.
 // Recommended usage in C:      GetSaturationStrength<float, ##>
 // Recommended usage in Halide: GetSaturationStrength<Halide::Expr, ##>
 template <typename T, int white_level>
 T GetSaturationStrength(T highlight_saturation_strength,  // From tuning.
                         T shadow_saturation_strength,     // From tuning.
-                        T max_rgb) {
+                        T lightness) {
   // Linear interpolation here would leave the midtones too saturated, so this
   // formula instead biases the interpolation toward the
   // highlight_saturation_strength; 'shadow_saturation_strength' is used just
   // for the deeper shadows.
   return highlight_saturation_strength +
-      ((white_level - max_rgb) * (1.0f / white_level)) *
-      ((white_level - max_rgb) * (1.0f / white_level)) *
+      ((white_level - lightness) * (1.0f / white_level)) *
+      ((white_level - lightness) * (1.0f / white_level)) *
       (shadow_saturation_strength - highlight_saturation_strength);
 }
+// LINT.ThenChange(//depot/google3/googlex/gcam/ae/ae_finish.cc,//depot/google3/googlex/gcam/hdrplus/lib_raw_finish/finish_raw_halide.cc)
 
 // GetSaturationCenterValue*():
 // During color saturation enhancement, these helper functions determine, given
@@ -135,12 +130,12 @@ class ColorSatParams {
   //   1.0 will roughly double the separation;
   //   and so on.
   // The saturation amount can be tuned differently for shadows vs. highlights.
-  //   The maximum of an sRGB-space pixel's (r,g,b) values are used to determine
-  //   if it is a shadow or a highlight.  If this value is 0, it is a shadow; if
-  //   this value is the highest possible value, it is a highlight; and in
-  //   between these two values, the actual saturation amount to be used
+  //   The lightness of an sRGB-space pixel's (r,g,b) values are used to
+  //   determine if it is a shadow or a highlight.  If this value is 0, it is a
+  //   shadow; if this value is the highest possible value, it is a highlight;
+  //   and in between these two values, the actual saturation amount to be used
   //   is interpolated (not necessarily linearly) between the two values here.
-  //   For the interpolation function, see lib_gcam/color_saturation.h.
+  //   For the interpolation function, see GetSaturationStrength().
   float highlight_saturation_;
   float shadow_saturation_;
 

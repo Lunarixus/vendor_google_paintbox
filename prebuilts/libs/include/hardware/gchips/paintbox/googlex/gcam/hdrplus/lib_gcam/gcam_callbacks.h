@@ -56,6 +56,16 @@ class SimpleCallback {
   virtual void Run() = 0;
 };
 
+// Called when the pipeline needs to report an error.
+// TODO(jiawen): Consider switching all other callbacks to ids. In practice, we
+// never used the IShot object anyway besides retrieving its id, the id was only
+// used to look up Java-side in-flight shot params.
+class ShotErrorCallback {
+ public:
+  virtual ~ShotErrorCallback() = default;
+  virtual void Run(int shot_id, const std::string& message) = 0;
+};
+
 // Called when future peak memory (both without and with a new shot) may have
 // changed.
 class MemoryStateCallback {
@@ -194,6 +204,9 @@ class PostviewCallback {
 // A collection of pointers to callback objects. All callbacks are optional
 // (may be set to nullptr).
 struct ShotCallbacks {
+  // Invoked when the pipeline reports an error.
+  ShotErrorCallback* error_callback = nullptr;
+
   // Invoked when the base frame has been selected. The base frame index is
   // zero-based and corresponds to the order frames were *passed to Gcam* via
   // AddPayloadFrame(), which in may be different than the order of their
