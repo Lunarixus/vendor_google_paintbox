@@ -549,7 +549,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
         uint8_t *lumaDst = outputBuffer->getPlaneData(0);
 
         // Copy luma line by line from the final image.
-        const gcam::InterleavedImageU8 &lumaImageSrc = yuvResult->luma_image();
+        const gcam::InterleavedReadViewU8 &lumaImageSrc = yuvResult->luma_read_view();
         int32_t lineBytesToCopy = std::min(outputBuffer->getWidth(), lumaImageSrc.width());
         uint32_t linesToCopy = std::min(outputBuffer->getHeight(), lumaImageSrc.height());
         for (uint32_t y = 0; y < linesToCopy; y++) {
@@ -558,7 +558,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
         }
 
         // Copy chroma line by line from the final image.
-        const gcam::InterleavedImageU8 &chromaImageSrc = yuvResult->chroma_image();
+        const gcam::InterleavedReadViewU8 &chromaImageSrc = yuvResult->chroma_read_view();
         uint8_t* chromaDst = outputBuffer->getPlaneData(1);
         lineBytesToCopy = std::min(outputBuffer->getWidth() , chromaImageSrc.width() * 2);
         linesToCopy = std::min(outputBuffer->getHeight() / 2, chromaImageSrc.height());
@@ -879,6 +879,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
     mGcamBaseFrameCallback =
             std::make_unique<GcamBaseFrameCallback>(shared_from_this());
     mShotCallbacks = {
+            /*error_callback*/nullptr,
             /*base_frame_callback*/mGcamBaseFrameCallback.get(),
             /*postview_callback*/nullptr,
             /*merge_raw_image_callback*/nullptr,
