@@ -18,6 +18,7 @@
 #define PAINTBOX_HDR_PLUS_CLIENT_IMPL_H
 
 #include <deque>
+#include <unordered_map>
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
 #include <utils/Thread.h>
@@ -177,9 +178,20 @@ private:
     Mutex mClientListenerLock;
     HdrPlusClientListener *mClientListener;
 
+    enum OutputBufferStatus {
+        // Output buffer request is sent to Easel.
+        OUTPUT_BUFFER_REQUESTED = 0,
+        // Output buffer is captured and transferred from Easel.
+        OUTPUT_BUFFER_CAPTURED,
+        // Output buffer failed.
+        OUTPUT_BUFFER_FAILED,
+    };
+
     // Outstanding requests that the client has not received the corresponding results to.
     struct PendingRequest {
         pbcamera::CaptureRequest request;
+        // stream ID -> output buffer status.
+        std::unordered_map<uint32_t, OutputBufferStatus> outputBufferStatuses;
         DECLARE_PROFILER_TIMER(timer, "HDR+ request");
     };
 
