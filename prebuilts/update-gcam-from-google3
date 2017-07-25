@@ -148,9 +148,12 @@ popd
 # Unzip and Copy build results and place in Android tree
 echo -e "\e[1;34m** Copying build results to Android tree\e[00m"
 
-mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}/"
-rm -rf "${ANDROID_INC_FULL_PATH}/"
+rm -rf "${ANDROID_INC_FULL_PATH}/googlex/"
+rm -rf "${ANDROID_INC_FULL_PATH}/hardware/"
+rm -rf "${ANDROID_INC_FULL_PATH}/third_party/"
 mkdir -p "${ANDROID_INC_FULL_PATH}"
+
+mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}"
 mv -vf "${gcam_tmp_lib}/${GOOGLE3_HARDWARE}" "${ANDROID_INC_FULL_PATH}/"
 mv -vf "${gcam_tmp_lib}/${GOOGLE3_GOOGLEX}" "${ANDROID_INC_FULL_PATH}/"
 
