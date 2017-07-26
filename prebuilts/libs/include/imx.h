@@ -625,10 +625,10 @@ ImxError ImxLoadPrecompiledGraph(
 ImxError ImxLoadMatchingPrecompiledGraph(
     const char *load_dir_base_path,
     const char *file_name,
-    ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
+    ImxNodeHandle *nodes,  /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
-    const char **transfer_node_names,
-    int transfer_node_count,  /* Size of previous two arrays */
+    const char **node_names,
+    int node_count,  /* Size of previous two arrays */
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
@@ -639,10 +639,10 @@ ImxError ImxLoadMatchingPrecompiledGraph(
 ImxError ImxFindMatchingPrecompiledGraph(
     const char *load_dir_base_path,
     const char *file_name,
-    ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
+    ImxNodeHandle *nodes,  /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
-    const char **transfer_node_names,
-    int transfer_node_count,  /* Size of previous two arrays */
+    const char **node_names,
+    int node_count,  /* Size of previous two arrays */
     const ImxCompileGraphInfo *info);
 
 /* Preloads all precompiled graph configs that match the given file name and
@@ -670,10 +670,10 @@ ImxError ImxPreloadPrecompiledGraphs(
 ImxError ImxCreateCompiledGraph(
     ImxPrecompiledGraphsHandle precompiled_graphs_handle,  /* in */
     const char *base_name,  /* in */
-    ImxNodeHandle *transfer_nodes,  /* in - array of nodes */
+    ImxNodeHandle *nodes,  /* in - array of nodes */
     /* in - parameter name for each xfer node */
-    const char **transfer_node_names,
-    int transfer_node_count,  /* size of previous two arrays */
+    const char **node_names,
+    int node_count,  /* size of previous two arrays */
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* out */);
 
