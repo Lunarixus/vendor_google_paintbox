@@ -7,6 +7,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <initializer_list>
 #include <limits>
 #include <string>
@@ -275,14 +276,18 @@ class SensorRowArtifacts {
   }
 };
 
-// Hot pixels often vary in intensity with gain, this stores a set of key-value
-// pairs of overall gain and thresholds, which are linearly interpolated to look
-// up thresholds for a specific gain.
+// Hot pixels often vary in intensity with analog gain, this stores a set of
+// key-value pairs of analog gains and thresholds, which are linearly
+// interpolated to look up thresholds for a specific analog gain.
 struct HotPixelParams {
   SmoothKeyValueMap<int> threshold;
 
   HotPixelParams();
 };
+
+// Get the hot pixel threshold, given the tuning and frame metadata.
+int GetHotPixelThreshold(const HotPixelParams& params,
+                         const FrameMetadata& meta);
 
 // Per-device configurable tuning settings for raw image merging.
 struct RawMergeParams {
@@ -441,10 +446,11 @@ struct RawFinishParams {
   // TODO(dsharlet): The code that uses this assumes the white level is 1023.
   float max_black_level_offset;
 
-  // How much to enhance saturation of green pixels, in the legacy hardcoded
-  //   tuning of the 3D LUT.
-  // 1.0 means no change, 1.15 means +15%, etc.
-  float green_saturation;
+  // A 3D RGB -> RGB mapping to apply to the image. The RGB values are
+  // normalized (i.e. lie in [0, 1]). Prior to being applied to the image, this
+  // will be converted to a YUV -> UV mapping (the change in Y will be ignored),
+  // and quantized to a LUT.
+  std::function<std::array<float, 3>(std::array<float, 3>)> rgb_map;
 
   // Parameters for color saturation to apply during finish.
   ColorSatParams saturation;
