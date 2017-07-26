@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <memory>
-#include <mutex>  // NOLINT
+#include <mutex>  // NOLINT(build/c++11)
 #include <string>
 #include <vector>
 

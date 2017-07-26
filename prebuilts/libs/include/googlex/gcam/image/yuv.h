@@ -246,13 +246,42 @@ class YuvImage : public YuvWriteView {
   YuvImage() = default;
 
   // Creates a new YuvImage of the desired size, allocating all image memory in
-  // two chunks.
-  YuvImage(int w, int h, YuvFormat yuv_format,
-           TImageSampleAllocator* custom_allocator =
-               TImageDefaultSampleAllocator());
-
-  YuvImage(InterleavedImageU8&& luma, InterleavedImageU8&& chroma,
-           YuvFormat yuv_format);
+  // a single chunk.
+  //
+  // The memory layout of the underlying buffer for YuvFormat::kNv12 is as
+  // follows. For YuvFormat::kNv21 the order of U and V are swapped.
+  //
+  //   <-------- row_stride -------->
+  //   <------- width ------->
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  ^         ^
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  height    |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |        luma_rows
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  |         |
+  //   Y Y Y Y Y Y Y Y Y Y Y Y . . . .  V         |
+  //   . . . . . . . . . . . . . . . .            |
+  //   . . . . . . . . . . . . . . . .            |
+  //   . . . . . . . . . . . . . . . .            |
+  //   . . . . . . . . . . . . . . . .            V
+  //   U V U V U V U V U V U V . . . .  ^         ^
+  //   U V U V U V U V U V U V . . . .  |         |
+  //   U V U V U V U V U V U V . . . .  height/2  |
+  //   U V U V U V U V U V U V . . . .  |         |
+  //   U V U V U V U V U V U V . . . .  V        chroma_rows
+  //   . . . . . . . . . . . . . . . .            |
+  //   . . . . . . . . . . . . . . . .            V
+  //
+  // Note that 'row_stride' is in samples, which happens to be the same as
+  // number of bytes.
+  YuvImage(int width, int height, YuvFormat yuv_format,
+           TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
+  YuvImage(int width, int height, int row_stride, int luma_rows,
+           int chroma_rows, YuvFormat yuv_format,
+           TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
   YuvImage(const YuvImage& other) = delete;
   YuvImage& operator=(const YuvImage& other) = delete;
@@ -260,24 +289,19 @@ class YuvImage : public YuvWriteView {
   YuvImage(YuvImage&& other);
   YuvImage& operator=(YuvImage&& other);
 
-  // Access to the luma and chroma components of this image view.
-  // The luma image contains a single channel; the chroma image contains
-  // two interleaved channels.
-  const InterleavedImageU8& luma_image() const {
-    return luma_image_;
-  }
+  // Access to the buffer storing both the luma and chroma images.
+  const InterleavedImageU8& buffer() const { return buffer_; }
 
-  const InterleavedImageU8& chroma_image() const {
-    return chroma_image_;
-  }
+  // Number of rows in the buffer corresponding to luma and chroma.
+  int luma_rows() const { return luma_rows_; }
+  int chroma_rows() const { return chroma_rows_; }
 
   YuvImage& operator=(std::nullptr_t) override;
-  void FastCrop(int x0, int y0, int x1, int y1) override;
 
- protected:
-  // The luma and chroma images.
-  InterleavedImageU8 luma_image_;
-  InterleavedImageU8 chroma_image_;
+ private:
+  InterleavedImageU8 buffer_;
+  int luma_rows_;
+  int chroma_rows_;
 };
 
 }  // namespace gcam
