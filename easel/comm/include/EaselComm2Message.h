@@ -87,7 +87,8 @@ class Message {
   // Returns the payload buffer size in bytes.
   size_t getDmaBufSize() const;
 
-  // Returns message ID.
+  // Returns the message id.
+  // Used in Comm::receivePayload to match the message.
   uint64_t getMessageId() const;
 
  private:

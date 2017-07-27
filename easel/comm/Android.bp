@@ -14,8 +14,10 @@ cc_defaults {
     ],
     srcs: [
         "EaselComm.cpp",
-        "EaselHardwareBuffer.cpp",
+        "EaselComm2.cpp",
+        "EaselComm2Impl.cpp",
         "EaselComm2Message.cpp",
+        "EaselHardwareBuffer.cpp",
     ],
     shared_libs: [
         "liblog",

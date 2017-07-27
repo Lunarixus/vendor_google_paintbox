@@ -60,6 +60,8 @@ public:
                         message_id(0), need_reply(false), timeout_ms(-1) {};
     };
 
+    virtual ~EaselComm();
+
     /*
      * Send a message to remote.  Returns once the message is sent and the
      * remote has received the DMA transfer, if any.
@@ -195,7 +197,6 @@ public:
 
 protected:
     EaselComm();
-    virtual ~EaselComm();
 
     // File descriptor for easelcomm device
     int mEaselCommFd;
