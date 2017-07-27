@@ -18,6 +18,8 @@ enum EaselService {
   EASEL_SERVICE_HDRPLUS,
   // Logging service.
   EASEL_SERVICE_LOG,
+  // NN service
+  EASEL_SERVICE_NN,
   // Max service ID
   EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
 };
