@@ -83,51 +83,17 @@ T GetSaturationCenterValueX2(T min_val, T max_val) {
   return min_val + max_val;
 }
 
-class ColorSatParams {
+// Color saturation parameters.
+struct ColorSatParams {
  public:
-  ColorSatParams();
-
-  // Copy constructors.
-  ColorSatParams(const ColorSatParams& src) {
-    CopyFrom(src);
-  }
-  ColorSatParams& operator=(const ColorSatParams& src) {
-    CopyFrom(src);
-    return *this;
-  }
-
-  // This call applies new settings for the saturation.
-  void Update(float highlight_saturation,
-              float shadow_saturation,
-              float sat_exp);
-
-  // Applies the current settings for saturation to an image.
-  void ProcessImage(const InterleavedWriteViewU8& rgb,
-                    const Context& gcam_context) const;
-  void ProcessImageReference(const InterleavedWriteViewU8& image) const;
-
-  inline bool UsesSaturation() const {
-    return (fabsf(highlight_saturation_ - 0) >= (1.0f / 256.0f)) ||
-           (fabsf(shadow_saturation_ - 0) >= (1.0f / 256.0f));
-  }
-  inline bool IsIdentity() const {
-    return !UsesSaturation();
-  }
-  inline float GetHighlightSaturation() const { return highlight_saturation_; }
-  inline float GetShadowSaturation() const { return shadow_saturation_; }
-  inline float GetSatExp() const { return sat_exp_; }
-
- protected:
-  void Clear();
-
   // The amount by which to increase color saturation in (gamma-corrected) sRGB
   //   space, where color saturation is defined as the separation between the
   //   min and max color channel.
   // For example:
-  //   A value of -1.0 will completely desaturate to grey;
-  //   0.0 will have no effect;
-  //   0.1 will increase the color separation (between min and max) by ~10%;
-  //   1.0 will roughly double the separation;
+  //   A value of 0 will completely desaturate to grey;
+  //   1.0 will have no effect;
+  //   1.1 will increase the color separation (between min and max) by ~10%;
+  //   2.0 will roughly double the separation;
   //   and so on.
   // The saturation amount can be tuned differently for shadows vs. highlights.
   //   The lightness of an sRGB-space pixel's (r,g,b) values are used to
@@ -136,22 +102,19 @@ class ColorSatParams {
   //   and in between these two values, the actual saturation amount to be used
   //   is interpolated (not necessarily linearly) between the two values here.
   //   For the interpolation function, see GetSaturationStrength().
-  float highlight_saturation_;
-  float shadow_saturation_;
+  float highlight_saturation = 1.0f;
+  float shadow_saturation = 1.0f;
 
-  // Affects only low-saturation colors.
-  // This is the exponent applied to saturation channel:
-  //   sat' = pow(sat, sat_exp))
-  //   where sat is in [0..1].
-  // Possible values:
-  //    1 = has no effect.
-  //  < 1 = increase color saturation (in unsaturated colors only).
-  //  > 1 = decrease color saturation (in unsaturated colors only).
-  // Recommended: 0.75.
-  float sat_exp_;
-
-  void CopyFrom(const ColorSatParams& src);
+  bool IsIdentity() const {
+    return (fabsf(highlight_saturation - 1.0f) < 1.0f / 256.0f) &&
+           (fabsf(shadow_saturation - 1.0f) < 1.0f / 256.0f);
+  }
 };
+
+// Applies the given color saturation to an image.
+bool ApplyColorSaturation(const InterleavedWriteViewU8& rgb,
+                          const ColorSatParams& color_sat_params,
+                          const Context& gcam_context);
 
 }  // namespace gcam
 
