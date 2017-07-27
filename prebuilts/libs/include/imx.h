@@ -558,16 +558,6 @@ ImxError ImxCompileGraph(
 
 ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
 
-/* Update image dimensions (width/height) of the compiled graph with the
- * dimensions specified in the transfer node.
- * This can be used for late-bound image dimension parameters. PCG is generated
- * with maximum image dimensions. Then, this function can update the compiled
- * graph with late-bound image dimensions.
- */
-ImxError ImxUpdateCompiledGraphImageDimensions(
-    ImxNodeHandle *transfer_nodes, const char **transfer_node_names,
-    int transfer_node_count, ImxCompiledGraphHandle compiled_graph_handle);
-
 /* Saves a copy of compiled_graph (and related structures) to file(s) in the
  * directory: save_dir_path. Function will overwrite if there exists any
  * identical name within the save_dir_path. Function reports an error if the
@@ -1182,6 +1172,19 @@ ImxError ImxProfilerSetPhaseName(const char* phase_name);
 /* Enable profiling to the file path profiler_file
  */
 ImxError ImxEnableProfiling(const char *profiler_file);
+
+/* Allows to turn full memory profiling on or off at execution time.
+ * Call does not need to happen after ImxEnableProfiling. It can be enabled and
+ * disabled at any time.
+ */
+ImxError ImxProfilerSetFullDeviceBuffers(int cond);
+
+/* Compares stripe configurations stored in two compiled graph. It will print
+ * out different configurations.
+ * TODO(parkhc): Return the result of comparison to the caller.
+ */
+ImxError ImxCompareStripeConfigurations(ImxCompiledGraphHandle one,
+                                        ImxCompiledGraphHandle two);
 
 #ifdef __cplusplus
 } /* extern "C" */
