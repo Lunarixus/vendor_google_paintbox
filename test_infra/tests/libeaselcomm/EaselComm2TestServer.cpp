@@ -5,7 +5,6 @@
 
 #include "EaselComm2.h"
 #include "EaselComm2Message.h"
-#include "EaselHardwareBuffer.h"
 #include "android-base/logging.h"
 #include "easelcomm.h"
 #include "imx.h"
@@ -80,20 +79,19 @@ void handleStructMessage(const EaselComm2::Message& message2) {
 
 // Handles DMA ion buffer and echo same buffer back.
 void handleBufferMessage(const EaselComm2::Message& message2) {
-  auto desc = message2.getHeader()->desc;
-
   ImxDeviceBufferHandle buffer;
-  CHECK_EQ(ImxCreateDeviceBufferManaged(
-               allocator, EaselComm2::HardwareBuffer::size(desc),
-               kImxDefaultDeviceBufferAlignment, kImxDefaultDeviceBufferHeap, 0,
-               &buffer),
-           IMX_SUCCESS);
+  size_t size = message2.getDmaBufSize();
+  CHECK_EQ(
+      ImxCreateDeviceBufferManaged(allocator, message2.getDmaBufSize(),
+                                   kImxDefaultDeviceBufferAlignment,
+                                   kImxDefaultDeviceBufferHeap, 0, &buffer),
+      IMX_SUCCESS);
 
   int fd;
   CHECK_EQ(ImxShareDeviceBuffer(buffer, &fd), IMX_SUCCESS);
 
   // Receives the DMA to ImxDeviceBuffer.
-  EaselComm2::HardwareBuffer hardwareBuffer(fd, desc);
+  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
   CHECK_EQ(server->send(kBufferChannel, "", &hardwareBuffer), NO_ERROR);

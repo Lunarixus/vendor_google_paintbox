@@ -3,11 +3,17 @@
 
 #include <string>
 
-#include "EaselHardwareBuffer.h"
-
 #include <google/protobuf/message_lite.h>
 
 namespace EaselComm2 {
+
+// Abstraction of device buffers supported in EaselComm2
+// for buffer transfering on PCIe.
+// Data structure is similar to hidl_memory
+struct HardwareBuffer {
+  int ionFd;
+  size_t size;
+};
 
 // EaselComm2::Message that supports conversion from the following types:
 // 1) raw pointer
@@ -28,8 +34,6 @@ class Message {
     int channelId;    // Message channel ID.
     Type type;        // Message type.
     bool hasPayload;  // Whether payload buffer is attached.
-    HardwareBuffer::Desc
-        desc;  // Payload buffer description, empty if no payload attached.
   };
 
   Message(int channelId, const std::string& s,
