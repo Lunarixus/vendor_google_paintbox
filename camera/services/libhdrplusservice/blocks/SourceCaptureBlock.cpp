@@ -40,6 +40,8 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
 }
 
 SourceCaptureBlock::~SourceCaptureBlock() {
+    // Enforce the right order to destroy capture service.
+    destroyCaptureService();
 }
 
 status_t SourceCaptureBlock::createCaptureService() {
