@@ -1,5 +1,8 @@
 # Build script to generate easel ramdisk
 
+# Make ramdisk when not building for ASAN
+ifeq ($(filter address,$(SANITIZE_TARGET)),)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := easel_ramdisk.img
@@ -178,3 +181,5 @@ $(LOCAL_BUILT_MODULE): \
 	$(PRIVATE_MKIMAGE) $(dir $@)/initramfs.cpio $@
 
 	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
+
+endif
