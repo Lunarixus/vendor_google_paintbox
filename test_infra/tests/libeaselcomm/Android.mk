@@ -33,7 +33,7 @@ LOCAL_PROPRIETARY_MODULE := true
 LOCAL_SRC_FILES := EaselComm2Test.cpp
 LOCAL_SHARED_LIBRARIES := libnativewindow libeaselcomm libprotobuf-cpp-lite
 LOCAL_HEADER_LIBRARIES := libutils_headers
-LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto
+LOCAL_STATIC_LIBRARIES := easelcomm2_impl_test_proto libarect
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
