@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <vector>
 
-#include <capture.h>
+#include "hardware/gchips/paintbox/system/include/capture.h"
 
 #include "HdrPlusTypes.h"
 
@@ -155,11 +155,11 @@ public:
             const StreamConfiguration &config);
     virtual ~PipelineCaptureFrameBuffer() = default;
 
-    // Use allocate(std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory) to allocate buffers.
+    // Use allocate(std::unique_ptr<paintbox::CaptureFrameBufferFactory> &bufferFactory) to allocate buffers.
     virtual status_t allocate() override;
 
-    // Allocate the image data using CaptureFrameBufferFactory.
-    status_t allocate(std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory);
+    // Allocate the image data using paintbox::CaptureFrameBufferFactory.
+    status_t allocate(std::unique_ptr<paintbox::CaptureFrameBufferFactory> &bufferFactory);
 
     // Return the pointer to the raw data of an image plane.
     virtual uint8_t* getPlaneData(uint32_t planeNum) override;
@@ -179,10 +179,10 @@ public:
 
     // Return the pointer to capture frame buffer associated with this buffer. This does not
     // transfer buffer ownership.
-    CaptureFrameBuffer *getCaptureFrameBuffer();
+    paintbox::CaptureFrameBuffer *getCaptureFrameBuffer();
 
 private:
-    std::unique_ptr<CaptureFrameBuffer> mCaptureFrameBuffer;
+    std::unique_ptr<paintbox::CaptureFrameBuffer> mCaptureFrameBuffer;
     void* mLockedData;
 };
 
