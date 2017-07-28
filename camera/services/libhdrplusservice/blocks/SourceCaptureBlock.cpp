@@ -15,14 +15,10 @@
 
 namespace pbcamera {
 
-static void dequeueRequestThread(SourceCaptureBlock* block) {
-    if (block != nullptr) {
-        block->dequeueRequestThreadLoop();
+static void dequeueRequestThread(DequeueRequestThread* thread) {
+    if (thread != nullptr) {
+        thread->dequeueRequestThreadLoop();
     }
-}
-
-void SourceCaptureBlock::dequeueRequestThreadLoop() {
-    mDequeueRequestThread->dequeueRequestThreadLoop();
 }
 
 SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
@@ -451,13 +447,13 @@ void SourceCaptureBlock::requestCaptureToPreventFrameDrop() {
 
 DequeueRequestThread::DequeueRequestThread(
         SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false) {
-    mDequeueRequestThread = std::make_unique<std::thread>(dequeueRequestThread, parent);
+    mThread = std::make_unique<std::thread>(dequeueRequestThread, this);
 }
 
 DequeueRequestThread::~DequeueRequestThread() {
     signalExit();
-    mDequeueRequestThread->join();
-    mDequeueRequestThread = nullptr;
+    mThread->join();
+    mThread = nullptr;
 
     // Return all pending requests.
     for (auto request : mPendingCaptureRequests) {

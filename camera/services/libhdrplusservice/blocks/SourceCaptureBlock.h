@@ -66,9 +66,6 @@ public:
     // Override PipelineBlock::handleTimeoutLocked.
     void handleTimeoutLocked() override;
 
-    // Thread loop that dequeues completed buffers from capture service.
-    void dequeueRequestThreadLoop();
-
     // Paused and resume capturing from MIPI. This is to work around the limitation that MIPI
     // capture and IPU HDR+ processing cannot happen at the same time. b/34854987
     void pause();
@@ -174,7 +171,7 @@ private:
     std::deque<PipelineBlock::OutputRequest> mPendingCaptureRequests;
     bool mExiting;
 
-    std::unique_ptr<std::thread> mDequeueRequestThread;
+    std::unique_ptr<std::thread> mThread;
     std::condition_variable mEventCondition;
     bool mFirstCaptureDone;
 };
