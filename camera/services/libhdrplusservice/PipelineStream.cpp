@@ -100,7 +100,7 @@ status_t PipelineStream::createInput(const InputConfiguration &inputConfig, int 
 
     uint32_t width = 0;
     uint32_t height = 0;
-    MipiRxPort mipiRxPort = MipiRxPort::RX0;
+    paintbox::MipiRxPort mipiRxPort = paintbox::MipiRxPort::RX0;
     bool busAligned = false;
 
     if (inputConfig.isSensorInput) {
@@ -117,10 +117,10 @@ status_t PipelineStream::createInput(const InputConfiguration &inputConfig, int 
 
         switch (inputConfig.sensorMode.cameraId) {
             case 0:
-                mipiRxPort = MipiRxPort::RX0;
+                mipiRxPort = paintbox::MipiRxPort::RX0;
                 break;
             case 1:
-                mipiRxPort = MipiRxPort::RX1;
+                mipiRxPort = paintbox::MipiRxPort::RX1;
                 break;
             default:
                 ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__,
@@ -153,19 +153,19 @@ status_t PipelineStream::createInput(const InputConfiguration &inputConfig, int 
         }
     }
 
-    uint32_t dataType = capture_service_consts::kMipiRaw10DataType;
+    paintbox::MipiDataTypeCsi2 dataType = paintbox::RAW10;
     uint32_t bitsPerPixel = 10;
 
-    std::vector<CaptureStreamConfig> captureStreamConfigs = {
+    std::vector<paintbox::CaptureStreamConfig> captureStreamConfigs = {
             { dataType, width, height, bitsPerPixel, busAligned }};
 
-    CaptureConfig captureConfig = { mipiRxPort,
+    paintbox::CaptureConfig captureConfig = { mipiRxPort,
             capture_service_consts::kMainImageVirtualChannelId,
             capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
             captureStreamConfigs };
 
     // Create a capture frame buffer factory.
-    mBufferFactory = CaptureFrameBufferFactory::CreateInstance(captureConfig);
+    mBufferFactory = paintbox::CaptureFrameBufferFactory::CreateInstance(captureConfig);
     if (mBufferFactory == nullptr) {
         ALOGE("%s: Failed to create a buffer factory.", __FUNCTION__);
         return -ENOMEM;

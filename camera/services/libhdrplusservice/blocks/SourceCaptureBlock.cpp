@@ -22,7 +22,7 @@ static void dequeueRequestThread(DequeueRequestThread* thread) {
 }
 
 SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
-        const CaptureConfig &config = {}) :
+        const paintbox::CaptureConfig &config = {}) :
         PipelineBlock("SourceCaptureBlock", BLOCK_EVENT_TIMEOUT_MS),
         mMessengerToClient(messenger),
         mCaptureConfig(config),
@@ -46,12 +46,9 @@ status_t SourceCaptureBlock::createCaptureService() {
     }
 
     ALOGI("%s: Creating new catpure service", __FUNCTION__);
-    mCaptureService = CaptureService::CreateInstance(mCaptureConfig);
-    CaptureError err = mCaptureService->Initialize();
-    if (err != CaptureError::SUCCESS) {
-        ALOGE("%s: Initializing capture service failed: %s (%d)", __FUNCTION__,
-                GetCaptureErrorDesc(err), err);
-        mCaptureService = nullptr;
+    mCaptureService = paintbox::CaptureService::CreateInstance(mCaptureConfig);
+    if (mCaptureService == nullptr) {
+        ALOGE("%s: Initializing capture service failed.", __FUNCTION__);
         return -ENODEV;
     }
 
@@ -79,11 +76,11 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
     std::shared_ptr<SourceCaptureBlock> block;
     if (sensorMode != nullptr) {
         // Create a source capture block with capture service for capturing from Easel MIPI.
-        uint32_t dataType = 0, bitsPerPixel = 0;
+        paintbox::MipiDataTypeCsi2 dataType;
+        uint32_t bitsPerPixel = 0;
         switch (sensorMode->format) {
             case HAL_PIXEL_FORMAT_RAW10:
-                // TODO: Replace with a macro once defined in capture.h.
-                dataType = capture_service_consts::kMipiRaw10DataType;
+                dataType = paintbox::RAW10;
                 bitsPerPixel = 10;
                 break;
             default:
@@ -92,13 +89,13 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
                 return nullptr;
         }
 
-        MipiRxPort mipiRxPort;
+        paintbox::MipiRxPort mipiRxPort;
         switch (sensorMode->cameraId) {
             case 0:
-                mipiRxPort = MipiRxPort::RX0;
+                mipiRxPort = paintbox::MipiRxPort::RX0;
                 break;
             case 1:
-                mipiRxPort = MipiRxPort::RX1;
+                mipiRxPort = paintbox::MipiRxPort::RX1;
                 break;
             default:
                 ALOGE("%s: Camera ID (%u) is not supported.", __FUNCTION__, sensorMode->cameraId);
@@ -106,11 +103,11 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
         }
 
         // Create a capture service.
-        std::vector<CaptureStreamConfig> captureStreamConfigs;
+        std::vector<paintbox::CaptureStreamConfig> captureStreamConfigs;
         captureStreamConfigs.push_back({ dataType, sensorMode->pixelArrayWidth,
                 sensorMode->pixelArrayHeight, bitsPerPixel,
                 capture_service_consts::kBusAlignedStreamConfig });
-        CaptureConfig config = { mipiRxPort,
+        paintbox::CaptureConfig config = { mipiRxPort,
                 capture_service_consts::kMainImageVirtualChannelId,
                 capture_service_consts::kCaptureFrameBufferFactoryTimeoutMs,
                 captureStreamConfigs };
@@ -515,7 +512,7 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             return;
         } else if (waitForRequest) {
             ALOGV("%s: Waiting for a completed request from capture service.", __FUNCTION__);
-            CaptureFrameBuffer *frameBuffer = mParent->mCaptureService->DequeueCompletedRequest();
+            paintbox::CaptureFrameBuffer *frameBuffer = mParent->mCaptureService->DequeueCompletedRequest();
             if (frameBuffer == nullptr) {
                 ALOGE("%s: DequeueCompletedRequest return NULL. Trying again.", __FUNCTION__);
                 continue;
@@ -551,8 +548,8 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                 continue;
             }
 
-            CaptureError err = frameBuffer->GetError();
-            if (err != CaptureError::SUCCESS) {
+            paintbox::CaptureError err = frameBuffer->GetError();
+            if (err != paintbox::CaptureError::SUCCESS) {
                 ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
                         GetCaptureErrorDesc(err), err);
                 // Abort the request.

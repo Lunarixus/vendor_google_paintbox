@@ -8,7 +8,7 @@
 #include "EaselHardwareBuffer.h"
 #include "android-base/logging.h"
 #include "easelcomm.h"
-#include "imx.h"
+#include "third_party/halide/paintbox/src/runtime/imx.h"
 #include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
 
 // Test server for EaselComm2ImplTest.
