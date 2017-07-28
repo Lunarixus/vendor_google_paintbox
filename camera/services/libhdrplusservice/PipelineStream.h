@@ -4,7 +4,7 @@
 #include <deque>
 #include <memory>
 
-#include <capture.h>
+#include "hardware/gchips/paintbox/system/include/capture.h"
 
 #include "blocks/PipelineBlock.h"
 #include "PipelineBuffer.h"
@@ -137,7 +137,7 @@ private:
     std::deque<std::unique_ptr<PipelineBuffer>> mAllBuffers;
 
     // Capture frame buffer factory to allocate capture frame buffers used for MIPI capture.
-    std::unique_ptr<CaptureFrameBufferFactory> mBufferFactory;
+    std::unique_ptr<paintbox::CaptureFrameBufferFactory> mBufferFactory;
 };
 
 } // namespace pbcamera

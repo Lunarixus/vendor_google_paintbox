@@ -10,7 +10,7 @@
 #include "PipelineBuffer.h"
 #include "PipelineStream.h"
 #include "HdrPlusTypes.h"
-#include "imx.h"
+#include "third_party/halide/paintbox/src/runtime/imx.h"
 
 namespace pbcamera {
 
@@ -313,7 +313,7 @@ status_t PipelineCaptureFrameBuffer::allocate() {
 }
 
 status_t PipelineCaptureFrameBuffer::allocate(
-        std::unique_ptr<CaptureFrameBufferFactory> &bufferFactory) {
+        std::unique_ptr<paintbox::CaptureFrameBufferFactory> &bufferFactory) {
     // Check if buffer is already allocated.
     if (mCaptureFrameBuffer != nullptr) return -EEXIST;
 
@@ -411,8 +411,8 @@ status_t PipelineCaptureFrameBuffer::lockData() {
         return -EINVAL;
     }
 
-    CaptureError err = mCaptureFrameBuffer->LockFrameData(dataTypes[0], &mLockedData);
-    if (err != CaptureError::SUCCESS) {
+    paintbox::CaptureError err = mCaptureFrameBuffer->LockFrameData(dataTypes[0], &mLockedData);
+    if (err != paintbox::CaptureError::SUCCESS) {
         ALOGE("%s: Locking frame data failed: %s (%d)", __FUNCTION__,
                 GetCaptureErrorDesc(err),  err);
         mLockedData = nullptr;
@@ -432,15 +432,15 @@ void PipelineCaptureFrameBuffer::unlockData() {
         return;
     }
 
-    CaptureError err = mCaptureFrameBuffer->UnlockFrameData(dataTypes[0]);
-    if (err != CaptureError::SUCCESS) {
+    paintbox::CaptureError err = mCaptureFrameBuffer->UnlockFrameData(dataTypes[0]);
+    if (err != paintbox::CaptureError::SUCCESS) {
         ALOGE("%s: Unlocking frame data failed: err=%d", __FUNCTION__, err);
     }
 
     mLockedData = nullptr;
 }
 
-CaptureFrameBuffer* PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
+paintbox::CaptureFrameBuffer* PipelineCaptureFrameBuffer::getCaptureFrameBuffer() {
     return mCaptureFrameBuffer.get();
 }
 
