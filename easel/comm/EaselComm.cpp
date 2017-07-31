@@ -138,10 +138,11 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
      * and read the updated descriptor with the assigned message ID.
      */
     if (ioctl(fd, EASELCOMM_IOC_SENDMSG, kmsg_desc) == -1) {
+        int err_saved = errno;
         if (is_alog_ok()) {
-            ALOGE("%s: SENDMSG failed (%d)", __FUNCTION__, errno);
+            ALOGE("%s: SENDMSG failed (%d)", __FUNCTION__, err_saved);
         }
-        return -errno;
+        return -err_saved;
     }
 
     /*
@@ -156,10 +157,11 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
         fill_kbuf(&buf_desc, kmsg_desc->message_id, nullptr, KBUF_FILL_UNUSED);
     }
     if (ioctl(fd, EASELCOMM_IOC_WRITEDATA, &buf_desc) == -1) {
+        int err_saved = errno;
         if (is_alog_ok()) {
-            ALOGE("%s: WRITEDATA failed (%d)", __FUNCTION__, errno);
+            ALOGE("%s: WRITEDATA failed (%d)", __FUNCTION__, err_saved);
         }
-        return -errno;
+        return -err_saved;
     }
 
     /*
@@ -173,10 +175,11 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
         fill_kbuf(&buf_desc, kmsg_desc->message_id, msg, KBUF_FILL_DMA);
 
         if (ioctl(fd, EASELCOMM_IOC_SENDDMA, &buf_desc) == -1) {
+            int err_saved = errno;
             if (is_alog_ok()) {
-                ALOGE("%s: SENDDMA failed (%d)", __FUNCTION__, errno);
+                ALOGE("%s: SENDDMA failed (%d)", __FUNCTION__, err_saved);
             }
-            return -errno;
+            return -err_saved;
         }
     }
 
