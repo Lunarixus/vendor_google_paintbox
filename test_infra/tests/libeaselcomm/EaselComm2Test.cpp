@@ -8,7 +8,6 @@
 
 #include "EaselComm2.h"
 #include "EaselComm2Message.h"
-#include "EaselHardwareBuffer.h"
 #include "easelcomm.h"
 #include "vendor/google_paintbox/test_infra/tests/libeaselcomm/test.pb.h"
 
@@ -27,18 +26,15 @@ uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c) {
 }
 
 // HardwareBuffer does not take ownership of the input buffer.
-std::unique_ptr<EaselComm2::HardwareBuffer> convertToHardwareBuffer(
+EaselComm2::HardwareBuffer convertToHardwareBuffer(
     AHardwareBufferHandle buffer) {
   AHardwareBuffer_Desc aDesc;
   AHardwareBuffer_describe(buffer, &aDesc);
-  EaselComm2::HardwareBuffer::Desc desc;
-  desc.width = aDesc.width;
-  desc.stride = aDesc.stride;
-  desc.height = aDesc.height;
-  desc.layers = aDesc.layers;
-  desc.bits_per_pixel = getChannelSize(aDesc) * 8;
-  return std::make_unique<EaselComm2::HardwareBuffer>(
-      AHardwareBuffer_getNativeHandle(buffer)->data[0], desc);
+  int fd = AHardwareBuffer_getNativeHandle(buffer)->data[0];
+  size_t size =
+      aDesc.stride * aDesc.height * aDesc.layers * getChannelSize(aDesc);
+  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
+  return hardwareBuffer;
 }
 }  // namespace
 
@@ -184,17 +180,15 @@ TEST_F(EaselComm2Test, AHardareBufferEaselLoopback) {
   comm()->registerHandler(
       kBufferChannel, [&](const EaselComm2::Message& message) {
         ASSERT_TRUE(message.getHeader()->hasPayload);
-        ASSERT_EQ(comm()->receivePayload(
-                      message, convertToHardwareBuffer(rxBuffer).get()),
-                  NO_ERROR);
+        auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
+        ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
         EXPECT_EQ(checkPattern(patternSimple, rxBuffer), NO_ERROR);
         signal();
       });
 
   ASSERT_EQ(writePattern(patternSimple, txBuffer), NO_ERROR);
-  ASSERT_EQ(
-      comm()->send(kBufferChannel, "", convertToHardwareBuffer(txBuffer).get()),
-      NO_ERROR);
+  auto txHardwareBuffer = convertToHardwareBuffer(txBuffer);
+  ASSERT_EQ(comm()->send(kBufferChannel, "", &txHardwareBuffer), NO_ERROR);
 
   wait();
 

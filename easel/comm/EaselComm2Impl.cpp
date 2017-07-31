@@ -53,17 +53,15 @@ void CommImpl::joinReceiving() { return mComm->joinMessageHandlerThread(); }
 
 int CommImpl::receivePayload(const Message& message, HardwareBuffer* buffer) {
   if (buffer == nullptr) return -EINVAL;
-  auto srcDesc = message.getHeader()->desc;
-  auto destDesc = buffer->desc();
+  size_t srcSize = message.getDmaBufSize();
+  size_t destSize = buffer->size;
 
-  // Assumes src and dest desc are equal.
-  // TODO(cjluo): Need to handle the case when strides are not matching.
-  if (srcDesc != destDesc) return -EINVAL;
+  if (srcSize != destSize) return -EINVAL;
 
   EaselComm::EaselMessage easelMessage;
   easelMessage.message_id = message.getMessageId();
   easelMessage.dma_buf = nullptr;
-  easelMessage.dma_buf_fd = buffer->ionFd();
+  easelMessage.dma_buf_fd = buffer->ionFd;
   easelMessage.dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
   easelMessage.dma_buf_size = message.getDmaBufSize();
   return mComm->receiveDMA(&easelMessage);

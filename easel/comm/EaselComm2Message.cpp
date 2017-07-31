@@ -99,9 +99,8 @@ bool Message::toProto(::google::protobuf::MessageLite* proto) const {
 void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
   header->hasPayload = true;
-  header->desc = payload.desc();
-  mDmaBufFd = payload.ionFd();
-  mDmaBufSize = payload.size();
+  mDmaBufFd = payload.ionFd;
+  mDmaBufSize = payload.size;
 }
 
 bool Message::allocMessage(size_t bodySize) {
