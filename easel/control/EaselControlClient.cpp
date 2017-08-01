@@ -266,12 +266,13 @@ int waitForEaselConn() {
 
 int teardownEaselConn()
 {
-    easel_conn.close();
-
     if (conn_thread.joinable()) {
         conn_thread.join();
     }
+
     gHandshakeSuccessful = false;
+    easel_conn.close();
+
     return 0;
 }
 
