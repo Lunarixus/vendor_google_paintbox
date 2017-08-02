@@ -6,6 +6,14 @@
 
 namespace EaselComm2 {
 
+HardwareBuffer::HardwareBuffer() : vaddr(nullptr), ionFd(-1), size(0), id(0) {}
+HardwareBuffer::HardwareBuffer(void* vaddr, size_t size, int id)
+    : vaddr(vaddr), ionFd(-1), size(size), id(id) {}
+HardwareBuffer::HardwareBuffer(int ionFd, size_t size, int id)
+    : vaddr(nullptr), ionFd(ionFd), size(size), id(id) {}
+
+bool HardwareBuffer::isIonBuffer() { return vaddr == nullptr && ionFd > 0; }
+
 Message::Message(int channelId, const std::string& s,
                  const HardwareBuffer* payload) {
   size_t stringBufSize = s.size() + 1;
@@ -15,7 +23,6 @@ Message::Message(int channelId, const std::string& s,
   char* body = static_cast<char*>(getMutableBody());
   s.copy(body, s.size());
   body[s.size()] = '\0';
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
@@ -29,7 +36,6 @@ Message::Message(int channelId, const ::google::protobuf::MessageLite& proto,
   mMessageId = 0;
   initializeHeader(channelId, PROTO);
   proto.SerializeToArray(getMutableBody(), size);
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
@@ -43,7 +49,6 @@ Message::Message(int channelId, const void* body, size_t size,
   mMessageId = 0;
   initializeHeader(channelId, RAW);
   memcpy(getMutableBody(), body, size);
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
@@ -57,12 +62,12 @@ Message::Message(int channelId, const HardwareBuffer& payload) {
   attachPayload(payload);
 }
 
-Message::Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
-                 size_t dmaBufSize, uint64_t messageId) {
+Message::Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
+                 uint64_t messageId) {
   mMessageBuf = messageBuf;
   mMessageBufSize = messageBufSize;
-  mDmaBufFd = dmaBufFd;
-  mDmaBufSize = dmaBufSize;
+  mPayload.size = dmaBufSize;
+  mPayload.id = getHeader()->payloadId;
   mAllocMessage = false;
   mMessageId = messageId;
 }
@@ -103,8 +108,7 @@ void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
   header->hasPayload = true;
   header->payloadId = payload.id;
-  mDmaBufFd = payload.ionFd;
-  mDmaBufSize = payload.size;
+  mPayload = payload;
 }
 
 bool Message::allocMessage(size_t bodySize) {
@@ -141,9 +145,7 @@ void* Message::getMessageBuf() const { return mMessageBuf; }
 
 size_t Message::getMessageBufSize() const { return mMessageBufSize; }
 
-int Message::getDmaBufFd() const { return mDmaBufFd; }
-
-size_t Message::getDmaBufSize() const { return mDmaBufSize; }
+HardwareBuffer Message::getPayload() const { return mPayload; }
 
 uint64_t Message::getMessageId() const { return mMessageId; }
 }  // namespace EaselComm2

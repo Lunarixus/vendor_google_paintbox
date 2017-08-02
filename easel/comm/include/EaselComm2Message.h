@@ -9,11 +9,21 @@ namespace EaselComm2 {
 
 // Abstraction of device buffers supported in EaselComm2
 // for buffer transfering on PCIe.
-// Data structure is similar to hidl_memory
+// Data structure is similar to hidl_memory.
+// Buffer could be specified either by vaddr or ionFd.
+// If both are valid, vaddr will override ionFd.
 struct HardwareBuffer {
+  void* vaddr;
   int ionFd;
   size_t size;
   int id;  // optional buffer id to note transferring sequence.
+
+  HardwareBuffer();
+  HardwareBuffer(void* vaddr, size_t size, int id = 0);
+  HardwareBuffer(int ionFd, size_t size, int id = 0);
+
+  // Returns true if HardwareBuffer is ion based, otherwise false.
+  bool isIonBuffer();
 };
 
 // EaselComm2::Message that supports conversion from the following types:
@@ -50,8 +60,8 @@ class Message {
 
   Message(int channelId, const HardwareBuffer& payload);
 
-  Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
-          size_t dmaBufSize, uint64_t messageId);
+  Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
+          uint64_t messageId);
 
   ~Message();
 
@@ -83,18 +93,15 @@ class Message {
   // Returns the header of this message.
   const Header* getHeader() const;
 
-  // The following 4 functions are used to construct an EaselComm::EaselMessage.
+  // The following 3 functions are used to construct an EaselComm::EaselMessage.
   // Returns the message buffer address of this message.
   void* getMessageBuf() const;
 
   // Returns the message buffer size in bytes.
   size_t getMessageBufSize() const;
 
-  // Returns the payload buffer ion fd.
-  int getDmaBufFd() const;
-
-  // Returns the payload buffer size in bytes.
-  size_t getDmaBufSize() const;
+  // Returns the payload
+  HardwareBuffer getPayload() const;
 
   // Returns the message id.
   // Used in Comm::receivePayload to match the message.
@@ -113,8 +120,7 @@ class Message {
 
   void* mMessageBuf;
   size_t mMessageBufSize;
-  int mDmaBufFd;
-  size_t mDmaBufSize;
+  HardwareBuffer mPayload;
   bool mAllocMessage;  // Flag to indicate if mMessageBuf is allocated and owned
                        // by this message.
   uint64_t

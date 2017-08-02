@@ -64,7 +64,7 @@ class Comm {
 
   // Sends a group of buffers as payloads to the other side.
   // Returns the error code and remaining buffers will not be sent if previous
-  // buffer failes in sending. lastId will be set to the latest successful
+  // buffer fails in sending. lastId will be set to the latest successful
   // buffer id if not null.
   virtual int send(int channelId, const std::vector<HardwareBuffer>& buffers,
                    int* lastId = nullptr) = 0;
