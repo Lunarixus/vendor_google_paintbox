@@ -11,14 +11,10 @@ Message::Message(int channelId, const std::string& s,
   size_t stringBufSize = s.size() + 1;
   ALOG_ASSERT(allocMessage(stringBufSize));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = STRING;
+  initializeHeader(channelId, STRING);
   char* body = static_cast<char*>(getMutableBody());
   s.copy(body, s.size());
   body[s.size()] = '\0';
-
-  header->hasPayload = false;
   mDmaBufSize = 0;
 
   if (payload != nullptr) {
@@ -31,12 +27,8 @@ Message::Message(int channelId, const ::google::protobuf::MessageLite& proto,
   size_t size = proto.ByteSize();
   ALOG_ASSERT(allocMessage(size));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = PROTO;
+  initializeHeader(channelId, PROTO);
   proto.SerializeToArray(getMutableBody(), size);
-
-  header->hasPayload = false;
   mDmaBufSize = 0;
 
   if (payload != nullptr) {
@@ -49,17 +41,20 @@ Message::Message(int channelId, const void* body, size_t size,
   ALOG_ASSERT(body != nullptr);
   ALOG_ASSERT(allocMessage(size));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = RAW;
+  initializeHeader(channelId, RAW);
   memcpy(getMutableBody(), body, size);
-
-  header->hasPayload = false;
   mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
   }
+}
+
+Message::Message(int channelId, const HardwareBuffer& payload) {
+  ALOG_ASSERT(allocMessage(0));
+  mMessageId = 0;
+  initializeHeader(channelId, BUFFER);
+  attachPayload(payload);
 }
 
 Message::Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
@@ -74,6 +69,14 @@ Message::Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
 
 Message::~Message() {
   if (mAllocMessage) free(mMessageBuf);
+}
+
+void Message::initializeHeader(int channelId, Type type) {
+  auto header = getMutableHeader();
+  header->channelId = channelId;
+  header->type = type;
+  header->hasPayload = false;
+  header->payloadId = 0;
 }
 
 std::string Message::toString() const {
@@ -99,6 +102,7 @@ bool Message::toProto(::google::protobuf::MessageLite* proto) const {
 void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
   header->hasPayload = true;
+  header->payloadId = payload.id;
   mDmaBufFd = payload.ionFd;
   mDmaBufSize = payload.size;
 }

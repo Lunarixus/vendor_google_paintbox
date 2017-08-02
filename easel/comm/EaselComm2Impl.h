@@ -31,6 +31,9 @@ class CommImpl : public Comm {
   int send(int channelId, const ::google::protobuf::MessageLite& proto,
            const HardwareBuffer* payload = nullptr) override;
 
+  int send(int channelId, const std::vector<HardwareBuffer>& buffers,
+           int* lastId) override;
+
   void registerHandler(int channelId, Handler handler) override;
 
   int receivePayload(const Message& message, HardwareBuffer* buffer) override;

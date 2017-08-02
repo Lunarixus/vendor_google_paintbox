@@ -90,10 +90,10 @@ void handleBufferMessage(const EaselComm2::Message& message2) {
   CHECK_EQ(ImxShareDeviceBuffer(buffer, &fd), IMX_SUCCESS);
 
   // Receives the DMA to ImxDeviceBuffer.
-  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
+  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size, 0};
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
-  CHECK_EQ(server->send(kBufferChannel, "", &hardwareBuffer), NO_ERROR);
+  CHECK_EQ(server->send(kBufferChannel, {hardwareBuffer}), NO_ERROR);
 
   CHECK_EQ(ImxDeleteDeviceBuffer(buffer), IMX_SUCCESS);
 }

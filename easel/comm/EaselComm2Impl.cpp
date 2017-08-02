@@ -58,6 +58,8 @@ int CommImpl::receivePayload(const Message& message, HardwareBuffer* buffer) {
 
   if (srcSize != destSize) return -EINVAL;
 
+  buffer->id = message.getHeader()->payloadId;
+
   EaselComm::EaselMessage easelMessage;
   easelMessage.message_id = message.getMessageId();
   easelMessage.dma_buf = nullptr;
@@ -89,6 +91,22 @@ int CommImpl::send(int channelId, const ::google::protobuf::MessageLite& proto,
   EaselComm::EaselMessage easelMessage;
   ConvertMessageToEaselMessage(message, &easelMessage);
   return mComm->sendMessage(&easelMessage);
+}
+
+int CommImpl::send(int channelId, const std::vector<HardwareBuffer>& buffers,
+                   int* lastId) {
+  for (auto& buffer : buffers) {
+    Message message(channelId, buffer);
+    EaselComm::EaselMessage easelMessage;
+    ConvertMessageToEaselMessage(message, &easelMessage);
+    int ret = mComm->sendMessage(&easelMessage);
+    if (ret != 0) {
+      return ret;
+    } else if (lastId != nullptr) {
+      *lastId = buffer.id;
+    }
+  }
+  return 0;
 }
 
 }  // namespace EaselComm2

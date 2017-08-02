@@ -21,19 +21,21 @@ uint32_t getChannelSize(const AHardwareBuffer_Desc& desc) {
   return 0;
 }
 
-uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c) {
-  return static_cast<uint8_t>(x * 11 + y * 13 + c * 17);
+uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c, uint32_t seed) {
+  uint32_t seed2 = seed * seed;
+  uint32_t seed3 = seed2 * seed;
+  return static_cast<uint8_t>(x * seed + y * seed2 + c * seed3);
 }
 
 // HardwareBuffer does not take ownership of the input buffer.
-EaselComm2::HardwareBuffer convertToHardwareBuffer(
-    AHardwareBufferHandle buffer) {
+EaselComm2::HardwareBuffer convertToHardwareBuffer(AHardwareBufferHandle buffer,
+                                                   int id = 0) {
   AHardwareBuffer_Desc aDesc;
   AHardwareBuffer_describe(buffer, &aDesc);
   int fd = AHardwareBuffer_getNativeHandle(buffer)->data[0];
   size_t size =
       aDesc.stride * aDesc.height * aDesc.layers * getChannelSize(aDesc);
-  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
+  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size, id};
   return hardwareBuffer;
 }
 }  // namespace
@@ -74,8 +76,10 @@ class EaselComm2Test : public ::testing::Test {
 
   // Repeatedly writes pattern to the buffer.
   // Returns NO_ERROR if successful, otherwise error code.
-  int writePattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-                   AHardwareBufferHandle buffer) {
+  int writePattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
@@ -91,7 +95,7 @@ class EaselComm2Test : public ::testing::Test {
         uint32_t pixel_index = row_index + x;
         for (uint32_t c = 0; c < getChannelSize(desc); c++) {
           uint32_t byte_index = pixel_index * getChannelSize(desc) + c;
-          data[byte_index] = pattern(x, y, c);
+          data[byte_index] = pattern(x, y, c, seed);
         }
       }
     }
@@ -101,8 +105,10 @@ class EaselComm2Test : public ::testing::Test {
 
   // Checks if the buffer is filled with the pattern.
   // Returns NO_ERROR if checking passed otherwise BAD_VALUE.
-  int checkPattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-                   const AHardwareBufferHandle buffer) {
+  int checkPattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      const AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
@@ -119,7 +125,7 @@ class EaselComm2Test : public ::testing::Test {
         uint32_t pixel_index = row_index + x;
         for (uint32_t c = 0; c < getChannelSize(desc); c++) {
           uint32_t byte_index = pixel_index * getChannelSize(desc) + c;
-          match &= (data[byte_index] == pattern(x, y, c));
+          match &= (data[byte_index] == pattern(x, y, c, seed));
           if (!match) break;
         }
         if (!match) break;
@@ -166,8 +172,8 @@ class EaselComm2Test : public ::testing::Test {
 TEST_F(EaselComm2Test, AHardwareBufferLocalLoopback) {
   AHardwareBufferHandle buffer;
   ASSERT_EQ(allocBuffer(32, 24, &buffer), NO_ERROR);
-  ASSERT_EQ(writePattern(patternSimple, buffer), NO_ERROR);
-  EXPECT_EQ(checkPattern(patternSimple, buffer), NO_ERROR);
+  ASSERT_EQ(writePattern(11, patternSimple, buffer), NO_ERROR);
+  EXPECT_EQ(checkPattern(11, patternSimple, buffer), NO_ERROR);
   releaseBuffer(buffer);
 }
 
@@ -182,17 +188,59 @@ TEST_F(EaselComm2Test, AHardareBufferEaselLoopback) {
         ASSERT_TRUE(message.getHeader()->hasPayload);
         auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
-        EXPECT_EQ(checkPattern(patternSimple, rxBuffer), NO_ERROR);
+        EXPECT_EQ(checkPattern(13, patternSimple, rxBuffer), NO_ERROR);
         signal();
       });
 
-  ASSERT_EQ(writePattern(patternSimple, txBuffer), NO_ERROR);
+  ASSERT_EQ(writePattern(13, patternSimple, txBuffer), NO_ERROR);
   auto txHardwareBuffer = convertToHardwareBuffer(txBuffer);
-  ASSERT_EQ(comm()->send(kBufferChannel, "", &txHardwareBuffer), NO_ERROR);
+  ASSERT_EQ(comm()->send(kBufferChannel, {txHardwareBuffer}), NO_ERROR);
 
   wait();
 
   releaseBuffer(txBuffer);
+  releaseBuffer(rxBuffer);
+}
+
+TEST_F(EaselComm2Test, MultipleAHardareBufferEaselLoopback) {
+  const int kSize = 5;
+
+  AHardwareBufferHandle rxBuffer;
+  ASSERT_EQ(allocBuffer(32, 24, &rxBuffer), NO_ERROR);
+
+  int count = 0;
+  comm()->registerHandler(
+      kBufferChannel, [&](const EaselComm2::Message& message) {
+        ASSERT_TRUE(message.getHeader()->hasPayload);
+        auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
+        ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
+        EXPECT_EQ(checkPattern(static_cast<uint32_t>(rxHardwareBuffer.id),
+                               patternSimple, rxBuffer),
+                  NO_ERROR);
+        count++;
+        if (count >= kSize) signal();
+      });
+
+  std::vector<AHardwareBufferHandle> txBufferHandles;
+  std::vector<EaselComm2::HardwareBuffer> txBuffers;
+
+  for (int i = 0; i < kSize; i++) {
+    AHardwareBufferHandle buffer;
+    ASSERT_EQ(allocBuffer(32, 24, &buffer), NO_ERROR);
+    int id = i + 17;
+    ASSERT_EQ(writePattern(static_cast<uint32_t>(id), patternSimple, buffer),
+              NO_ERROR);
+    txBufferHandles.push_back(buffer);
+    txBuffers.push_back(convertToHardwareBuffer(buffer, id));
+  }
+
+  ASSERT_EQ(comm()->send(kBufferChannel, txBuffers), NO_ERROR);
+
+  wait();
+
+  for (auto& handle : txBufferHandles) {
+    releaseBuffer(handle);
+  }
   releaseBuffer(rxBuffer);
 }
 
