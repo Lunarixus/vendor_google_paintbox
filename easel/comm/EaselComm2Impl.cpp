@@ -44,7 +44,7 @@ int CommImpl::startReceiving() {
     Message message(msg->message_buf, msg->message_buf_size, msg->dma_buf_fd,
                     msg->dma_buf_size, msg->message_id);
     std::lock_guard<std::mutex> lock(mHandlerMapMutex);
-    auto handler = mHandlerMap[message.getHeader()->channelId];
+    auto& handler = mHandlerMap[message.getHeader()->channelId];
     handler(message);
   });
 }
@@ -88,7 +88,6 @@ int CommImpl::send(int channelId, const ::google::protobuf::MessageLite& proto,
   Message message(channelId, proto, payload);
   EaselComm::EaselMessage easelMessage;
   ConvertMessageToEaselMessage(message, &easelMessage);
-  easelMessage.need_reply = true;
   return mComm->sendMessage(&easelMessage);
 }
 

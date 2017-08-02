@@ -27,8 +27,7 @@ void handleProtoMessage(const EaselComm2::Message& message2) {
   CHECK(message2.toProto(&request));
 
   test::Response response;
-  for (int i = 0; i < request.operations_size(); i++) {
-    auto mathOp = request.operations(i);
+  for (auto& mathOp : request.operations()) {
     char op;
     auto mathResult = response.add_results();
     switch (mathOp.op()) {
