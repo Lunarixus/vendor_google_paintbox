@@ -10,6 +10,8 @@
 
 #include <easelcontrol.h>
 
+#include "googlex/gcam/image/yuv_utils.h"
+#include "googlex/gcam/image_proc/resample.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/imx_runtime_apis.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
 
@@ -28,12 +30,18 @@ HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock>
         PipelineBlock("HdrPlusProcessingBlock"),
         mMessengerToClient(messenger),
         mSourceCaptureBlock(sourceCaptureBlock),
-        mSkipTimestampCheck(skipTimestampCheck) {
+        mSkipTimestampCheck(skipTimestampCheck),
+        mImxMemoryAllocatorHandle(nullptr) {
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
     if (!mInputIdMap.empty()) {
         ALOGE("%s: Some input buffers are still referenced!", __FUNCTION__);
+    }
+
+    if (mImxMemoryAllocatorHandle != nullptr) {
+        ImxDeleteMemoryAllocator(mImxMemoryAllocatorHandle);
+        mImxMemoryAllocatorHandle = nullptr;
     }
 }
 
@@ -214,29 +222,149 @@ status_t HdrPlusProcessingBlock::flushLocked() {
     return 0;
 }
 
-status_t HdrPlusProcessingBlock::calculateCropRect(
-    int32_t inputCropX, int32_t inputCropY, int32_t inputCropW, int32_t inputCropH,
-    int32_t outputW, int32_t outputH, int32_t *outputCropX, int32_t *outputCropY,
-    int32_t *outputCropW, int32_t *outputCropH) {
+status_t HdrPlusProcessingBlock::calculateCropRect(int32_t inputCropW, int32_t inputCropH,
+    int32_t outputW, int32_t outputH, int32_t *outputCropX0, int32_t *outputCropY0,
+    int32_t *outputCropX1, int32_t *outputCropY1) {
 
-    if (outputCropX == nullptr || outputCropY == nullptr || outputCropW == nullptr ||
-        outputCropH == nullptr) {
+    if (outputCropX0 == nullptr || outputCropY0 == nullptr || outputCropX1 == nullptr ||
+        outputCropY1 == nullptr) {
         return -EINVAL;
     }
 
+    int32_t x, y, w, h;
     if (inputCropW * outputH > outputW * inputCropH) {
-        // If the input crop aspect ratio is larger than output resolution.
-        *outputCropH = inputCropH;
-        *outputCropY = inputCropY;
-        *outputCropW = outputW * inputCropH / outputH;
-        *outputCropX = (inputCropW - *outputCropW) / 2 + inputCropX;
+        // If the input crop aspect ratio is larger than output aspect ratio.
+        h = inputCropH;
+        y = 0;
+        w = outputW * h / outputH;
+        x = (inputCropW - w) / 2;
     } else {
-        // If the input crop aspect ratio is smaller than or equal to output resolution.
-        *outputCropW = inputCropW;
-        *outputCropX = inputCropX;
-        *outputCropH = outputH * inputCropW / outputW;
-        *outputCropY = (inputCropH - *outputCropH) / 2 + inputCropY;
+        // If the input crop aspect ratio is smaller than or equal to output aspect ratio.
+        w = inputCropW;
+        x = 0;
+        h = outputH * w / outputW;
+        y = (inputCropH - h) / 2;
     }
+
+    *outputCropX0 = x;
+    *outputCropY0 = y;
+    *outputCropX1 = x + w;
+    *outputCropY1 = y + h;
+
+    return 0;
+}
+
+status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams,
+        gcam::GcamPixelFormat *outputFormat, const std::vector<Input> &inputs,
+        const OutputRequest &outputRequest) {
+    if (shotParams == nullptr) {
+        ALOGE("%s: shotParams is nullptr.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    if (outputFormat == nullptr) {
+        ALOGE("%s: outputFormat is nullptr.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    int32_t zoomCropX, zoomCropY, zoomCropW, zoomCropH;
+
+#if ENABLE_DIGITAL_ZOOM
+    zoomCropX = outputRequest.metadata.requestMetadata->cropRegion[0];
+    zoomCropY = outputRequest.metadata.requestMetadata->cropRegion[1];
+    zoomCropW = outputRequest.metadata.requestMetadata->cropRegion[2];
+    zoomCropH = outputRequest.metadata.requestMetadata->cropRegion[3];
+#else
+    zoomCropX = 0;
+    zoomCropY = 0;
+    zoomCropW = mStaticMetadata->activeArraySize[2];
+    zoomCropH = mStaticMetadata->activeArraySize[3];
+#endif
+
+    status_t res = 0;
+
+    // Find the largest crop region within the digital zoom crop to fit all output buffer aspect
+    // ratios.
+    int32_t cropX0 = zoomCropW, cropY0 = zoomCropW, cropX1 = 0, cropY1 = 0;
+    for (auto buffer : outputRequest.buffers) {
+        switch (buffer->getFormat()) {
+            case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+            {
+                int32_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+
+                res = calculateCropRect(zoomCropW, zoomCropH, buffer->getWidth(),
+                        buffer->getHeight(), &x0, &y0, &x1, &y1);
+                if (res != 0) {
+                    ALOGE("%s: Calculating crop rect failed: %s (%d).", __FUNCTION__,
+                            strerror(-res), res);
+                    return res;
+                }
+
+                cropX0 = std::min(cropX0, x0);
+                cropY0 = std::min(cropY0, y0);
+                cropX1 = std::max(cropX1, x1);
+                cropY1 = std::max(cropY1, y1);
+                break;
+            }
+            case HAL_PIXEL_FORMAT_RAW16:
+                // RAW16 output will be uncropped.
+                break;
+            default:
+                ALOGE("%s: Output format %d is not supported.", __FUNCTION__, buffer->getFormat());
+                return -EINVAL;
+        }
+    }
+
+    // Gcam target resolution should have the same aspect ratio as the largest crop region's aspect
+    // ratio. Find the largest target resolution among all output buffers to avoid upscaling from
+    // target resolution to output buffer resolution.
+    int32_t cropW = cropX1 - cropX0;
+    int32_t cropH = cropY1 - cropY0;
+    int32_t maxTargetW = 0, maxTargetH = 0;
+    int32_t maxTargetFormat;
+
+    for (auto buffer : outputRequest.buffers) {
+        int targetW = 0, targetH = 0;
+
+        // For each output buffer, find the target resolution that matches crop aspect ratio.
+        if (cropW * buffer->getHeight() > buffer->getWidth() * cropH) {
+            targetH = buffer->getHeight();
+            targetW = targetH * cropW / cropH;
+        } else {
+            targetW = buffer->getWidth();
+            targetH = targetW * cropH / cropW;
+        }
+
+        if (maxTargetW < targetW) {
+            maxTargetW = targetW;
+            maxTargetH = targetH;
+            maxTargetFormat = buffer->getFormat();
+        }
+    }
+
+    shotParams->Clear();
+    shotParams->ae.target_width = maxTargetW;
+    shotParams->ae.target_height = maxTargetH;
+    shotParams->ae.crop.x0 = static_cast<float>(cropX0 + zoomCropX) /
+                            mStaticMetadata->activeArraySize[2];
+    shotParams->ae.crop.x1 = static_cast<float>(cropX1 + zoomCropX) /
+                            mStaticMetadata->activeArraySize[2];
+    shotParams->ae.crop.y0 = static_cast<float>(cropY0 + zoomCropY) /
+                            mStaticMetadata->activeArraySize[3];
+    shotParams->ae.crop.y1 = static_cast<float>(cropY1 + zoomCropY) /
+                            mStaticMetadata->activeArraySize[3];
+    shotParams->ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
+    shotParams->ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
+    shotParams->ae.process_bayer_for_payload = true;
+    shotParams->zsl = true;
+
+    if (mStaticMetadata->flashInfoAvailable == ANDROID_FLASH_INFO_AVAILABLE_FALSE) {
+        shotParams->flash_mode = gcam::FlashMode::kOff;
+    }
+
+    *outputFormat = maxTargetFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP ?
+            gcam::GcamPixelFormat::kNv21 : gcam::GcamPixelFormat::kNv12;
 
     return 0;
 }
@@ -258,56 +386,13 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         return -EINVAL;
     }
 
-    if (outputRequest.buffers.size() != 1) {
-        ALOGE("%s: Number of output buffers (%zu) not supported. Only support 1.", __FUNCTION__,
-                outputRequest.buffers.size());
-        return -EINVAL;
-    }
-
-    // Get the crop region.
-    int32_t outputCropX, outputCropY, outputCropW, outputCropH;
-
-#if ENABLE_DIGITAL_ZOOM
-    status_t res = calculateCropRect(
-            outputRequest.metadata.requestMetadata->cropRegion[0],
-            outputRequest.metadata.requestMetadata->cropRegion[1],
-            outputRequest.metadata.requestMetadata->cropRegion[2],
-            outputRequest.metadata.requestMetadata->cropRegion[3],
-            outputRequest.buffers[0]->getWidth(),
-            outputRequest.buffers[0]->getHeight(),
-            &outputCropX, &outputCropY, &outputCropW, &outputCropH);
-#else
-    // TODO: Consider digital zoom crop region instead of using full active array area. b/36492953
-    status_t res = calculateCropRect(0, 0, mStaticMetadata->activeArraySize[2],
-            mStaticMetadata->activeArraySize[3], outputRequest.buffers[0]->getWidth(),
-            outputRequest.buffers[0]->getHeight(),
-            &outputCropX, &outputCropY, &outputCropW, &outputCropH);
-#endif
-    if (res != 0) {
-        ALOGE("%s: Failed to get crop region: %s (%d).", __FUNCTION__, strerror(-res), res);
-        return res;
-    }
-
     gcam::ShotParams shotParams;
-    shotParams.ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
-    shotParams.ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
-    shotParams.ae.target_width = outputRequest.buffers[0]->getWidth();
-    shotParams.ae.target_height = outputRequest.buffers[0]->getHeight();
-    shotParams.ae.crop.x0 = static_cast<float>(outputCropX) / mStaticMetadata->activeArraySize[2];
-    shotParams.ae.crop.x1 = static_cast<float>(outputCropW + outputCropX) /
-                            mStaticMetadata->activeArraySize[2];
-    shotParams.ae.crop.y0 = static_cast<float>(outputCropY) / mStaticMetadata->activeArraySize[3];
-    shotParams.ae.crop.y1 = static_cast<float>(outputCropH + outputCropY) /
-                            mStaticMetadata->activeArraySize[3];
-    shotParams.ae.process_bayer_for_payload = true;
-    // TODO: When we support capture requests with timestamps, we may want to change this to
-    // the index of the frame that has the closest timestamp.
-    shotParams.zsl_base_frame_index_hint = 0;
-    // TODO: support non-ZSL.
-    shotParams.zsl = true;
-
-    if (mStaticMetadata->flashInfoAvailable == ANDROID_FLASH_INFO_AVAILABLE_FALSE) {
-        shotParams.flash_mode = gcam::FlashMode::kOff;
+    gcam::GcamPixelFormat outputFormat;
+    status_t res = fillGcamShotParams(&shotParams, &outputFormat, inputs, outputRequest);
+    if (res != 0) {
+        ALOGE("%s: Failed to decide output resolution: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return res;
     }
 
     START_PROFILER_TIMER(shotCapture->timer);
@@ -318,7 +403,7 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
             /*camera_id*/0,
             shotParams,
             mShotCallbacks,
-            kGcamFinalImageFormat,
+            outputFormat,
             /*final_yuv_id=*/gcam::kInvalidImageId,
             /*final_output_yuv_view=*/gcam::YuvWriteView(),
             /*final_rgb_id=*/gcam::kInvalidImageId,
@@ -467,6 +552,201 @@ void HdrPlusProcessingBlock::notifyShutterLocked(const Shutter &shutter) {
                     input.metadata.frameMetadata->timestamp);
 }
 
+bool HdrPlusProcessingBlock::isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat) {
+    switch (gcamFormat) {
+        case gcam::YuvFormat::kNv12:
+            return halFormat == HAL_PIXEL_FORMAT_YCbCr_420_SP;
+        case gcam::YuvFormat::kNv21:
+            return halFormat == HAL_PIXEL_FORMAT_YCrCb_420_SP;
+        default:
+            return false;
+    }
+}
+
+status_t HdrPlusProcessingBlock::copyBuffer(const gcam::YuvImage* srcYuvImage,
+        PipelineBuffer *dstBuffer) {
+    if (srcYuvImage == nullptr || dstBuffer == nullptr) {
+        ALOGE("%s: srcYuvImage (%p) or dstBuffer (%p) is nullptr.", __FUNCTION__, srcYuvImage,
+                dstBuffer);
+        return -EINVAL;
+    }
+
+    if (!isTheSameYuvFormat(srcYuvImage->yuv_format(), dstBuffer->getFormat())) {
+        ALOGE("%s: Src image format is %s but dst buffer format is %d.", __FUNCTION__,
+                gcam::ToText(srcYuvImage->yuv_format()), dstBuffer->getFormat());
+        return -EINVAL;
+    }
+
+    dstBuffer->lockData();
+    uint8_t *lumaDst = dstBuffer->getPlaneData(0);
+
+    // Copy luma line by line from the final image.
+    const gcam::InterleavedReadViewU8 &lumaImageSrc = srcYuvImage->luma_read_view();
+    int32_t lineBytesToCopy = std::min(dstBuffer->getWidth(), lumaImageSrc.width());
+    uint32_t linesToCopy = std::min(dstBuffer->getHeight(), lumaImageSrc.height());
+    for (uint32_t y = 0; y < linesToCopy; y++) {
+        std::memcpy(lumaDst + y * dstBuffer->getStride(0), &lumaImageSrc.at(0, y, 0),
+                lineBytesToCopy);
+    }
+
+    // Copy chroma line by line from the final image.
+    const gcam::InterleavedReadViewU8 &chromaImageSrc = srcYuvImage->chroma_read_view();
+    uint8_t* chromaDst = dstBuffer->getPlaneData(1);
+    lineBytesToCopy = std::min(dstBuffer->getWidth() , chromaImageSrc.width() * 2);
+    linesToCopy = std::min(dstBuffer->getHeight() / 2, chromaImageSrc.height());
+    for (uint32_t y = 0; y < linesToCopy; y++) {
+        std::memcpy(chromaDst + y * dstBuffer->getStride(1), &chromaImageSrc.at(0, y, 0),
+                lineBytesToCopy);
+    }
+
+    dstBuffer->unlockData();
+
+    return 0;
+}
+
+status_t HdrPlusProcessingBlock::resampleBuffer(const gcam::YuvImage* srcYuvImage,
+        PipelineBuffer *dstBuffer) {
+    if (srcYuvImage == nullptr || dstBuffer == nullptr) {
+        ALOGE("%s: srcYuvImage (%p) or dstBuffer (%p) is nullptr.", __FUNCTION__, srcYuvImage,
+                dstBuffer);
+        return -EINVAL;
+    }
+
+    if (mImxMemoryAllocatorHandle == nullptr) {
+        ImxError err = ImxGetMemoryAllocator(IMX_MEMORY_ALLOCATOR_ION, &mImxMemoryAllocatorHandle);
+        if (err != 0) {
+            ALOGE("%s: Creating IMX memory allocator failed.", __FUNCTION__);
+            return -ENOMEM;
+        }
+    }
+
+    ALOGV("%s: Resampling from %dx%d to %dx%d", __FUNCTION__, srcYuvImage->luma_read_view().width(),
+        srcYuvImage->luma_read_view().height(), dstBuffer->getWidth(), dstBuffer->getHeight());
+
+    /*
+     * Resample using ResampleLanczos in RGB for better image quality:
+     *   1. Logically crop source YUV image to match dstBuffer aspect ration.
+     *   2. Convert YUV -> RGB.
+     *   3. Resample using ResampleLanczos in RGB.
+     *   4. Convert RGB back to YUV.
+     */
+
+    // 1. Logically crop source YUV image to match dstBuffer aspect ration.
+    int32_t cropX0, cropY0, cropX1, cropY1;
+    status_t res = calculateCropRect(srcYuvImage->luma_read_view().width(),
+            srcYuvImage->luma_read_view().height(), dstBuffer->getWidth(), dstBuffer->getHeight(),
+            &cropX0, &cropY0, &cropX1, &cropY1);
+
+    gcam::YuvReadView croppedSrcYuvImage(*srcYuvImage);
+    croppedSrcYuvImage.FastCrop(cropX0, cropY0, cropX1, cropY1);
+
+    // Create a RGB image for source buffer.
+    auto rgbSrcImxBuffer = std::make_unique<ImxBuffer>();
+    res = rgbSrcImxBuffer->allocate(mImxMemoryAllocatorHandle,
+            croppedSrcYuvImage.luma_read_view().width(),
+            croppedSrcYuvImage.luma_read_view().height(),
+            HAL_PIXEL_FORMAT_RGB_888);
+    if (res != 0) {
+        ALOGE("%s: Creating an temporary RGB IMX buffer failed.", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    gcam::InterleavedWriteViewU8 srcRgbImage(rgbSrcImxBuffer->getWidth(),
+            rgbSrcImxBuffer->getHeight(), 3, rgbSrcImxBuffer->getData(),
+            rgbSrcImxBuffer->getStride() - rgbSrcImxBuffer->getWidth() * 3);
+
+    // 1. Convert YUV to RGB.
+    bool success = gcam::YuvToRgb(croppedSrcYuvImage, &srcRgbImage);
+    if (!success) {
+        ALOGE("%s: Converting source YUV image to RGB failed.", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    // Create a RGB image for destination buffer.
+    auto rgbDstImxBuffer = std::make_unique<ImxBuffer>();
+    res = rgbDstImxBuffer->allocate(mImxMemoryAllocatorHandle,
+            dstBuffer->getWidth(), dstBuffer->getHeight(), HAL_PIXEL_FORMAT_RGB_888);
+    if (res != 0) {
+        ALOGE("%s: Creating an temporary RGB IMX buffer failed.", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    gcam::InterleavedWriteViewU8 dstRgbImage(rgbDstImxBuffer->getWidth(),
+            rgbDstImxBuffer->getHeight(), 3, rgbDstImxBuffer->getData(),
+            rgbDstImxBuffer->getStride() - rgbDstImxBuffer->getWidth() * 3);
+
+    // 2. Lanczos resampling
+    success = gcam::ResampleLanczos(srcRgbImage, &dstRgbImage);
+    if (!success) {
+        ALOGE("%s: ResampleLanczos failed.", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    int32_t format = dstBuffer->getFormat();
+    gcam::YuvFormat gcamYuvFormat;
+    switch (format) {
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            gcamYuvFormat = gcam::YuvFormat::kNv21;
+            break;
+        case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+            gcamYuvFormat = gcam::YuvFormat::kNv12;
+            break;
+        default:
+            ALOGE("%s: dstBuffer format %d is not supported.", __FUNCTION__, format);
+            return -EINVAL;
+    }
+
+    dstBuffer->lockData();
+
+    gcam::YuvWriteView dstYuvImage(dstBuffer->getWidth(), dstBuffer->getHeight(),
+            /*luma_channels*/1,
+           dstBuffer->getStride(0), dstBuffer->getPlaneData(0),
+           dstBuffer->getWidth() / 2, dstBuffer->getHeight() / 2, /*chroma_channels*/2,
+           dstBuffer->getStride(1), dstBuffer->getPlaneData(1),
+           gcamYuvFormat);
+
+    // 3. Convert RGB to YUV.
+    success = gcam::RgbToYuv(dstRgbImage, &dstYuvImage);
+    if (!success) {
+        ALOGE("%s: Converting destination RGB image to YUV failed.", __FUNCTION__);
+        res = -ENODEV;
+    }
+
+    dstBuffer->unlockData();
+
+    return res;
+}
+
+status_t HdrPlusProcessingBlock::produceRequestOutputBuffers(
+        const gcam::YuvImage* srcYuvImage, PipelineBufferSet *outputBuffers) {
+    if (srcYuvImage == nullptr || outputBuffers == nullptr) {
+        ALOGE("%s: srcYuvImage (%p) or outputBuffers (%p) is nullptr.", __FUNCTION__, srcYuvImage,
+                outputBuffers);
+        return -EINVAL;
+    }
+
+    status_t res;
+
+    for (auto outputBuffer : *outputBuffers) {
+        if (srcYuvImage->luma_read_view().width() == outputBuffer->getWidth() &&
+                srcYuvImage->luma_read_view().height() == outputBuffer->getHeight() &&
+                isTheSameYuvFormat(srcYuvImage->yuv_format(), outputBuffer->getFormat())) {
+            res = copyBuffer(srcYuvImage, outputBuffer);
+            if (res != 0) {
+                ALOGE("%s: Copying buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+                return res;
+            }
+        } else {
+            res = resampleBuffer(srcYuvImage, outputBuffer);
+            if (res != 0) {
+                ALOGE("%s: Resampling buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+                return res;
+            }
+        }
+    }
+
+    return 0;
+}
 
 void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex) {
     ALOGD("%s: Gcam selected a base frame index %d for shot %d.", __FUNCTION__, baseFrameIndex,
@@ -501,12 +781,6 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
         return;
     }
 
-    if (pixelFormat != kGcamFinalImageFormat) {
-        ALOGE("%s: Expecting format %d but got format %d. Dropping this result.", __FUNCTION__,
-                kGcamFinalImageFormat, pixelFormat);
-        return;
-    }
-
     std::shared_ptr<ShotCapture> finishingShot;
     {
         std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
@@ -525,52 +799,21 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
 
         finishingShot = mPendingShotCapture;
         mPendingShotCapture = nullptr;
-
-        auto sourceCaptureBlock = mSourceCaptureBlock.lock();
-        if (sourceCaptureBlock != nullptr) {
-            sourceCaptureBlock->resume();
-        }
     }
 
     END_PROFILER_TIMER(finishingShot->timer);
 
     OutputResult outputResult = finishingShot->outputRequest;
+    status_t res = produceRequestOutputBuffers(yuvResult, &outputResult.buffers);
+    if (res != 0) {
+        ALOGE("%s: Producing request output buffers failed: %s (%d).", __FUNCTION__, strerror(-res),
+                res);
+        return;
+    }
 
-    // Copy HDR+ processed final image to block output buffers. This won't be needed for PB
-    // version.
-    for (auto outputBuffer : outputResult.buffers) {
-        // The following assumes format is NV21.
-        if (outputBuffer->getFormat() != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
-            ALOGE("%s: Only NV21 output buffer is supported.", __FUNCTION__);
-            break;
-        }
-
-        outputBuffer->lockData();
-        uint8_t *lumaDst = outputBuffer->getPlaneData(0);
-
-        // Copy luma line by line from the final image.
-        const gcam::InterleavedReadViewU8 &lumaImageSrc = yuvResult->luma_read_view();
-        int32_t lineBytesToCopy = std::min(outputBuffer->getWidth(), lumaImageSrc.width());
-        uint32_t linesToCopy = std::min(outputBuffer->getHeight(), lumaImageSrc.height());
-        for (uint32_t y = 0; y < linesToCopy; y++) {
-            std::memcpy(lumaDst + y * outputBuffer->getStride(0), &lumaImageSrc.at(0, y, 0),
-                    lineBytesToCopy);
-        }
-
-        // Copy chroma line by line from the final image.
-        const gcam::InterleavedReadViewU8 &chromaImageSrc = yuvResult->chroma_read_view();
-        uint8_t* chromaDst = outputBuffer->getPlaneData(1);
-        lineBytesToCopy = std::min(outputBuffer->getWidth() , chromaImageSrc.width() * 2);
-        linesToCopy = std::min(outputBuffer->getHeight() / 2, chromaImageSrc.height());
-        for (uint32_t y = 0; y < linesToCopy; y++) {
-            // TODO: This assumes chroma has the same stride as luma. This is currently fine.
-            // The assumption may not be true for QC HAL, Easel or PB HW, and should be fixed.
-            // b/31623156
-            std::memcpy(chromaDst + y * outputBuffer->getStride(1), &chromaImageSrc.at(0, y, 0),
-                    lineBytesToCopy);
-        }
-
-        outputBuffer->unlockData();
+    auto sourceCaptureBlock = mSourceCaptureBlock.lock();
+    if (sourceCaptureBlock != nullptr) {
+        sourceCaptureBlock->resume();
     }
 
     // Set frame metadata.
@@ -853,6 +1096,12 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     frame->gcamSpatialGainMap = std::make_shared<gcam::SpatialGainMap>(smWidth, smHeight,
             /*is_precise*/true);
 
+    if (metadata->lensShadingMap.size() != smHeight * smWidth * 4) {
+        ALOGE("%s: Lens shading map has %lu entries. Expecting %u", __FUNCTION__,
+                metadata->lensShadingMap.size(), smHeight * smWidth * 4);
+        return -EINVAL;
+    }
+
     for (uint32_t c = 0; c < 4; c++) {
         for (uint32_t y = 0; y < smHeight; y++) {
             for (uint32_t x = 0; x < smWidth; x++) {
@@ -1072,6 +1321,89 @@ void HdrPlusProcessingBlock::insertIntoInputQueue(Input input) {
         mInputQueue.insert(insert_it, input);
     }
     notifyWorkerThreadEvent();
+}
+
+HdrPlusProcessingBlock::ImxBuffer::ImxBuffer() : mBuffer(nullptr), mData(nullptr), mWidth(0),
+        mHeight(0), mStride(0), mFormat(0) {
+}
+
+HdrPlusProcessingBlock::ImxBuffer::~ImxBuffer() {
+    ImxError err;
+
+    if (mData != nullptr) {
+        err = ImxUnlockDeviceBuffer(mBuffer);
+        if (err != 0){
+            ALOGE("%s: Unlocking buffer failed: %d", __FUNCTION__, err);
+        }
+        mData = nullptr;
+    }
+    if (mBuffer != nullptr) {
+        err = ImxDeleteDeviceBuffer(mBuffer);
+        if (err != 0){
+            ALOGE("%s: Deleting buffer failed: %d", __FUNCTION__, err);
+        }
+        mBuffer = nullptr;
+    }
+}
+
+status_t HdrPlusProcessingBlock::ImxBuffer::allocate(
+        ImxMemoryAllocatorHandle imxMemoryAllocatorHandle, uint32_t width, uint32_t height,
+        int32_t format) {
+    if (mBuffer != nullptr) {
+        ALOGE("%s: buffer was already allocated.", __FUNCTION__);
+        return -EEXIST;
+    }
+
+    if (format != HAL_PIXEL_FORMAT_RGB_888) {
+        ALOGE("%s: format %d is not supported.", __FUNCTION__, __LINE__);
+        return -EINVAL;
+    }
+
+    uint32_t bytesPerPixel = 3;
+    uint32_t alignment = kImxDefaultDeviceBufferAlignment;
+    uint32_t stride = ((width * bytesPerPixel + alignment - 1) / alignment) * alignment;
+    uint32_t bytes = stride * height;
+    ImxError err = ImxCreateDeviceBufferManaged(imxMemoryAllocatorHandle, bytes, alignment,
+            kImxDefaultDeviceBufferHeap, /*flags*/0, &mBuffer);
+    if (err != 0) {
+        ALOGE("%s: Allocate %u bytes failed: %d", __FUNCTION__, bytes, err);
+        return -ENOMEM;
+    }
+
+    mWidth = width;
+    mHeight = height;
+    mFormat = format;
+    mStride = stride;
+
+    return 0;
+}
+
+uint8_t* HdrPlusProcessingBlock::ImxBuffer::getData() {
+    if (mData != nullptr) return mData;
+
+    ImxError err = ImxLockDeviceBuffer(mBuffer, (void**)(&mData));
+    if (err != 0) {
+        ALOGE("%s: Locking buffer failed: %d", __FUNCTION__, err);
+        mData = nullptr;
+    }
+
+    return mData;
+}
+
+uint32_t HdrPlusProcessingBlock::ImxBuffer::getWidth() const {
+    return mWidth;
+}
+
+uint32_t HdrPlusProcessingBlock::ImxBuffer::getHeight() const {
+    return mHeight;
+}
+
+uint32_t HdrPlusProcessingBlock::ImxBuffer::getStride() const {
+    return mStride;
+}
+
+int32_t HdrPlusProcessingBlock::ImxBuffer::getFormat() const {
+    return mFormat;
 }
 
 } // pbcamera

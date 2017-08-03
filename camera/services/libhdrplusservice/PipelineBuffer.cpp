@@ -70,6 +70,7 @@ status_t PipelineBuffer::clear() {
             memset(data, kClearRawValue, getDataSize());
             return 0;
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+        case HAL_PIXEL_FORMAT_YCbCr_420_SP:
         {
             uint32_t lumaSize = mAllocatedConfig.image.planes[0].stride *
                                 mAllocatedConfig.image.height;
@@ -108,6 +109,7 @@ status_t PipelineBuffer:: validatePlaneConfig(const ImageConfiguration &image, u
             minStride = image.width * 2;
             break;
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+        case HAL_PIXEL_FORMAT_YCbCr_420_SP:
             minStride = image.width;
             break;
         default:
@@ -123,7 +125,8 @@ status_t PipelineBuffer:: validatePlaneConfig(const ImageConfiguration &image, u
 
     uint32_t minScanline;
     minScanline = image.height; // RAW10, RAW16, Y planes.
-    if (image.format == HAL_PIXEL_FORMAT_YCrCb_420_SP && planeNum == 1) {
+    if ((image.format == HAL_PIXEL_FORMAT_YCrCb_420_SP ||
+            image.format == HAL_PIXEL_FORMAT_YCbCr_420_SP ) && planeNum == 1) {
         minScanline /= 2; // UV plane.
     }
 
@@ -147,6 +150,7 @@ status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
             break;
 
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+        case HAL_PIXEL_FORMAT_YCbCr_420_SP:
             expectedNumPlanes = 2;
             break;
         default:

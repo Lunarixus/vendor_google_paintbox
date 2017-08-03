@@ -353,9 +353,11 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request,
                             bufferInRequest.streamId, strerror(-res), res);
                     abortRequest(&outputRequest);
                     return -EINVAL;
-                } else {
-                    outputRequest.buffers.push_back(buffer);
                 }
+
+                ALOGV("%s: Requesting %dx%d format %d.", __FUNCTION__, buffer->getWidth(),
+                        buffer->getHeight(), buffer->getFormat());
+                outputRequest.buffers.push_back(buffer);
             }
         }
     }
