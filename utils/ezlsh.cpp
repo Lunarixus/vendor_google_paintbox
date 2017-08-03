@@ -1112,7 +1112,6 @@ int main(int argc, char **argv) {
 
     if (client) {
         EaselLog::LogClient logClient;
-        logClient.start();
         if (optind < argc) {
             if (!strcmp(argv[optind], "poweron")) {
                 if (!client_check_state(POWER_OFF)) exit(1);
@@ -1123,6 +1122,8 @@ int main(int argc, char **argv) {
                 read_sysfs_node(kPowerOff);
             } else if (!strcmp(argv[optind], "pull")) {
                 if (!client_check_state(POWER_ON)) exit(1);
+                logClient.start();
+
                 char *remote_path;
                 char *local_path = NULL;
 
@@ -1138,6 +1139,8 @@ int main(int argc, char **argv) {
                 client_pull_recursive_file(remote_path, local_path);
             } else if (!strcmp(argv[optind], "push")) {
                 if (!client_check_state(POWER_ON)) exit(1);
+                logClient.start();
+
                 char *remote_path;
                 char *local_path;
 
@@ -1158,6 +1161,8 @@ int main(int argc, char **argv) {
                 client_push_file(local_path, remote_path);
             } else if (!strcmp(argv[optind], "exec")) {
                 if (!client_check_state(POWER_ON)) exit(1);
+                logClient.start();
+
                 if (++optind >= argc) {
                     fprintf(stderr,
                           "ezlsh: exec: cmd missing\n");
@@ -1172,6 +1177,7 @@ int main(int argc, char **argv) {
             }
         } else {
             if (!client_check_state(POWER_ON)) exit(1);
+            logClient.start();
             // No command, run shell session
             shell_client_session();
         }
