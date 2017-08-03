@@ -13,6 +13,7 @@ namespace EaselComm2 {
 struct HardwareBuffer {
   int ionFd;
   size_t size;
+  int id;  // optional buffer id to note transferring sequence.
 };
 
 // EaselComm2::Message that supports conversion from the following types:
@@ -27,6 +28,7 @@ class Message {
     RAW = 0,
     STRING = 1,
     PROTO = 2,
+    BUFFER = 3,
   };
 
   // Message header.
@@ -34,6 +36,7 @@ class Message {
     int channelId;    // Message channel ID.
     Type type;        // Message type.
     bool hasPayload;  // Whether payload buffer is attached.
+    int payloadId;    // Payload ID to note buffer sequence.
   };
 
   Message(int channelId, const std::string& s,
@@ -44,6 +47,8 @@ class Message {
 
   Message(int channelId, const void* body, size_t size,
           const HardwareBuffer* payload = nullptr);
+
+  Message(int channelId, const HardwareBuffer& payload);
 
   Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
           size_t dmaBufSize, uint64_t messageId);
@@ -103,6 +108,8 @@ class Message {
   void* getMutableBody();
 
   Header* getMutableHeader();
+
+  void initializeHeader(int channelId, Type type);
 
   void* mMessageBuf;
   size_t mMessageBufSize;
