@@ -10,6 +10,9 @@
 
 #include "PipelineBuffer.h"
 
+// This is an extension of HAL formats matching gralloc_priv.h
+#define HAL_PIXEL_FORMAT_YCbCr_420_SP (0x109)
+
 namespace pbcamera {
 
 class HdrPlusPipeline;
