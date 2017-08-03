@@ -50,7 +50,6 @@ private:
             bool skipTimestampCheck, std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     // Gcam related constants.
-    static const gcam::GcamPixelFormat kGcamFinalImageFormat = gcam::GcamPixelFormat::kNv21;
     static const int32_t kGcamThreadCounts = 1;
     static const bool kGcamTuningLocked = true;
     static const int32_t kGcamFullMeteringSweepFrames = 7;
@@ -122,6 +121,27 @@ private:
         std::weak_ptr<PipelineBlock> mBlock;
     };
 
+    // An IMX buffer wrapper for easier buffer life cycle management.
+    class ImxBuffer {
+    public:
+        ImxBuffer();
+        virtual ~ImxBuffer();
+        status_t allocate(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
+                uint32_t width, uint32_t height, int32_t format);
+        uint8_t *getData();
+        uint32_t getWidth() const;
+        uint32_t getHeight() const;
+        uint32_t getStride() const;
+        int32_t getFormat() const;
+    private:
+        ImxDeviceBufferHandle mBuffer;
+        uint8_t *mData;
+        uint32_t mWidth;
+        uint32_t mHeight;
+        uint32_t mStride;
+        int32_t mFormat;
+    };
+
     // Contains information about a payload frame for a GCam shot capture.
     struct PayloadFrame {
         // Block input.
@@ -188,11 +208,28 @@ private:
     // Return an input. Must be called with mQueueLock held.
     void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
 
-    // Given an input crop region and output resolution, calculate the overall crop region that has
-    // the same aspect ratio as the output resolution.
-    status_t calculateCropRect(int32_t inputCropX, int32_t inputCropY, int32_t inputCropW,
-            int32_t inputCropH, int32_t outputW, int32_t outputH, int32_t *outputCropX,
-            int32_t *outputCropY, int32_t *outputCropW, int32_t *outputCropH);
+    // Given an input crop resolution and output resolution, calculate the overall crop region that
+    // has the same aspect ratio as the output resolution.
+    status_t calculateCropRect(int32_t inputCropW, int32_t inputCropH,
+            int32_t outputW, int32_t outputH, int32_t *outputCropX0, int32_t *outputCropY0,
+            int32_t *outputCropX1, int32_t *outputCropY1);
+
+    // Given input and output buffers, fill gcam shot parameters.
+    status_t fillGcamShotParams(gcam::ShotParams *shotParams, gcam::GcamPixelFormat *outputFormat,
+            const std::vector<Input> &inputs, const OutputRequest &outputRequest);
+
+    // Produce output buffers with an HDR+ processed image.
+    status_t produceRequestOutputBuffers(const gcam::YuvImage* srcYuvImage,
+            PipelineBufferSet *outputBuffers);
+
+    // Copy a YUV image to a dst YUV buffer.
+    status_t copyBuffer(const gcam::YuvImage* srcYuvImage, PipelineBuffer *dstBuffer);
+
+    // Resample a source YUV image to a destination YUV buffer.
+    status_t resampleBuffer(const gcam::YuvImage* srcYuvImage, PipelineBuffer *dstBuffer);
+
+    // Return if gcam YUV format is the same as HAL format.
+    bool isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat);
 
     // Notify AP about a shutter. Must be called when mHdrPlusProcessingLock is locked.
     void notifyShutterLocked(const Shutter &shutter);
@@ -252,6 +289,9 @@ private:
 
     std::mutex mShuttersLock;
     std::deque<Shutter> mShutters; // Shutters ready to send to AP.
+
+    // IMX memory allocate handle to allocate IMX buffers.
+    ImxMemoryAllocatorHandle mImxMemoryAllocatorHandle;
 };
 
 } // namespace pbcamera
