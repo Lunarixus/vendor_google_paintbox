@@ -51,6 +51,7 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libprotobuf-cpp-lite)/libprotobuf-cpp-lite.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libsysutils)/libsysutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwind)/libunwind.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libunwindstack)/libunwindstack.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
