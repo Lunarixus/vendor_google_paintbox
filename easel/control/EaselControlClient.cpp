@@ -9,10 +9,13 @@
 
 #include <thread>
 
+#include <fstream>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <streambuf>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -126,6 +129,15 @@ static int sendTimestamp(void) {
     return ret;
 }
 
+static void captureBootTrace()
+{
+    std::ifstream t("/sys/devices/virtual/misc/mnh_sm/boot_trace");
+    std::string str((std::istreambuf_iterator<char>(t)),
+        std::istreambuf_iterator<char>());
+    ALOGE("%s: Boot trace = [%s]\n", __FUNCTION__, str.c_str());
+    t.close();
+}
+
 int sendActivateCommand()
 {
     EaselControlImpl::ActivateMsg ctrl_msg;
@@ -199,6 +211,7 @@ void easelConnThread()
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
         ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
+        captureBootTrace();
         reportFatalError(EaselFatalReason::BOOTSTRAP_FAIL);
         return;
     }
@@ -208,6 +221,7 @@ void easelConnThread()
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)",
               __FUNCTION__, ret);
+        captureBootTrace();
         reportFatalError(EaselFatalReason::OPEN_SYSCTRL_FAIL);
         return;
     }
@@ -221,10 +235,12 @@ void easelConnThread()
             ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
             reportFatalError(EaselFatalReason::HANDSHAKE_FAIL);
         }
+        captureBootTrace();
         return;
     }
     gHandshakeSuccessful = true;
     ALOGI("%s: handshake done\n", __FUNCTION__);
+    captureBootTrace();
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
         EaselControlImpl::DeactivateMsg ctrl_msg;
