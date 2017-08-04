@@ -64,6 +64,7 @@ private:
     static const bool kGcamCorrectBlackLevel = false;
     static const bool kGcamDetectFlare = false;
     static const int32_t kInvalidBaseFrameIndex = -1;
+    static constexpr float kCropRatioThreshold = 0.005;
 
     // Camera metadata related constants.
     static constexpr float kMaxFaceScore = 100.f;
