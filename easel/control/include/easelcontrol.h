@@ -22,6 +22,7 @@
 #ifndef ANDROID_EASELCONTROL_H
 #define ANDROID_EASELCONTROL_H
 
+#include <array>
 #include <functional>
 #include <stdint.h>
 
@@ -29,20 +30,29 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
-enum class EaselFatalReason {
+enum class EaselErrorSeverity {
+    FATAL,          // Fatal error, expect caller restart EaselControlClient
+    NON_FATAL,      // Non-fatal, caller may continue
+    SEVERITY_COUNT,
+};
+
+enum class EaselErrorReason {
     LINK_FAIL,          // Power-on or PCIe link fail
     BOOTSTRAP_FAIL,     // AP didn't receive bootstrap msi
     OPEN_SYSCTRL_FAIL,  // AP failed to open SYSCTRL service
     HANDSHAKE_FAIL,     // Handshake failed
     IPU_RESET_REQ,      // Easel requested AP to reset it
+    REASON_COUNT,
 };
 
 /*
- * Callback on fatal error.
- * r:  reason for fatal error, value is one of enum EaselFatalReason
+ * Callback on error.
+ * r:  reason for error, value is one of enum EaselErrorReason
+ * s:  severity for error, value is one of enum EaselErrorSeverity
+ *
  * Please return 0 if the fatal error has been handled.
  */
-using easel_fatal_callback_t = std::function<int(enum EaselFatalReason r)>;
+using easel_error_callback_t = std::function<int(enum EaselErrorReason r, enum EaselErrorSeverity s)>;
 
 class EaselControlClient {
 public:
@@ -107,14 +117,14 @@ public:
     static int suspend();
 
     /*
-     * Register a callback on fatal error.
+     * Register a callback on error.
      *
-     * The registered callback will only be called when fatal error happens
+     * The registered callback will only be called when error happens
      * on threads that are separate from serialized functions such as resume(),
      * suspend(), activate(), startMipi(), etc.
      * User should continue to handle return value of resume(), suspend(), etc.
      */
-    static void registerFatalErrorCallback(easel_fatal_callback_t f);
+    static void registerErrorCallback(easel_error_callback_t f);
 };
 
 class EaselControlServer {

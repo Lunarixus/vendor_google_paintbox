@@ -44,27 +44,41 @@ status_t EaselManagerClientImpl::open() {
         return NO_INIT;
     }
 
-    mEaselControl.registerFatalErrorCallback(std::bind(&EaselManagerClientImpl::onEaselFatalError,
-            this, std::placeholders::_1));
+    mEaselControl.registerErrorCallback(std::bind(&EaselManagerClientImpl::onEaselError,
+            this, std::placeholders::_1, std::placeholders::_2));
     mEaselControlOpened = true;
     mEaselResumed = false;
     return res;
 }
 
-int EaselManagerClientImpl::onEaselFatalError(enum EaselFatalReason r) {
+int EaselManagerClientImpl::onEaselError(enum EaselErrorReason r, enum EaselErrorSeverity s) {
 
     std::string errMsg;
+    switch (s) {
+        case EaselErrorSeverity::FATAL:
+            errMsg.append("Fatal: ");
+            break;
+        case EaselErrorSeverity::NON_FATAL:
+            errMsg.append("Non-fatal: ");
+            break;
+        default:
+            break;
+    }
+
     switch (r) {
-        case EaselFatalReason::BOOTSTRAP_FAIL:
+        case EaselErrorReason::LINK_FAIL:
+            errMsg.append("PCIe link down.");
+            break;
+        case EaselErrorReason::BOOTSTRAP_FAIL:
             errMsg.append("AP didn't receive bootstrap msi.");
             break;
-        case EaselFatalReason::OPEN_SYSCTRL_FAIL:
+        case EaselErrorReason::OPEN_SYSCTRL_FAIL:
             errMsg.append("AP failed to open SYSCTRL service.");
             break;
-        case EaselFatalReason::HANDSHAKE_FAIL:
+        case EaselErrorReason::HANDSHAKE_FAIL:
             errMsg.append("Handshake failed.");
             break;
-        case EaselFatalReason::IPU_RESET_REQ:
+        case EaselErrorReason::IPU_RESET_REQ:
             errMsg.append("Easel requested AP to reset it.");
             break;
         default:
@@ -72,12 +86,17 @@ int EaselManagerClientImpl::onEaselFatalError(enum EaselFatalReason r) {
             break;
     }
 
-    ALOGE("%s: Got an Easel fatal error: %s (%d).", __FUNCTION__, errMsg.c_str(), r);
+    ALOGE("%s: Got an Easel error: %s (%d).", __FUNCTION__, errMsg.c_str(), r);
 
     Mutex::Autolock l(mClientListenerLock);
     if (mEaselManagerClientListener == nullptr) {
         ALOGE("%s: Listener is not set.", __FUNCTION__);
         return NO_INIT;
+    }
+
+    if (s != EaselErrorSeverity::FATAL) {
+        ALOGI("%s: Ignore non-fatal Easel error", __FUNCTION__);
+        return 0;
     }
 
     mEaselManagerClientListener->onEaselFatalError(errMsg);
