@@ -4,7 +4,8 @@
 const int kProtoChannel = 0;
 const int kStringChannel = 1;
 const int kStructChannel = 2;
-const int kBufferChannel = 3;
+const int kIonBufferChannel = 3;
+const int kMallocBufferChannel = 4;
 
 struct TestStruct {
   int number;
