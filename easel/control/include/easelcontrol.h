@@ -30,6 +30,7 @@
 #endif
 
 enum class EaselFatalReason {
+    LINK_FAIL,          // Power-on or PCIe link fail
     BOOTSTRAP_FAIL,     // AP didn't receive bootstrap msi
     OPEN_SYSCTRL_FAIL,  // AP failed to open SYSCTRL service
     HANDSHAKE_FAIL,     // Handshake failed
