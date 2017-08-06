@@ -9,10 +9,21 @@ namespace EaselComm2 {
 
 // Abstraction of device buffers supported in EaselComm2
 // for buffer transfering on PCIe.
-// Data structure is similar to hidl_memory
+// Data structure is similar to hidl_memory.
+// Buffer could be specified either by vaddr or ionFd.
+// If both are valid, vaddr will override ionFd.
 struct HardwareBuffer {
+  void* vaddr;
   int ionFd;
   size_t size;
+  int id;  // optional buffer id to note transferring sequence.
+
+  HardwareBuffer();
+  HardwareBuffer(void* vaddr, size_t size, int id = 0);
+  HardwareBuffer(int ionFd, size_t size, int id = 0);
+
+  // Returns true if HardwareBuffer is ion based, otherwise false.
+  bool isIonBuffer();
 };
 
 // EaselComm2::Message that supports conversion from the following types:
@@ -27,6 +38,7 @@ class Message {
     RAW = 0,
     STRING = 1,
     PROTO = 2,
+    BUFFER = 3,
   };
 
   // Message header.
@@ -34,6 +46,7 @@ class Message {
     int channelId;    // Message channel ID.
     Type type;        // Message type.
     bool hasPayload;  // Whether payload buffer is attached.
+    int payloadId;    // Payload ID to note buffer sequence.
   };
 
   Message(int channelId, const std::string& s,
@@ -45,8 +58,10 @@ class Message {
   Message(int channelId, const void* body, size_t size,
           const HardwareBuffer* payload = nullptr);
 
-  Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
-          size_t dmaBufSize, uint64_t messageId);
+  Message(int channelId, const HardwareBuffer& payload);
+
+  Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
+          uint64_t messageId);
 
   ~Message();
 
@@ -78,18 +93,15 @@ class Message {
   // Returns the header of this message.
   const Header* getHeader() const;
 
-  // The following 4 functions are used to construct an EaselComm::EaselMessage.
+  // The following 3 functions are used to construct an EaselComm::EaselMessage.
   // Returns the message buffer address of this message.
   void* getMessageBuf() const;
 
   // Returns the message buffer size in bytes.
   size_t getMessageBufSize() const;
 
-  // Returns the payload buffer ion fd.
-  int getDmaBufFd() const;
-
-  // Returns the payload buffer size in bytes.
-  size_t getDmaBufSize() const;
+  // Returns the payload
+  HardwareBuffer getPayload() const;
 
   // Returns the message id.
   // Used in Comm::receivePayload to match the message.
@@ -104,10 +116,11 @@ class Message {
 
   Header* getMutableHeader();
 
+  void initializeHeader(int channelId, Type type);
+
   void* mMessageBuf;
   size_t mMessageBufSize;
-  int mDmaBufFd;
-  size_t mDmaBufSize;
+  HardwareBuffer mPayload;
   bool mAllocMessage;  // Flag to indicate if mMessageBuf is allocated and owned
                        // by this message.
   uint64_t

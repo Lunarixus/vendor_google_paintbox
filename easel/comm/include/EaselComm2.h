@@ -2,6 +2,7 @@
 #define PAINTBOX_EASELCOMM2_H
 
 #include <functional>
+#include <vector>
 
 #include "EaselComm2Message.h"
 #include "EaselService.h"
@@ -61,6 +62,13 @@ class Comm {
   virtual int send(int channelId, const ::google::protobuf::MessageLite& proto,
                    const HardwareBuffer* payload = nullptr) = 0;
 
+  // Sends a group of buffers as payloads to the other side.
+  // Returns the error code and remaining buffers will not be sent if previous
+  // buffer fails in sending. lastId will be set to the latest successful
+  // buffer id if not null.
+  virtual int send(int channelId, const std::vector<HardwareBuffer>& buffers,
+                   int* lastId = nullptr) = 0;
+
   // -------------------------------------------------------
   // Registers a message handler to channelId.
   virtual void registerHandler(int channelId, Handler handler) = 0;
@@ -69,6 +77,7 @@ class Comm {
   // Returns the error code.
   // Could be called inside handler function.
   // If buffer is nullptr, it will flush the current DMA buffer
+  // It will also override the buffer id to match the source buffer id.
   virtual int receivePayload(const Message& message,
                              HardwareBuffer* buffer) = 0;
 

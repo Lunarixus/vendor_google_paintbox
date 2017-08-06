@@ -7,10 +7,13 @@ void ConvertMessageToEaselMessage(const Message& message,
                                   EaselComm::EaselMessage* easelMessage) {
   easelMessage->message_buf = message.getMessageBuf();
   easelMessage->message_buf_size = message.getMessageBufSize();
-  easelMessage->dma_buf = nullptr;
-  easelMessage->dma_buf_size = message.getDmaBufSize();
-  easelMessage->dma_buf_fd = message.getDmaBufFd();
-  easelMessage->dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
+  auto payload = message.getPayload();
+  easelMessage->dma_buf = payload.vaddr;
+  easelMessage->dma_buf_fd = payload.ionFd;
+  easelMessage->dma_buf_size = payload.size;
+  easelMessage->dma_buf_type = payload.isIonBuffer()
+                                   ? EASELCOMM_DMA_BUFFER_DMA_BUF
+                                   : EASELCOMM_DMA_BUFFER_USER;
 }
 }  // namespace
 
@@ -41,8 +44,8 @@ void CommImpl::registerHandler(int channelId, Handler handler) {
 
 int CommImpl::startReceiving() {
   return mComm->startMessageHandlerThread([&](EaselComm::EaselMessage* msg) {
-    Message message(msg->message_buf, msg->message_buf_size, msg->dma_buf_fd,
-                    msg->dma_buf_size, msg->message_id);
+    Message message(msg->message_buf, msg->message_buf_size, msg->dma_buf_size,
+                    msg->message_id);
     std::lock_guard<std::mutex> lock(mHandlerMapMutex);
     auto& handler = mHandlerMap[message.getHeader()->channelId];
     handler(message);
@@ -53,17 +56,21 @@ void CommImpl::joinReceiving() { return mComm->joinMessageHandlerThread(); }
 
 int CommImpl::receivePayload(const Message& message, HardwareBuffer* buffer) {
   if (buffer == nullptr) return -EINVAL;
-  size_t srcSize = message.getDmaBufSize();
+  size_t srcSize = message.getPayload().size;
   size_t destSize = buffer->size;
 
   if (srcSize != destSize) return -EINVAL;
 
+  buffer->id = message.getHeader()->payloadId;
+
   EaselComm::EaselMessage easelMessage;
   easelMessage.message_id = message.getMessageId();
-  easelMessage.dma_buf = nullptr;
+  easelMessage.dma_buf = buffer->vaddr;
   easelMessage.dma_buf_fd = buffer->ionFd;
-  easelMessage.dma_buf_type = EASELCOMM_DMA_BUFFER_DMA_BUF;
-  easelMessage.dma_buf_size = message.getDmaBufSize();
+  easelMessage.dma_buf_type = buffer->isIonBuffer()
+                                  ? EASELCOMM_DMA_BUFFER_DMA_BUF
+                                  : EASELCOMM_DMA_BUFFER_USER;
+  easelMessage.dma_buf_size = buffer->size;
   return mComm->receiveDMA(&easelMessage);
 }
 
@@ -89,6 +96,22 @@ int CommImpl::send(int channelId, const ::google::protobuf::MessageLite& proto,
   EaselComm::EaselMessage easelMessage;
   ConvertMessageToEaselMessage(message, &easelMessage);
   return mComm->sendMessage(&easelMessage);
+}
+
+int CommImpl::send(int channelId, const std::vector<HardwareBuffer>& buffers,
+                   int* lastId) {
+  for (auto& buffer : buffers) {
+    Message message(channelId, buffer);
+    EaselComm::EaselMessage easelMessage;
+    ConvertMessageToEaselMessage(message, &easelMessage);
+    int ret = mComm->sendMessage(&easelMessage);
+    if (ret != 0) {
+      return ret;
+    } else if (lastId != nullptr) {
+      *lastId = buffer.id;
+    }
+  }
+  return 0;
 }
 
 }  // namespace EaselComm2

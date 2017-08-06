@@ -6,20 +6,23 @@
 
 namespace EaselComm2 {
 
+HardwareBuffer::HardwareBuffer() : vaddr(nullptr), ionFd(-1), size(0), id(0) {}
+HardwareBuffer::HardwareBuffer(void* vaddr, size_t size, int id)
+    : vaddr(vaddr), ionFd(-1), size(size), id(id) {}
+HardwareBuffer::HardwareBuffer(int ionFd, size_t size, int id)
+    : vaddr(nullptr), ionFd(ionFd), size(size), id(id) {}
+
+bool HardwareBuffer::isIonBuffer() { return vaddr == nullptr && ionFd > 0; }
+
 Message::Message(int channelId, const std::string& s,
                  const HardwareBuffer* payload) {
   size_t stringBufSize = s.size() + 1;
   ALOG_ASSERT(allocMessage(stringBufSize));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = STRING;
+  initializeHeader(channelId, STRING);
   char* body = static_cast<char*>(getMutableBody());
   s.copy(body, s.size());
   body[s.size()] = '\0';
-
-  header->hasPayload = false;
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
@@ -31,13 +34,8 @@ Message::Message(int channelId, const ::google::protobuf::MessageLite& proto,
   size_t size = proto.ByteSize();
   ALOG_ASSERT(allocMessage(size));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = PROTO;
+  initializeHeader(channelId, PROTO);
   proto.SerializeToArray(getMutableBody(), size);
-
-  header->hasPayload = false;
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
@@ -49,31 +47,41 @@ Message::Message(int channelId, const void* body, size_t size,
   ALOG_ASSERT(body != nullptr);
   ALOG_ASSERT(allocMessage(size));
   mMessageId = 0;
-  auto header = getMutableHeader();
-  header->channelId = channelId;
-  header->type = RAW;
+  initializeHeader(channelId, RAW);
   memcpy(getMutableBody(), body, size);
-
-  header->hasPayload = false;
-  mDmaBufSize = 0;
 
   if (payload != nullptr) {
     attachPayload(*payload);
   }
 }
 
-Message::Message(void* messageBuf, size_t messageBufSize, int dmaBufFd,
-                 size_t dmaBufSize, uint64_t messageId) {
+Message::Message(int channelId, const HardwareBuffer& payload) {
+  ALOG_ASSERT(allocMessage(0));
+  mMessageId = 0;
+  initializeHeader(channelId, BUFFER);
+  attachPayload(payload);
+}
+
+Message::Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
+                 uint64_t messageId) {
   mMessageBuf = messageBuf;
   mMessageBufSize = messageBufSize;
-  mDmaBufFd = dmaBufFd;
-  mDmaBufSize = dmaBufSize;
+  mPayload.size = dmaBufSize;
+  mPayload.id = getHeader()->payloadId;
   mAllocMessage = false;
   mMessageId = messageId;
 }
 
 Message::~Message() {
   if (mAllocMessage) free(mMessageBuf);
+}
+
+void Message::initializeHeader(int channelId, Type type) {
+  auto header = getMutableHeader();
+  header->channelId = channelId;
+  header->type = type;
+  header->hasPayload = false;
+  header->payloadId = 0;
 }
 
 std::string Message::toString() const {
@@ -99,8 +107,8 @@ bool Message::toProto(::google::protobuf::MessageLite* proto) const {
 void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
   header->hasPayload = true;
-  mDmaBufFd = payload.ionFd;
-  mDmaBufSize = payload.size;
+  header->payloadId = payload.id;
+  mPayload = payload;
 }
 
 bool Message::allocMessage(size_t bodySize) {
@@ -137,9 +145,7 @@ void* Message::getMessageBuf() const { return mMessageBuf; }
 
 size_t Message::getMessageBufSize() const { return mMessageBufSize; }
 
-int Message::getDmaBufFd() const { return mDmaBufFd; }
-
-size_t Message::getDmaBufSize() const { return mDmaBufSize; }
+HardwareBuffer Message::getPayload() const { return mPayload; }
 
 uint64_t Message::getMessageId() const { return mMessageId; }
 }  // namespace EaselComm2

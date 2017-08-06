@@ -16,24 +16,30 @@ namespace {
 using AHardwareBufferHandle = AHardwareBuffer*;
 
 // Returns image channel counts, 0 for unsupported formats.
-uint32_t getChannelSize(const AHardwareBuffer_Desc& desc) {
-  if (desc.format == AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM) return 3;
+uint32_t getChannelSize(uint32_t format) {
+  if (format == AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM) return 3;
   return 0;
 }
 
-uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c) {
-  return static_cast<uint8_t>(x * 11 + y * 13 + c * 17);
+// Returns the buffer size in bytes.
+size_t getBufferSize(uint32_t stride, uint32_t height, uint32_t format) {
+  return stride * height * getChannelSize(format);
+}
+
+uint8_t patternSimple(uint32_t x, uint32_t y, uint32_t c, uint32_t seed) {
+  uint32_t seed2 = seed * seed;
+  uint32_t seed3 = seed2 * seed;
+  return static_cast<uint8_t>(x * seed + y * seed2 + c * seed3);
 }
 
 // HardwareBuffer does not take ownership of the input buffer.
-EaselComm2::HardwareBuffer convertToHardwareBuffer(
-    AHardwareBufferHandle buffer) {
+EaselComm2::HardwareBuffer convertToHardwareBuffer(AHardwareBufferHandle buffer,
+                                                   int id = 0) {
   AHardwareBuffer_Desc aDesc;
   AHardwareBuffer_describe(buffer, &aDesc);
   int fd = AHardwareBuffer_getNativeHandle(buffer)->data[0];
-  size_t size =
-      aDesc.stride * aDesc.height * aDesc.layers * getChannelSize(aDesc);
-  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
+  size_t size = getBufferSize(aDesc.stride, aDesc.height, aDesc.format);
+  EaselComm2::HardwareBuffer hardwareBuffer(fd, size, id);
   return hardwareBuffer;
 }
 }  // namespace
@@ -49,8 +55,8 @@ class EaselComm2Test : public ::testing::Test {
   // AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM. This buffer is with usage
   // CPU_READ_RARELY and CPU_WRITE_RARELY.
   // Returns NO_ERROR if successful, otherwise error code.
-  int allocBuffer(uint32_t width, uint32_t height,
-                  AHardwareBufferHandle* bufferOut) {
+  int allocAHardwareBuffer(uint32_t width, uint32_t height,
+                           AHardwareBufferHandle* bufferOut) {
     AHardwareBuffer_Desc desc = {
         width,
         height,
@@ -65,17 +71,46 @@ class EaselComm2Test : public ::testing::Test {
     return AHardwareBuffer_allocate(&desc, bufferOut);
   }
 
+  // Allocates a malloc buffer with format AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM.
+  // Returns the buffer vaddr.
+  void* allocMallocBuffer(uint32_t width, uint32_t height) {
+    return malloc(
+        getBufferSize(width, height, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM));
+  }
+
   // Releases the AHardwareBuffer.
-  void releaseBuffer(AHardwareBufferHandle buffer) {
+  void releaseAHardwareBuffer(AHardwareBufferHandle buffer) {
     if (buffer != nullptr) {
       AHardwareBuffer_release(buffer);
     }
   }
 
+  // Repeatedly writes pattern to the vaddr.
+  // Returns NO_ERROR if successful, otherwise error code.
+  void writePattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      uint32_t stride, uint32_t width, uint32_t height, uint32_t format,
+      void* vaddr) {
+    uint8_t* data = static_cast<uint8_t*>(vaddr);
+    for (uint32_t y = 0; y < height; y++) {
+      uint32_t row_index = y * stride;
+      for (uint32_t x = 0; x < width; x++) {
+        uint32_t pixel_index = row_index + x;
+        for (uint32_t c = 0; c < getChannelSize(format); c++) {
+          uint32_t byte_index = pixel_index * getChannelSize(format) + c;
+          data[byte_index] = pattern(x, y, c, seed);
+        }
+      }
+    }
+  }
+
   // Repeatedly writes pattern to the buffer.
   // Returns NO_ERROR if successful, otherwise error code.
-  int writePattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-                   AHardwareBufferHandle buffer) {
+  int writePattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
@@ -84,25 +119,43 @@ class EaselComm2Test : public ::testing::Test {
         buffer, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, nullptr, &vaddr);
     if (ret != NO_ERROR) return ret;
 
-    uint8_t* data = static_cast<uint8_t*>(vaddr);
-    for (uint32_t y = 0; y < desc.height; y++) {
-      uint32_t row_index = y * desc.stride;
-      for (uint32_t x = 0; x < desc.width; x++) {
-        uint32_t pixel_index = row_index + x;
-        for (uint32_t c = 0; c < getChannelSize(desc); c++) {
-          uint32_t byte_index = pixel_index * getChannelSize(desc) + c;
-          data[byte_index] = pattern(x, y, c);
-        }
-      }
-    }
+    writePattern(seed, pattern, desc.stride, desc.width, desc.height,
+                 desc.format, vaddr);
 
     return AHardwareBuffer_unlock(buffer, nullptr);
   }
 
+  // Checks if the vaddr is filled with the pattern.
+  // Returns true if checking passed otherwise false.
+  bool checkPattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      uint32_t stride, uint32_t width, uint32_t height, uint32_t format,
+      const void* vaddr) {
+    bool match = true;
+    const uint8_t* data = static_cast<const uint8_t*>(vaddr);
+    for (uint32_t y = 0; y < height; y++) {
+      uint32_t row_index = y * stride;
+      for (uint32_t x = 0; x < width; x++) {
+        uint32_t pixel_index = row_index + x;
+        for (uint32_t c = 0; c < getChannelSize(format); c++) {
+          uint32_t byte_index = pixel_index * getChannelSize(format) + c;
+          match &= (data[byte_index] == pattern(x, y, c, seed));
+          if (!match) break;
+        }
+        if (!match) break;
+      }
+      if (!match) break;
+    }
+    return match;
+  }
+
   // Checks if the buffer is filled with the pattern.
   // Returns NO_ERROR if checking passed otherwise BAD_VALUE.
-  int checkPattern(std::function<uint8_t(uint32_t, uint32_t, uint32_t)> pattern,
-                   const AHardwareBufferHandle buffer) {
+  int checkPattern(
+      uint32_t seed,
+      std::function<uint8_t(uint32_t, uint32_t, uint32_t, uint32_t)> pattern,
+      const AHardwareBufferHandle buffer) {
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
 
@@ -111,21 +164,8 @@ class EaselComm2Test : public ::testing::Test {
         buffer, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, -1, nullptr, &vaddr);
     if (ret != NO_ERROR) return ret;
 
-    bool match = true;
-    uint8_t* data = static_cast<uint8_t*>(vaddr);
-    for (uint32_t y = 0; y < desc.height; y++) {
-      uint32_t row_index = y * desc.stride;
-      for (uint32_t x = 0; x < desc.width; x++) {
-        uint32_t pixel_index = row_index + x;
-        for (uint32_t c = 0; c < getChannelSize(desc); c++) {
-          uint32_t byte_index = pixel_index * getChannelSize(desc) + c;
-          match &= (data[byte_index] == pattern(x, y, c));
-          if (!match) break;
-        }
-        if (!match) break;
-      }
-      if (!match) break;
-    }
+    bool match = checkPattern(seed, pattern, desc.stride, desc.width,
+                              desc.height, desc.format, vaddr);
 
     ret = AHardwareBuffer_unlock(buffer, nullptr);
 
@@ -164,36 +204,126 @@ class EaselComm2Test : public ::testing::Test {
 };
 
 TEST_F(EaselComm2Test, AHardwareBufferLocalLoopback) {
+  const uint32_t kWidth = 32;
+  const uint32_t kHeight = 24;
+  const uint32_t kSeed = 11;
+
   AHardwareBufferHandle buffer;
-  ASSERT_EQ(allocBuffer(32, 24, &buffer), NO_ERROR);
-  ASSERT_EQ(writePattern(patternSimple, buffer), NO_ERROR);
-  EXPECT_EQ(checkPattern(patternSimple, buffer), NO_ERROR);
-  releaseBuffer(buffer);
+  ASSERT_EQ(allocAHardwareBuffer(kWidth, kHeight, &buffer), NO_ERROR);
+  ASSERT_EQ(writePattern(kSeed, patternSimple, buffer), NO_ERROR);
+  EXPECT_EQ(checkPattern(kSeed, patternSimple, buffer), NO_ERROR);
+  releaseAHardwareBuffer(buffer);
 }
 
 TEST_F(EaselComm2Test, AHardareBufferEaselLoopback) {
+  const uint32_t kWidth = 32;
+  const uint32_t kHeight = 24;
+  const uint32_t kSeed = 13;
+
   AHardwareBufferHandle txBuffer;
-  ASSERT_EQ(allocBuffer(32, 24, &txBuffer), NO_ERROR);
+  ASSERT_EQ(allocAHardwareBuffer(kWidth, kHeight, &txBuffer), NO_ERROR);
   AHardwareBufferHandle rxBuffer;
-  ASSERT_EQ(allocBuffer(32, 24, &rxBuffer), NO_ERROR);
+  ASSERT_EQ(allocAHardwareBuffer(kWidth, kHeight, &rxBuffer), NO_ERROR);
 
   comm()->registerHandler(
-      kBufferChannel, [&](const EaselComm2::Message& message) {
+      kIonBufferChannel, [&](const EaselComm2::Message& message) {
         ASSERT_TRUE(message.getHeader()->hasPayload);
         auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
-        EXPECT_EQ(checkPattern(patternSimple, rxBuffer), NO_ERROR);
+        EXPECT_EQ(checkPattern(kSeed, patternSimple, rxBuffer), NO_ERROR);
         signal();
       });
 
-  ASSERT_EQ(writePattern(patternSimple, txBuffer), NO_ERROR);
+  ASSERT_EQ(writePattern(kSeed, patternSimple, txBuffer), NO_ERROR);
   auto txHardwareBuffer = convertToHardwareBuffer(txBuffer);
-  ASSERT_EQ(comm()->send(kBufferChannel, "", &txHardwareBuffer), NO_ERROR);
+  ASSERT_EQ(comm()->send(kIonBufferChannel, {txHardwareBuffer}), NO_ERROR);
 
   wait();
 
-  releaseBuffer(txBuffer);
-  releaseBuffer(rxBuffer);
+  releaseAHardwareBuffer(txBuffer);
+  releaseAHardwareBuffer(rxBuffer);
+}
+
+TEST_F(EaselComm2Test, MallocAHardwareBufferEaselLoopback) {
+  const uint32_t kWidth = 32;
+  const uint32_t kHeight = 24;
+  const uint32_t kSeed = 17;
+
+  void* txBuffer = allocMallocBuffer(kWidth, kHeight);
+  ASSERT_NE(txBuffer, nullptr);
+  void* rxBuffer = allocMallocBuffer(kWidth, kHeight);
+  ASSERT_NE(rxBuffer, nullptr);
+
+  comm()->registerHandler(
+      kMallocBufferChannel, [&](const EaselComm2::Message& message) {
+        ASSERT_TRUE(message.getHeader()->hasPayload);
+        EaselComm2::HardwareBuffer rxHardwareBuffer(
+            rxBuffer,
+            getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM),
+            0);
+        ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
+        EXPECT_TRUE(checkPattern(kSeed, patternSimple, kWidth, kWidth, kHeight,
+                                 AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM,
+                                 rxBuffer));
+        signal();
+      });
+
+  EaselComm2::HardwareBuffer txHardwareBuffer(
+      txBuffer,
+      getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM), 0);
+  writePattern(kSeed, patternSimple, kWidth, kWidth, kHeight,
+               AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM, txBuffer);
+  ASSERT_EQ(comm()->send(kMallocBufferChannel, {txHardwareBuffer}), NO_ERROR);
+
+  wait();
+
+  free(txBuffer);
+  free(rxBuffer);
+}
+
+TEST_F(EaselComm2Test, MultipleAHardareBufferEaselLoopback) {
+  const uint32_t kWidth = 32;
+  const uint32_t kHeight = 24;
+  const uint32_t kSeed = 19;
+  const int kSize = 5;
+
+  AHardwareBufferHandle rxBuffer;
+  ASSERT_EQ(allocAHardwareBuffer(kWidth, kHeight, &rxBuffer), NO_ERROR);
+
+  int count = 0;
+  comm()->registerHandler(
+      kIonBufferChannel, [&](const EaselComm2::Message& message) {
+        ASSERT_TRUE(message.getHeader()->hasPayload);
+        auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
+        ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
+        EXPECT_EQ(checkPattern(static_cast<uint32_t>(rxHardwareBuffer.id),
+                               patternSimple, rxBuffer),
+                  NO_ERROR);
+        count++;
+        if (count >= kSize) signal();
+      });
+
+  std::vector<AHardwareBufferHandle> txBufferHandles;
+  std::vector<EaselComm2::HardwareBuffer> txBuffers;
+
+  for (int i = 0; i < kSize; i++) {
+    AHardwareBufferHandle buffer;
+    ASSERT_EQ(allocAHardwareBuffer(kWidth, kHeight, &buffer), NO_ERROR);
+    int id = i + kSeed;
+    ASSERT_EQ(writePattern(static_cast<uint32_t>(id), patternSimple, buffer),
+              NO_ERROR);
+    txBufferHandles.push_back(buffer);
+    txBuffers.push_back(convertToHardwareBuffer(buffer, id));
+  }
+
+  ASSERT_EQ(comm()->send(kIonBufferChannel, txBuffers), NO_ERROR);
+
+  wait();
+
+  for (auto& handle : txBufferHandles) {
+    releaseAHardwareBuffer(handle);
+  }
+  releaseAHardwareBuffer(rxBuffer);
 }
 
 TEST_F(EaselComm2Test, MathRpc) {

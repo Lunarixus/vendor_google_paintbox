@@ -77,11 +77,11 @@ void handleStructMessage(const EaselComm2::Message& message2) {
 }
 
 // Handles DMA ion buffer and echo same buffer back.
-void handleBufferMessage(const EaselComm2::Message& message2) {
+void handleIonBufferMessage(const EaselComm2::Message& message2) {
   ImxDeviceBufferHandle buffer;
-  size_t size = message2.getDmaBufSize();
+  size_t size = message2.getPayload().size;
   CHECK_EQ(
-      ImxCreateDeviceBufferManaged(allocator, message2.getDmaBufSize(),
+      ImxCreateDeviceBufferManaged(allocator, size,
                                    kImxDefaultDeviceBufferAlignment,
                                    kImxDefaultDeviceBufferHeap, 0, &buffer),
       IMX_SUCCESS);
@@ -90,13 +90,28 @@ void handleBufferMessage(const EaselComm2::Message& message2) {
   CHECK_EQ(ImxShareDeviceBuffer(buffer, &fd), IMX_SUCCESS);
 
   // Receives the DMA to ImxDeviceBuffer.
-  EaselComm2::HardwareBuffer hardwareBuffer = {fd, size};
+  EaselComm2::HardwareBuffer hardwareBuffer(fd, size, 0);
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
-  CHECK_EQ(server->send(kBufferChannel, "", &hardwareBuffer), NO_ERROR);
+  CHECK_EQ(server->send(kIonBufferChannel, {hardwareBuffer}), NO_ERROR);
 
   CHECK_EQ(ImxDeleteDeviceBuffer(buffer), IMX_SUCCESS);
 }
+
+// Handles DMA malloc buffer and echo same buffer back.
+void handleMallocBufferMessage(const EaselComm2::Message& message2) {
+  ImxDeviceBufferHandle buffer;
+  size_t size = message2.getPayload().size;
+  void* vaddr = malloc(size);
+  CHECK(vaddr != nullptr);
+
+  EaselComm2::HardwareBuffer hardwareBuffer(vaddr, size, 0);
+  CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
+  // Replies the same message.
+  CHECK_EQ(server->send(kMallocBufferChannel, {hardwareBuffer}), NO_ERROR);
+  free(vaddr);
+}
+
 }  // namespace
 
 int main() {
@@ -109,7 +124,8 @@ int main() {
   while (true) {
     CHECK_EQ(server->open(EASEL_SERVICE_TEST), android::NO_ERROR);
 
-    server->registerHandler(kBufferChannel, handleBufferMessage);
+    server->registerHandler(kIonBufferChannel, handleIonBufferMessage);
+    server->registerHandler(kMallocBufferChannel, handleMallocBufferMessage);
     server->registerHandler(kProtoChannel, handleProtoMessage);
     server->registerHandler(kStructChannel, handleStructMessage);
     server->registerHandler(kStringChannel, handleStringMessage);
