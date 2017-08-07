@@ -11,6 +11,7 @@
 #include <easelcontrol.h>
 
 #include "googlex/gcam/image/yuv_utils.h"
+#include "googlex/gcam/image_io/jpg_helper.h"
 #include "googlex/gcam/image_proc/resample.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/imx_runtime_apis.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
@@ -782,7 +783,8 @@ void HdrPlusProcessingBlock::onGcamInputImageReleased(const int64_t imageId) {
 }
 
 void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
-        gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat) {
+        gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat,
+        const gcam::ExifMetadata& exifMetadata) {
     ALOGD("%s: Got a final image (format %d) for request %d.", __FUNCTION__, pixelFormat, shotId);
 
     if (rgbResult != nullptr) {
@@ -839,6 +841,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
             outputResult.metadata.frameMetadata->easelTimestamp;
     outputResult.metadata.resultMetadata->timestamp =
             outputResult.metadata.frameMetadata->timestamp;
+    outputResult.metadata.resultMetadata->makernote = "Maker note";
 
     auto pipeline = mPipeline.lock();
     if (pipeline != nullptr) {
@@ -1279,7 +1282,7 @@ void HdrPlusProcessingBlock::GcamFinalImageCallback::YuvReady(
     ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, shot->shot_id());
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamFinalImage(shot->shot_id(), yuv_result, nullptr, pixel_format);
+        block->onGcamFinalImage(shot->shot_id(), yuv_result, nullptr, pixel_format, metadata);
     } else {
         ALOGE("%s: Gcam sent a final image for request %d but block is destroyed.",
                 __FUNCTION__, shot->shot_id());

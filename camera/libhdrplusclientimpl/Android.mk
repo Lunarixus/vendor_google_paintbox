@@ -45,6 +45,7 @@ LOCAL_C_INCLUDES += \
     hardware/libhardware/include \
     hardware/google/easel/camera/include \
     hardware/google/easel/camera/libhdrplusclient/include \
+    hardware/qcom/camera/msm8998/QCamera2/HAL3 \
     system/core/include \
     system/media/camera/include \
     vendor/google_paintbox/camera/include
