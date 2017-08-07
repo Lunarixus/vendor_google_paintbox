@@ -134,6 +134,9 @@ static void captureBootTrace()
     std::ifstream t("/sys/devices/virtual/misc/mnh_sm/boot_trace");
     std::string str((std::istreambuf_iterator<char>(t)),
         std::istreambuf_iterator<char>());
+    if (!str.empty() && str[str.length()-1] == '\n') {
+          str.erase(str.length()-1);
+    }
     ALOGE("%s: Boot trace = [%s]\n", __FUNCTION__, str.c_str());
     t.close();
 }
@@ -210,19 +213,21 @@ void easelConnThread()
     ALOGD("%s: Waiting for active state", __FUNCTION__);
     ret = stateMgr.waitForState(EaselStateManager::ESM_STATE_ACTIVE);
     if (ret) {
-        ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
         captureBootTrace();
-        reportFatalError(EaselFatalReason::BOOTSTRAP_FAIL);
+        if (ret == -EHOSTUNREACH) {
+            ALOGW("%s: Easel is in a partial active state", __FUNCTION__);
+        } else {
+            ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
+            reportFatalError(EaselFatalReason::LINK_FAIL);
+        }
         return;
     }
 
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
     ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
     if (ret) {
-        ALOGE("%s: Failed to open easelcomm connection (%d)",
-              __FUNCTION__, ret);
+        ALOGW("%s: Failed to open easelcomm connection (%d)", __FUNCTION__, ret);
         captureBootTrace();
-        reportFatalError(EaselFatalReason::OPEN_SYSCTRL_FAIL);
         return;
     }
 
@@ -232,8 +237,7 @@ void easelConnThread()
         if (ret == -ESHUTDOWN) {
             ALOGD("%s: connection was closed during handshake", __FUNCTION__);
         } else {
-            ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
-            reportFatalError(EaselFatalReason::HANDSHAKE_FAIL);
+            ALOGW("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
         }
         captureBootTrace();
         return;
@@ -254,8 +258,7 @@ void easelConnThread()
         msg.dma_buf_size = 0;
         ret = easel_conn.sendMessage(&msg);
         if (ret) {
-            ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
-            reportFatalError(EaselFatalReason::IPU_RESET_REQ);
+            ALOGW("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
         }
     }
 }
