@@ -40,11 +40,14 @@ EaselLog::LogClient gLogClient;
 
 bool gHandshakeSuccessful;
 
-// Fatal error callback registered by user
-easel_fatal_callback_t gFatalErrorCallback;
+// Error callback registered by user
+easel_error_callback_t gErrorCallback;
 
-int defaultFatalCallback(enum EaselFatalReason r) {
-    ALOGD("%s: Skip handling fatal error (reason %d)", __FUNCTION__, r);
+int defaultErrorCallback(enum EaselErrorReason r, enum EaselErrorSeverity s) {
+    ALOGD("%s: Skip handling %s error (reason %d)",
+          __FUNCTION__,
+          s == EaselErrorSeverity::FATAL ? "fatal" : "non-fatal",
+          r);
     return 0;
 }
 
@@ -66,8 +69,35 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
 };
 } // anonymous namespace
 
-static void reportFatalError(enum EaselFatalReason reason) {
-    int ret = gFatalErrorCallback(reason);
+/*
+ * Determine severity
+ *
+ * | Reason              | Bypass    | HDR+  |
+ * |---------------------|-----------|-------|
+ * | LINK_FAIL           | FATAL     | FATAL |
+ * | BOOTSTRAP_FAIL      | NON_FATAL | FATAL |
+ * | OPEN_SYSCTRL_FAIL   | NON_FATAL | FATAL |
+ * | HANDSHAKE_FAIL      | NON_FATAL | FATAL |
+ * | IPU_RESET_REQ       | NON_FATAL | FATAL |
+ */
+
+static void reportError(enum EaselErrorReason reason) {
+
+    enum EaselErrorSeverity severity = EaselErrorSeverity::FATAL;
+
+    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+        // LINK_FAIL is fatal in bypass mode, because MIPI configuration
+        // will not continue.  Others are not fatal, because no further
+        // communication needed in bypass mode.
+        if (reason != EaselErrorReason::LINK_FAIL) {
+            severity = EaselErrorSeverity::NON_FATAL;
+        }
+    } else {
+        // All errors are fatal in HDR+ mode
+        severity = EaselErrorSeverity::FATAL;
+    }
+
+    int ret = gErrorCallback(reason, severity);
 
     if (!ret) {
         ALOGD("%s: Fatal error callback was handled", __FUNCTION__);
@@ -215,10 +245,11 @@ void easelConnThread()
     if (ret) {
         captureBootTrace();
         if (ret == -EHOSTUNREACH) {
-            ALOGW("%s: Easel is in a partial active state", __FUNCTION__);
+            ALOGE("%s: Easel is in a partial active state", __FUNCTION__);
+            reportError(EaselErrorReason::BOOTSTRAP_FAIL);
         } else {
             ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
-            reportFatalError(EaselFatalReason::LINK_FAIL);
+            reportError(EaselErrorReason::LINK_FAIL);
         }
         return;
     }
@@ -226,20 +257,22 @@ void easelConnThread()
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
     ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
     if (ret) {
-        ALOGW("%s: Failed to open easelcomm connection (%d)", __FUNCTION__, ret);
+        ALOGE("%s: Failed to open easelcomm connection (%d)", __FUNCTION__, ret);
         captureBootTrace();
+        reportError(EaselErrorReason::OPEN_SYSCTRL_FAIL);
         return;
     }
 
     ALOGI("%s: waiting for handshake\n", __FUNCTION__);
     ret = easel_conn.initialHandshake();
     if (ret) {
+        captureBootTrace();
         if (ret == -ESHUTDOWN) {
             ALOGD("%s: connection was closed during handshake", __FUNCTION__);
         } else {
-            ALOGW("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
+            ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
+            reportError(EaselErrorReason::HANDSHAKE_FAIL);
         }
-        captureBootTrace();
         return;
     }
     gHandshakeSuccessful = true;
@@ -247,6 +280,9 @@ void easelConnThread()
     captureBootTrace();
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+
+        ALOGD("%s: sending deactivate command in bypass mode", __FUNCTION__);
+
         EaselControlImpl::DeactivateMsg ctrl_msg;
 
         ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
@@ -258,7 +294,8 @@ void easelConnThread()
         msg.dma_buf_size = 0;
         ret = easel_conn.sendMessage(&msg);
         if (ret) {
-            ALOGW("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
+            ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
+            // No need to report this error in bypass mode
         }
     }
 }
@@ -551,8 +588,9 @@ int EaselControlClient::suspend() {
     return ret;
 }
 
-void EaselControlClient::registerFatalErrorCallback(easel_fatal_callback_t f) {
-    gFatalErrorCallback = std::move(f);
+void EaselControlClient::registerErrorCallback(easel_error_callback_t f) {
+    ALOGD("%s: Callback being registered", __FUNCTION__);
+    gErrorCallback = std::move(f);
 }
 
 int EaselControlClient::open() {
@@ -560,8 +598,8 @@ int EaselControlClient::open() {
 
     ALOGD("%s\n", __FUNCTION__);
 
-    // Register default implemetation of fatal error callback
-    registerFatalErrorCallback(defaultFatalCallback);
+    // Register default implemetation of error callback
+    registerErrorCallback(defaultErrorCallback);
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {
