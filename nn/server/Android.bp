@@ -1,0 +1,13 @@
+cc_binary {
+    name: "nnserver",
+    proprietary: true,
+    srcs: ["main.cpp"],
+    static_libs: [
+        "paintbox_nn_shared",
+    ],
+    shared_libs: [
+        "libeaselcomm",
+        "liblog",
+        "libprotobuf-cpp-lite",
+    ],
+}

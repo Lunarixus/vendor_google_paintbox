@@ -22,11 +22,12 @@ PREBUILT_BIN_MODULES := \
 	$(EASEL_RAMDISK_SRC_DIR)/sh
 
 BIN_MODULES := \
-	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
+	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
 	$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
-	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver \
+	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
-	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64
+	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver \
+	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
