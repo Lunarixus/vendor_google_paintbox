@@ -80,7 +80,6 @@ void Message::initializeHeader(int channelId, Type type) {
   auto header = getMutableHeader();
   header->channelId = channelId;
   header->type = type;
-  header->hasPayload = false;
   header->payloadId = 0;
 }
 
@@ -106,7 +105,6 @@ bool Message::toProto(::google::protobuf::MessageLite* proto) const {
 
 void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
-  header->hasPayload = true;
   header->payloadId = payload.id;
   mPayload = payload;
 }
@@ -148,4 +146,6 @@ size_t Message::getMessageBufSize() const { return mMessageBufSize; }
 HardwareBuffer Message::getPayload() const { return mPayload; }
 
 uint64_t Message::getMessageId() const { return mMessageId; }
+
+bool Message::hasPayload() const { return mPayload.size > 0; }
 }  // namespace EaselComm2

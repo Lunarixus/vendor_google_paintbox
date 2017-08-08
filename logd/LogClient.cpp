@@ -11,6 +11,8 @@
 #include "LogMessage.h"
 #include "LogEntry.h"
 
+static const int OPEN_TIMEOUT_MS = 2000;
+
 namespace EaselLog {
 
 LogClient::LogClient() {}
@@ -46,7 +48,7 @@ void LogClient::stop() {
 // Running in mReceivingThread.
 // mCommClient is opened async to save camera boot time.
 void LogClient::receiveLogThread() {
-  int ret = mCommClient.open(EASEL_SERVICE_LOG);
+  int ret = mCommClient.open(EASEL_SERVICE_LOG, OPEN_TIMEOUT_MS);
   if (ret != 0) {
     ALOGE("open easelcomm client error (%d, %d), "
         "did you have two LogClient running at the same time? "
