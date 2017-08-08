@@ -1,5 +1,6 @@
 cc_library_static {
     name: "paintbox_nn_shared",
+    vendor_available: true,
     srcs: [
         "proto/types.proto",
     ],
