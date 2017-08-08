@@ -72,8 +72,10 @@ bool CaptureResultBlock::doWorkLocked() {
             // TODO: Send a failed capture result to client.
         } else {
             resultBuffer.streamId = stream->getStreamId();
-            resultBuffer.data = buffer->getPlaneData(0);
             resultBuffer.dmaBufFd = buffer->getFd();
+            if (resultBuffer.dmaBufFd == -1) {
+                resultBuffer.data = buffer->getPlaneData(0);
+            }
             resultBuffer.dataSize = buffer->getDataSize();
             captureResult.outputBuffers.push_back(resultBuffer);
         }
