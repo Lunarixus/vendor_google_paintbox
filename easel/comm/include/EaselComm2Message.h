@@ -45,7 +45,6 @@ class Message {
   struct Header {
     int channelId;    // Message channel ID.
     Type type;        // Message type.
-    bool hasPayload;  // Whether payload buffer is attached.
     int payloadId;    // Payload ID to note buffer sequence.
   };
 
@@ -106,6 +105,9 @@ class Message {
   // Returns the message id.
   // Used in Comm::receivePayload to match the message.
   uint64_t getMessageId() const;
+
+  // Returns true if message carries a payload, otherwise false.
+  bool hasPayload() const;
 
  private:
   bool allocMessage(size_t bodySize);
