@@ -78,8 +78,9 @@ void handleStructMessage(const EaselComm2::Message& message2) {
 
 // Handles DMA ion buffer and echo same buffer back.
 void handleIonBufferMessage(const EaselComm2::Message& message2) {
-  ImxDeviceBufferHandle buffer;
+  CHECK(message2.hasPayload());
   size_t size = message2.getPayload().size;
+  ImxDeviceBufferHandle buffer;
   CHECK_EQ(
       ImxCreateDeviceBufferManaged(allocator, size,
                                    kImxDefaultDeviceBufferAlignment,
@@ -100,7 +101,7 @@ void handleIonBufferMessage(const EaselComm2::Message& message2) {
 
 // Handles DMA malloc buffer and echo same buffer back.
 void handleMallocBufferMessage(const EaselComm2::Message& message2) {
-  ImxDeviceBufferHandle buffer;
+  CHECK(message2.hasPayload());
   size_t size = message2.getPayload().size;
   void* vaddr = malloc(size);
   CHECK(vaddr != nullptr);

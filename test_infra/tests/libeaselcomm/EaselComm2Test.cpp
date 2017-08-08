@@ -227,7 +227,7 @@ TEST_F(EaselComm2Test, AHardareBufferEaselLoopback) {
 
   comm()->registerHandler(
       kIonBufferChannel, [&](const EaselComm2::Message& message) {
-        ASSERT_TRUE(message.getHeader()->hasPayload);
+        ASSERT_TRUE(message.hasPayload());
         auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
         EXPECT_EQ(checkPattern(kSeed, patternSimple, rxBuffer), NO_ERROR);
@@ -256,7 +256,7 @@ TEST_F(EaselComm2Test, MallocAHardwareBufferEaselLoopback) {
 
   comm()->registerHandler(
       kMallocBufferChannel, [&](const EaselComm2::Message& message) {
-        ASSERT_TRUE(message.getHeader()->hasPayload);
+        ASSERT_TRUE(message.hasPayload());
         EaselComm2::HardwareBuffer rxHardwareBuffer(
             rxBuffer,
             getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM),
@@ -293,7 +293,7 @@ TEST_F(EaselComm2Test, MultipleAHardareBufferEaselLoopback) {
   int count = 0;
   comm()->registerHandler(
       kIonBufferChannel, [&](const EaselComm2::Message& message) {
-        ASSERT_TRUE(message.getHeader()->hasPayload);
+        ASSERT_TRUE(message.hasPayload());
         auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
         EXPECT_EQ(checkPattern(static_cast<uint32_t>(rxHardwareBuffer.id),
