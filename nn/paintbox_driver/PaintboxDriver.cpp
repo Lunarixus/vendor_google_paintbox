@@ -92,10 +92,7 @@ Return<void> PaintboxDriver::initialize(initialize_cb cb) {
       .quantized8Performance = quantized8Performance,
   };
 
-  if (mComm != nullptr) {
-    mComm->close();
-    mComm.reset();
-  }
+  mComm = EaselComm2::Comm::create(EaselComm2::Comm::Mode::CLIENT);
 
   // return
   cb(capabilities);
@@ -118,10 +115,7 @@ Return<sp<IPreparedModel>> PaintboxDriver::prepareModel(const Model& model) {
     return nullptr;
   }
 
-  if (mComm == nullptr) {
-    mComm = EaselComm2::Comm::create(EaselComm2::Comm::Mode::CLIENT);
-    mComm->open(EASEL_SERVICE_NN);
-  }
+  mComm->open(EASEL_SERVICE_NN);
 
   paintbox_nn::Model protoModel;
   paintbox_util::convertHidlModel(model, &protoModel);

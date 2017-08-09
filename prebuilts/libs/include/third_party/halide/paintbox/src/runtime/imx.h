@@ -587,7 +587,7 @@ ImxError ImxSaveAsUniqueCompiledGraph(
     ImxCompiledGraphHandle compiled_graph  /* const */);
 
 /* Loads a precompiled graph configuration (and related files) to create an
- * ImxCompiledGraph object. The prcompiled graph configuration file should be
+ * ImxCompiledGraph object. The precompiled graph configuration file should be
  * in the load_dir_path directory and should be named <file_name>.
  * The supplied transfer_nodes, transfer_node_names, and info input arguments
  * must be the same as those supplied to the saved precompiled graph (via a
@@ -622,10 +622,24 @@ ImxError ImxLoadMatchingPrecompiledGraph(
     const ImxCompileGraphInfo *info,
     ImxCompiledGraphHandle *compiled_graph_handle_ptr  /* Output */);
 
+typedef enum {
+  IMX_PCG_FAILURE,  // generic failure
+  IMX_PCG_NOT_FOUND,
+  IMX_PCG_UNKNOWN_DIMENSIONS,  // internal use (initialization purposes only).
+  IMX_PCG_IS_INCOMPATIBLE,
+  // "unequal" implies that some transfer nodes were larger and some were
+  // smaller dimensions.
+  IMX_PCG_HAS_UNEQUAL_DIMENSIONS,
+  IMX_PCG_HAS_SAME_DIMENSIONS,
+  IMX_PCG_HAS_SMALLER_DIMENSIONS,
+  IMX_PCG_HAS_LARGER_DIMENSIONS
+} ImxFindPcgResult;
+
 /* Same as ImxLoadMatchingPrecompiledGraph except that it doesn't return a
  * handle to the compiled graph and doesn't log errors on failure.
  * Intended for checking whether a matching PCG has already been saved.
  */
+// TODO(ahalambi): Change the return type to ImxFindPcgResult
 ImxError ImxFindMatchingPrecompiledGraph(
     const char *load_dir_base_path,
     const char *file_name,
@@ -943,6 +957,12 @@ ImxError ImxCreateDeviceBufferManaged(
 /* TODO(ahalambi): Add an API to create an ION DeviceBuffer given a
  * ion handle (or equivalent such as file-descriptor). See b/33843974
  */
+
+/* Flushes and invalidates a device buffer's cache entries.
+ * The buffer must be managed and locked, otherwise IMX_INVALID is returned.
+ */
+ImxError ImxFlushAndInvalidateDeviceBufferCacheEntries(
+    ImxDeviceBufferHandle buffer_handle);
 
 /* Not thread-safe; see general note on thread-safety above. */
 ImxError ImxDeleteDeviceBuffer(
