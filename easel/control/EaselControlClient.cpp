@@ -10,6 +10,7 @@
 #include <thread>
 
 #include <fstream>
+#include <poll.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@
 #define NSEC_PER_SEC    1000000000ULL
 #define NSEC_PER_MSEC   1000000
 #define NSEC_PER_USEC   1000
+#define ESM_EVENT_PATH  "/sys/devices/virtual/misc/mnh_sm/error_event"
 
 namespace {
 EaselCommClient easel_conn;
@@ -169,6 +171,60 @@ static void captureBootTrace()
     }
     ALOGE("%s: Boot trace = [%s]\n", __FUNCTION__, str.c_str());
     t.close();
+}
+
+void EventReportingThread(int pipeReadFd)
+{
+    struct pollfd pollFds[2];
+    int fd;
+
+    fd = ::open(ESM_EVENT_PATH, O_RDONLY);
+    if (fd < 0) {
+        ALOGE("%s: failed to open event reporting file (%d)", __FUNCTION__, -errno);
+        ::close(pipeReadFd);
+        return;
+    }
+
+    // Do a dummy ready to clear poll status
+    char value;
+    read(fd, &value, 1);
+
+    // Create the poll structure
+    pollFds[0].fd = fd;
+    pollFds[0].events = 0;
+    pollFds[0].revents = 0;
+
+    // This fd is used to signal to the thread to exit the loop
+    pollFds[1].fd = pipeReadFd;
+    pollFds[1].events = POLLIN;
+    pollFds[1].revents = 0;
+
+    while (1) {
+        int ret;
+
+        do {
+            ret = poll(pollFds, 2, -1);
+        } while (ret < 0 && errno == EINTR);
+
+        if (pollFds[0].revents & POLLERR) {
+            // Read from the sysfs file to reset the poll status, but the value
+            // is not important since the only event we report is a link
+            // failure.
+            char value;
+            lseek(pollFds[0].fd, 0, SEEK_SET);
+            read(pollFds[0].fd, &value, 1);
+
+            ALOGE("%s: observed link failure", __FUNCTION__);
+            reportError(EaselErrorReason::LINK_FAIL);
+        }
+
+        if (pollFds[1].revents & POLLIN) {
+            break;
+        }
+    }
+
+    ::close(pipeReadFd);
+    ::close(fd);
 }
 
 int sendActivateCommand()
@@ -369,6 +425,49 @@ int stopLogClient()
     return 0;
 }
 
+// This thread is used to monitor asynchronous events from the driver
+static std::thread mEventThread;
+
+// The parent-side of the pipe for waking the reporting thread up from poll()
+static int mPipeWriteFd = -1;
+
+int startKernelEventThread()
+{
+    // Create a pipe to communicate with the event reporting thread
+    int pipeFds[2];
+
+    if (pipe(pipeFds) == -1) {
+        ALOGE("%s: failed to create a pipe (%d)", __FUNCTION__, errno);
+        return -errno;
+    } else {
+        if (mPipeWriteFd != -1) {
+            ALOGE("%s: leaked a file descriptor (%d)", __FUNCTION__, mPipeWriteFd);
+        }
+        mPipeWriteFd = pipeFds[1];
+        mEventThread = std::thread(EventReportingThread, pipeFds[0]);
+    }
+
+    return 0;
+}
+
+int stopKernelEventThread()
+{
+    // Close the event reporting thread by writing the global bool and sending
+    // an event through the pipe
+    if (mEventThread.joinable()) {
+        // Dummy string to write to pipe. Value is not read, it's just a way to
+        // wakeup the thread blocked on poll
+        const char buf[] = "1";
+
+        write(mPipeWriteFd, buf, strlen(buf));
+        mEventThread.join();
+        ::close(mPipeWriteFd);
+        mPipeWriteFd = -1;
+    }
+
+    return 0;
+}
+
 int switchState(enum ControlState nextState)
 {
     int ret = 0;
@@ -389,6 +488,7 @@ int switchState(enum ControlState nextState)
                     ret |= stopThermalMonitor();
                     ret |= stopLogClient();
                     ret |= teardownEaselConn();
+                    ret |= stopKernelEventThread();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     break;
                 case ControlState::RESUMED:
@@ -396,6 +496,7 @@ int switchState(enum ControlState nextState)
                     ret |= stopThermalMonitor();
                     ret |= stopLogClient();
                     ret |= teardownEaselConn();
+                    ret |= stopKernelEventThread();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     break;
                 default:
@@ -411,6 +512,9 @@ int switchState(enum ControlState nextState)
             switch (state) {
                 case ControlState::SUSPENDED:
                     ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
+                    if (!ret) {
+                        ret = startKernelEventThread();
+                    }
                     if (!ret) {
                         ret = setupEaselConn();
                     }
@@ -438,7 +542,10 @@ int switchState(enum ControlState nextState)
                 case ControlState::SUSPENDED:
                     ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                     if (!ret) {
-                        ret = setupEaselConn();
+                        ret = startKernelEventThread();
+                        if (!ret) {
+                            ret = setupEaselConn();
+                        }
                         if (!ret) {
                             ret = startLogClient();
                         }
