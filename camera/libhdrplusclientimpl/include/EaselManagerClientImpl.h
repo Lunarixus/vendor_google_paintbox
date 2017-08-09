@@ -120,8 +120,8 @@ private:
     const char *mDefaultServerHost = "localhost";
 #endif
 
-    // Callback registered for Easel fatal errors.
-    int onEaselFatalError(enum EaselFatalReason r);
+    // Callback registered for Easel errors.
+    int onEaselError(enum EaselErrorReason r, enum EaselErrorSeverity s);
 
     // If there is a pending open of HDR+ client. Must be called with mEaselControlLock held.
     bool isOpenFuturePendingLocked();
