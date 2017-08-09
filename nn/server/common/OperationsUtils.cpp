@@ -19,8 +19,7 @@
 #include "OperationsUtils.h"
 #include "Utils.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 bool SameShape(const Shape& in1, const Shape& in2) {
     if (in1.type != in2.type || in1.dimensions.size() != in2.dimensions.size()) {
@@ -62,5 +61,4 @@ uint32_t getSizeOfDimension(const Shape& shape, uint32_t dimensionIdx) {
     return shape.dimensions[dimensionIdx];
 }
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn

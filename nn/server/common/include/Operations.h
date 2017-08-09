@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_H
-#define ANDROID_ML_NN_COMMON_OPERATIONS_H
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_H
+#define PAINTBOX_NN_COMMON_OPERATIONS_H
 
 #include <cstdint>
 #include <stddef.h>
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 struct Shape;
 
@@ -92,7 +91,6 @@ bool tanhFloat32(const float* inputData, const Shape& inputShape,
 bool logisticFloat32(const float* inputData, const Shape& inputShape,
                      float* outputData, const Shape& outputShape);
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn
 
-#endif // ANDROID_ML_NN_COMMON_OPERATIONS_H
+#endif // PAINTBOX_NN_COMMON_OPERATIONS_H

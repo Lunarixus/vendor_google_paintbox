@@ -149,10 +149,8 @@ void convertHidlModel(const Model& inputModel,
   for (auto outputIndex : inputModel.outputIndexes) {
     outputModel->add_outputindexes(outputIndex);
   }
-  for (auto operandValue : inputModel.operandValues) {
-    outputModel->add_operandvalues(operandValue);
-  }
-  outputModel->set_poolssize(inputModel.pools.size());
+  outputModel->add_operandvalues(inputModel.operandValues.data(),
+                                 inputModel.operandValues.size());
 }
 
 void convertHidlRequest(const Request& inputRequest,
@@ -183,7 +181,9 @@ void convertHidlRequest(const Request& inputRequest,
     }
   }
 
-  outputRequest->set_poolssize(inputRequest.pools.size());
+  for (auto& pool : inputRequest.pools) {
+    outputRequest->add_poolsizes(pool.size());
+  }
 }
 
 }  // namespace paintbox_util

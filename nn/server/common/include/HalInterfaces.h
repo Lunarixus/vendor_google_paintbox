@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
-#define ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#ifndef PAINTBOX_NN_COMMON_HAL_INTERFACES_H
+#define PAINTBOX_NN_COMMON_HAL_INTERFACES_H
 
 #include <android/hardware/neuralnetworks/1.0/IDevice.h>
 #include <android/hardware/neuralnetworks/1.0/IPreparedModel.h>
@@ -49,4 +49,4 @@ using ::android::hidl::memory::V1_0::IMemory;
 const uint32_t HAL_NUM_OPERAND_TYPES = 11;
 const uint32_t HAL_NUM_OPERATION_TYPES = 33;
 
-#endif // ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#endif // PAINTBOX_NN_COMMON_HAL_INTERFACES_H

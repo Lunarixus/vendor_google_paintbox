@@ -21,8 +21,7 @@
 #include "NeuralNetworks.h"
 #include "Operations.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // If we don't have a buffer, allocate it.
 static bool allocateIfNeeded(RunTimeOperandInfo* info, const Shape& shape) {
@@ -48,14 +47,12 @@ static int32_t getInt32ScalarData(RunTimeOperandInfo& info) {
 int CpuExecutor::run(const Model& model, const Request& request,
                      const std::vector<RunTimePoolInfo>& runTimePoolInfos) {
     LOG(DEBUG) << "CpuExecutor::run()";
-    LOG(DEBUG) << "model: " << toString(model);
-    LOG(DEBUG) << "request: " << toString(request);
 
     mModel = &model;
     mRequest = &request; // TODO check if mRequest is needed
     initializeRunTimeInfo(runTimePoolInfos);
     // The model has serialized the operation in execution order.
-    for (const auto& operation : model.operations) {
+    for (auto& operation : model.operations()) {
         int n = executeOperation(operation);
         if (n != ANEURALNETWORKS_NO_ERROR) {
             return n;
@@ -69,29 +66,38 @@ int CpuExecutor::run(const Model& model, const Request& request,
 
 bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& runTimePoolInfos) {
     LOG(DEBUG) << "CpuExecutor::initializeRunTimeInfo";
-    const size_t count = mModel->operands.size();
+    const size_t count = mModel->operands_size();
     mOperands.resize(count);
     for (size_t i = 0; i < count; i++) {
-        const Operand& from = mModel->operands[i];
-        if (!setRunTimeOperandInfo(i, from.dimensions, from.location, from.numberOfConsumers,
+        const Operand& from = mModel->operands(i);
+        if (!setRunTimeOperandInfo(i,
+                                   {from.dimensions().begin(), from.dimensions().end()},
+                                   from.location(),
+                                   from.numberofconsumers(),
                                    runTimePoolInfos)) {
             return false;
         }
-        mOperands[i].type = from.type;
+        mOperands[i].type = from.type();
     }
 
-    nnAssert(mModel->inputIndexes.size() == mRequest->inputs.size());
-    for (size_t i = 0; i < mModel->inputIndexes.size(); i++) {
-        const InputOutputInfo& from = mRequest->inputs[i];
-        if (!setRunTimeOperandInfo(mModel->inputIndexes[i], from.dimensions, from.location, 0,
+    nnAssert(mModel->inputindexes_size() == mRequest->inputs_size());
+    for (int i = 0; i < mModel->inputindexes_size(); i++) {
+        const InputOutputInfo& from = mRequest->inputs(i);
+        if (!setRunTimeOperandInfo(mModel->inputindexes(i),
+                                   {from.dimensions().begin(), from.dimensions().end()},
+                                   from.location(),
+                                   0,
                                    runTimePoolInfos)) {
             return false;
         }
     }
-    nnAssert(mModel->outputIndexes.size() == mRequest->outputs.size());
-    for (size_t i = 0; i < mModel->outputIndexes.size(); i++) {
-        const InputOutputInfo& from = mRequest->outputs[i];
-        if (!setRunTimeOperandInfo(mModel->outputIndexes[i], from.dimensions, from.location, 0,
+    nnAssert(mModel->outputindexes_size() == mRequest->outputs_size());
+    for (int i = 0; i < mModel->outputindexes_size(); i++) {
+        const InputOutputInfo& from = mRequest->outputs(i);
+        if (!setRunTimeOperandInfo(mModel->outputindexes(i),
+                                   {from.dimensions().begin(), from.dimensions().end()},
+                                   from.location(),
+                                   0,
                                    runTimePoolInfos)) {
             return false;
         }
@@ -99,34 +105,39 @@ bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& runT
     return true;
 }
 
+// Reference: hardware/interfaces/neuralnetworks/1.0/types.hal
+#define LOCATION_AT_RUN_TIME 0xFFFFFFFF
+#define LOCATION_SAME_BLOCK 0xFFFFFFFE
+
 bool CpuExecutor::setRunTimeOperandInfo(uint32_t operandIndex,
                                         const std::vector<uint32_t>& dimensions,
                                         const DataLocation& location, uint32_t useCount,
                                         const std::vector<RunTimePoolInfo>& runTimePoolInfos) {
     LOG(DEBUG) << "CpuExecutor::setRunTimeOperand(" << operandIndex << ", " << toString(dimensions)
-               << ", " << toString(location) << ")";
+               << ")";
 
     RunTimeOperandInfo& to = mOperands[operandIndex];
     if (dimensions.size() > 0) {
         to.dimensions = dimensions;
     }
-    if (location.poolIndex == static_cast<uint32_t>(LocationValues::LOCATION_AT_RUN_TIME)) {
+    if (location.poolindex() == static_cast<uint32_t>(LOCATION_AT_RUN_TIME)) {
         to.buffer = nullptr;
         to.numberOfUsesLeft = useCount;
-    } else if (location.poolIndex == static_cast<uint32_t>(LocationValues::LOCATION_SAME_BLOCK)) {
-        to.buffer = const_cast<uint8_t*>(&mModel->operandValues[location.offset]);
+    } else if (location.poolindex() == static_cast<uint32_t>(LOCATION_SAME_BLOCK)) {
+        to.buffer = reinterpret_cast<uint8_t*>(const_cast<char *>(
+                mModel->operandvalues(location.offset()).c_str()));
         to.numberOfUsesLeft = 0;
     } else {
-        if (location.poolIndex >= runTimePoolInfos.size()) {
+        if (location.poolindex() >= runTimePoolInfos.size()) {
             LOG(ERROR) << "For operand " << operandIndex << ", got a poolIndex id "
-                       << location.poolIndex << " which is >= " << runTimePoolInfos.size();
+                       << location.poolindex() << " which is >= " << runTimePoolInfos.size();
             return false;
         }
-        auto& r = runTimePoolInfos[location.poolIndex];
-        to.buffer = r.buffer + location.offset;
+        auto& r = runTimePoolInfos[location.poolindex()];
+        to.buffer = r.buffer + location.offset();
         to.numberOfUsesLeft = 0;
     }
-    to.length = location.length;
+    to.length = location.length();
     return true;
 }
 
@@ -137,8 +148,8 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
         if (info.numberOfUsesLeft == 0) {
             continue;
         }
-        nnAssert(mModel->operands[i].location.poolIndex ==
-                 static_cast<uint32_t>(LocationValues::LOCATION_AT_RUN_TIME));
+        nnAssert(mModel->operands(i).location().poolindex() ==
+                 LOCATION_AT_RUN_TIME);
         info.numberOfUsesLeft--;
         if (info.numberOfUsesLeft == 0) {
             nnAssert(info.buffer != nullptr);
@@ -149,25 +160,27 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
 }
 
 int CpuExecutor::executeOperation(const Operation& operation) {
-    LOG(DEBUG) << "CpuExecutor::executeOperation(" << toString(operation) << ")";
-    const auto& ins = operation.inputs;
-    const auto& outs = operation.outputs;
+    LOG(DEBUG) << "CpuExecutor::executeOperation";
+    const auto& insObj = operation.inputs();
+    const auto& outsObj = operation.outputs();
+    const auto ins = operation.inputs().data();
+    const auto outs = operation.outputs().data();
     bool success = false;
 
     // Function to verify that the number of input and output parameters
     // matches what is expected.
-    auto parameterCountIs = [&ins, &outs, &operation](size_t expectedIns,
-                                                      size_t expectedOuts) -> bool {
-        if (ins.size() != expectedIns || outs.size() != expectedOuts) {
-            LOG(ERROR) << getOperationName(operation.type) << ": Invalid number of ins "
-                       << ins.size() << " / " << expectedIns << " and outs " << outs.size() << " / "
+    auto parameterCountIs = [&insObj, &outsObj, &operation](int expectedIns,
+                                                      int expectedOuts) -> bool {
+        if (insObj.size() != expectedIns || outsObj.size() != expectedOuts) {
+            LOG(ERROR) << getOperationName(operation.type()) << ": Invalid number of ins "
+                       << insObj.size() << " / " << expectedIns << " and outs " << outsObj.size() << " / "
                        << expectedOuts;
             return false;
         }
         return true;
     };
 
-    switch (operation.type) { // static_cast<OperationType>(operation.type)) {
+    switch (operation.type()) { // static_cast<OperationType>(operation.type)) {
         case OperationType::ADD_FLOAT32: {
             if (!parameterCountIs(2, 1)) {
                 return ANEURALNETWORKS_BAD_DATA;
@@ -381,13 +394,12 @@ int CpuExecutor::executeOperation(const Operation& operation) {
             break;
     }
     if (!success) {
-        LOG(ERROR) << getOperationName(operation.type) << " failed.";
+        LOG(ERROR) << getOperationName(operation.type()) << " failed.";
         return ANEURALNETWORKS_OP_FAILED;
     }
 
-    freeNoLongerUsedOperands(ins);
+    freeNoLongerUsedOperands({insObj.begin(), insObj.end()});
     return ANEURALNETWORKS_NO_ERROR;
 }
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn

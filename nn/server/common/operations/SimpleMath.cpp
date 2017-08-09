@@ -21,8 +21,7 @@
 #include "Operations.h"
 #include "OperationsUtils.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 bool addTensorsFloat32Prepare(const Shape& in1, const Shape& in2, Shape* out) {
     return SameShape(in1, in2) && SetShape(in1, out);
@@ -36,5 +35,4 @@ bool addTensorsFloat32(const float* in1, const float* in2, float* out, const Sha
     return true;
 }
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn

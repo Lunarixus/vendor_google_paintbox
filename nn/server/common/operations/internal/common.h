@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_
-#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_
+#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_
 
 #ifndef USE_NEON
 #if defined(__ARM_NEON__) || defined(__ARM_NEON)
@@ -27,8 +27,7 @@
 #include "gemmlowp.h"
 #include "types.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 template <FusedActivationFunctionType Ac>
 struct ActivationFunctionImpl {};
@@ -73,7 +72,6 @@ inline int32 MultiplyByQuantizedMultiplierGreaterThanOne(
                                            quantized_multiplier);
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
-#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_
+#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_COMMON_H_

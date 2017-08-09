@@ -20,8 +20,7 @@
 #include "internal/optimized/optimized_ops.h"
 #include "internal/reference/reference_ops.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 bool genericActivationFloat32Prepare(const Shape& input,
                                      Shape* output) {
@@ -65,5 +64,4 @@ bool logisticFloat32(const float* inputData, const Shape& inputShape,
     return true;
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
