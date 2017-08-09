@@ -492,9 +492,15 @@ struct FrameMetadata {
   LensState lens_state;
 
   // --------------------------------------------------------------------------
-  // Vendor-specific metadata plumbed through Camera2
-  // experimental tags.
+  // Vendor-specific metadata plumbed through Camera2 experimental tags.
+
+  // Optical image stabilization metadata.
   OisMetadata ois_metadata;
+
+  // Exposure time boost associated with a change to exposure factorization,
+  //   controlled by motion metering.
+  // Defaults to -1 (unknown).
+  float exposure_time_boost;
 };
 
 // Write the metadata for a burst of captured frames to a string.
