@@ -343,6 +343,19 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
         }
     }
 
+    // If final crop region is just slightly bigger than target resolution, try to crop more to
+    // avoid scaling. This is going to change FOV slightly for better quality and faster processing.
+    if (cropW > maxTargetW && cropH > maxTargetH &&
+            cropW - maxTargetW < kCropRatioThreshold * maxTargetW &&
+            cropH - maxTargetH < kCropRatioThreshold * maxTargetH) {
+        cropX0 += (cropW - maxTargetW) / 2;
+        cropY0 += (cropH - maxTargetH) / 2;
+        cropW = maxTargetW;
+        cropH = maxTargetH;
+        cropX1 = cropX0 + cropW;
+        cropY1 = cropY0 + cropH;
+    }
+
     shotParams->Clear();
     shotParams->ae.target_width = maxTargetW;
     shotParams->ae.target_height = maxTargetH;
