@@ -35,7 +35,6 @@ const char* ToText(IccProfile icc_profile);
 IccProfile TextToIccProfile(const char* text);
 
 // Look up an embedded binary ICC profile, based on the enum.
-// NOTE: Unimplemented on Apple platforms (always returns false).
 bool GetIccProfileData(IccProfile icc_profile, const uint8_t** icc_data,
                        size_t* icc_size);
 
