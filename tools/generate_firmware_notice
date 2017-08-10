@@ -1,0 +1,43 @@
+#!/bin/bash
+
+MODULE_PATH="
+	bionic/libc:libc.so:libm.so:linker64 \
+	external/libcxx:libc++.so \
+	external/libnl:libnl.so \
+	external/libunwind:libunwind.so \
+	external/lzma:liblzma.so \
+	external/mksh:sh \
+	external/toybox:toybox \
+	external/zlib:libz.so \
+	system/core:libbacktrace.so:libbase.so:libdl.so:libvndksupport.so:libsysutils.so:libprocinfo.so:logd.easel \
+	system/core/debuggerd:crash_dump64 \
+	system/core/libcutils:libcutils.so \
+	system/core/liblog:liblog.so \
+	system/core/libutils:libutils.so \
+"
+
+LOCAL_MODULE="
+	libimageprocessor.so \
+"
+
+for module in ${MODULE_PATH}; do
+	while IFS=':' read -ra ARRAY; do
+		notice="${ANDROID_BUILD_TOP}/${ARRAY[0]}/NOTICE"
+		unset ARRAY[0]
+		echo "============================================================"
+		echo "Notices for file(s):"
+		for file in "${ARRAY[@]}"; do
+			echo "${file}"
+		done
+		echo "------------------------------------------------------------"
+		cat $notice
+	done <<< "${module}"
+done
+
+for module in ${LOCAL_MODULE}; do
+	echo "============================================================"
+	echo "Notices for file(s):"
+	echo "${module}"
+	echo "------------------------------------------------------------"
+	cat "${ANDROID_BUILD_TOP}/vendor/google_paintbox/firmware/ramdisk/notice/NOTICE_${module}"
+done
