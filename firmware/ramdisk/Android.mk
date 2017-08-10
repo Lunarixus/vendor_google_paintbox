@@ -23,18 +23,20 @@ PREBUILT_BIN_MODULES := \
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
-	$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
 	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
+
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+	BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh
+endif
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbase)/libbase.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc)/libc.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc++)/libc++.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
@@ -56,6 +58,10 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libutils)/libutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
+
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+	LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
+endif
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 
