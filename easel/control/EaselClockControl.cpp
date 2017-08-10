@@ -290,10 +290,9 @@ int EaselClockControl::setAxiClockGating(bool enable)
     ALOGI("%s: %d", __FUNCTION__, enable);
 
     if (enable) {
-        val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_L1_2_ENABLE
-              | PCIE_POWER_MODE_AXI_CG_ENABLE;
+        val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_AXI_CG_ENABLE;
     } else {
-        val = PCIE_POWER_MODE_CLKPM_ENABLE | PCIE_POWER_MODE_L1_2_ENABLE;
+        val = PCIE_POWER_MODE_CLKPM_ENABLE;
     }
 
     snprintf(buf, 32, "%d", val);
