@@ -77,6 +77,17 @@ public:
      */
     void notifyPostview(uint32_t requestId, uint8_t *data, int fd, uint32_t width, uint32_t height,
             uint32_t stride, int format);
+
+    /*
+     * Request a file dump to HDR+ client.
+     *
+     * filename is the filename to dump the data to.
+     * data is the data to dump.
+     * dmaBufFd is the file descriptor of the buffer. If dumpBuf is valid, data must be nullptr.
+     * dataSize is the size in bytes of the data.
+     */
+    void notifyFileDump(const std::string &filename, void* data, int32_t dmaBufFd,
+            int32_t dataSize);
 private:
 
     // Protect API methods from being called simultaneously.
