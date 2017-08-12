@@ -29,9 +29,9 @@ PRODUCT_PACKAGES += \
     libeaselcontrol
 
 # Neuralnetworks HAL
-PRODUCT_PACKAGES += \
-    android.hardware.neuralnetworks@1.0-impl-paintbox \
-    android.hardware.neuralnetworks@1.0-service-paintbox
+# PRODUCT_PACKAGES += \
+#    android.hardware.neuralnetworks@1.0-impl-paintbox \
+#    android.hardware.neuralnetworks@1.0-service-paintbox
 
 # Add addtional utils in userdebug and eng builds
 # Also includes modules for ramdisk so they could
