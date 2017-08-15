@@ -3,6 +3,8 @@
 # Make ramdisk when not building for ASAN
 ifeq ($(filter address,$(SANITIZE_TARGET)),)
 
+LOCAL_PATH:= $(call my-dir)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := easel_ramdisk.img
@@ -10,6 +12,7 @@ LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware/easel
 LOCAL_MODULE_STEM := ramdisk.img
 LOCAL_MODULE_OWNER := google
+LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 
 # TODO(cjluo): Add notice file before launch.
 
