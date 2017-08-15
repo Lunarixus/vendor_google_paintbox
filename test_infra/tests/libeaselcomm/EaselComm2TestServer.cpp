@@ -1,5 +1,6 @@
 #include "EaselComm2Test.h"
 
+#include <sys/stat.h>
 #include <utils/Errors.h>
 #include <sstream>
 
@@ -81,11 +82,10 @@ void handleIonBufferMessage(const EaselComm2::Message& message2) {
   CHECK(message2.hasPayload());
   size_t size = message2.getPayload().size;
   ImxDeviceBufferHandle buffer;
-  CHECK_EQ(
-      ImxCreateDeviceBufferManaged(allocator, size,
-                                   kImxDefaultDeviceBufferAlignment,
-                                   kImxDefaultDeviceBufferHeap, 0, &buffer),
-      IMX_SUCCESS);
+  CHECK_EQ(ImxCreateDeviceBufferManaged(
+               allocator, size, kImxDefaultDeviceBufferAlignment,
+               kImxDefaultDeviceBufferHeap, 0, &buffer),
+           IMX_SUCCESS);
 
   int fd;
   CHECK_EQ(ImxShareDeviceBuffer(buffer, &fd), IMX_SUCCESS);
@@ -113,6 +113,27 @@ void handleMallocBufferMessage(const EaselComm2::Message& message2) {
   free(vaddr);
 }
 
+// Handles file saving request.
+void handleFileMessage(const EaselComm2::Message& message2) {
+  CHECK(message2.hasPayload());
+  size_t size = message2.getPayload().size;
+  void* vaddr = malloc(size);
+  CHECK(vaddr != nullptr);
+
+  EaselComm2::HardwareBuffer hardwareBuffer(vaddr, size, 0);
+  CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
+  std::string s = "/tmp/filetest";
+  CHECK_EQ(hardwareBuffer.saveFile(s), NO_ERROR);
+
+  // Replies the file size
+  struct stat st;
+  CHECK_EQ(stat(s.c_str(), &st), NO_ERROR);
+  size_t fileSize = st.st_size;
+  FileStruct fs = {fileSize};
+  CHECK_EQ(server->send(kFileChannel, &fs, sizeof(FileStruct)), NO_ERROR);
+  free(vaddr);
+}
+
 }  // namespace
 
 int main() {
@@ -126,6 +147,7 @@ int main() {
   server->registerHandler(kProtoChannel, handleProtoMessage);
   server->registerHandler(kStructChannel, handleStructMessage);
   server->registerHandler(kStringChannel, handleStringMessage);
+  server->registerHandler(kFileChannel, handleFileMessage);
 
   server->openPersistent(EASEL_SERVICE_TEST);
 }

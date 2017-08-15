@@ -402,4 +402,26 @@ TEST_F(EaselComm2Test, Reverse) {
   wait();
 }
 
+TEST_F(EaselComm2Test, FileCopy) {
+  std::string s("/data/nativetest/vendor/easelcomm2_test/easelcomm2_test");
+  struct stat st;
+  ASSERT_EQ(stat(s.c_str(), &st), NO_ERROR);
+  size_t fileSize = st.st_size;
+
+  comm()->registerHandler(kFileChannel,
+                          [&](const EaselComm2::Message& message) {
+                            auto f = message.toStruct<FileStruct>();
+                            ASSERT_NE(f, nullptr);
+                            EXPECT_EQ(f->size, fileSize);
+                            signal();
+                          });
+
+  EaselComm2::HardwareBuffer buffer;
+  void* vaddr = buffer.loadFile(s);
+  ASSERT_TRUE(vaddr != nullptr);
+  ASSERT_EQ(comm()->send(kFileChannel, {buffer}), NO_ERROR);
+  free(vaddr);
+  wait();
+}
+
 }  // namespace android
