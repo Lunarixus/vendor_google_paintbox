@@ -569,8 +569,15 @@ void client_pull_file(char *remote_path, char *dest_arg) {
     // Wait for transfer done
     std::unique_lock<std::mutex> lk(file_xfer_lock);
     file_xfer_done = false;
+
+    auto start = std::chrono::system_clock::now();
     easel_comm_client.sendMessage(&msg);
     file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
+    auto end = std::chrono::system_clock::now();
+    long duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start).count();
+    fprintf(stderr, "pull file %s (remote) to %s (local) in %lu ms\n",
+            remote_path, file_xfer_path_local, duration);
 
     free(local_path_str);
 }
@@ -666,8 +673,14 @@ void client_push_file_worker(char *local_path, char *remote_path) {
     // Wait for transfer done
     std::unique_lock<std::mutex> lk(file_xfer_lock);
     file_xfer_done = false;
+    auto start = std::chrono::system_clock::now();
     easel_comm_client.sendMessage(&msg);
     file_xfer_cond.wait(lk, [&]{return file_xfer_done;});
+    auto end = std::chrono::system_clock::now();
+    long duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start).count();
+    fprintf(stderr, "push file %s (local) to %s (remote) in %lu ms\n",
+            file_xfer_path_local, file_xfer_path_remote, duration);
 }
 
 // Client file push command processing. Send push request and wait for
