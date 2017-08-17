@@ -28,7 +28,6 @@ BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
-	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
