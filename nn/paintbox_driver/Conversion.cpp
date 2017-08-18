@@ -27,8 +27,8 @@ paintbox_nn::OperandType convertHidlOperandType(const OperandType type) {
       return paintbox_nn::TENSOR_FLOAT16;
     case OperandType::TENSOR_FLOAT32:
       return paintbox_nn::TENSOR_FLOAT32;
-    case OperandType::TENSOR_SYMMETRICAL_QUANT8:
-      return paintbox_nn::TENSOR_SYMMETRICAL_QUANT8;
+    case OperandType::TENSOR_QUANT8_ASYMM:
+      return paintbox_nn::TENSOR_QUANT8_ASYMM;
     default:
       CHECK(false) << "invalid operand type.";
       return paintbox_nn::FLOAT16;
@@ -37,75 +37,75 @@ paintbox_nn::OperandType convertHidlOperandType(const OperandType type) {
 
 paintbox_nn::OperationType convertHidlOperationType(const OperationType type) {
   switch (type) {
-    case OperationType::AVERAGE_POOL_FLOAT32:
-      return paintbox_nn::AVERAGE_POOL_FLOAT32;
-    case OperationType::CONCATENATION_FLOAT32:
-      return paintbox_nn::CONCATENATION_FLOAT32;
-    case OperationType::CONV_FLOAT32:
-      return paintbox_nn::CONV_FLOAT32;
-    case OperationType::DEPTHWISE_CONV_FLOAT32:
-      return paintbox_nn::DEPTHWISE_CONV_FLOAT32;
-    case OperationType::MAX_POOL_FLOAT32:
-      return paintbox_nn::MAX_POOL_FLOAT32;
-    case OperationType::L2_POOL_FLOAT32:
-      return paintbox_nn::L2_POOL_FLOAT32;
-    case OperationType::DEPTH_TO_SPACE_FLOAT32:
-      return paintbox_nn::DEPTH_TO_SPACE_FLOAT32;
-    case OperationType::SPACE_TO_DEPTH_FLOAT32:
-      return paintbox_nn::SPACE_TO_DEPTH_FLOAT32;
-    case OperationType::LOCAL_RESPONSE_NORMALIZATION_FLOAT32:
-      return paintbox_nn::LOCAL_RESPONSE_NORMALIZATION_FLOAT32;
-    case OperationType::SOFTMAX_FLOAT32:
-      return paintbox_nn::SOFTMAX_FLOAT32;
-    case OperationType::RESHAPE_FLOAT32:
-      return paintbox_nn::RESHAPE_FLOAT32;
-    case OperationType::SPLIT_FLOAT32:
-      return paintbox_nn::SPLIT_FLOAT32;
-    case OperationType::FAKE_QUANT_FLOAT32:
-      return paintbox_nn::FAKE_QUANT_FLOAT32;
-    case OperationType::ADD_FLOAT32:
-      return paintbox_nn::ADD_FLOAT32;
-    case OperationType::FULLY_CONNECTED_FLOAT32:
-      return paintbox_nn::FULLY_CONNECTED_FLOAT32;
-    case OperationType::CAST_FLOAT32:
-      return paintbox_nn::CAST_FLOAT32;
-    case OperationType::MUL_FLOAT32:
-      return paintbox_nn::MUL_FLOAT32;
-    case OperationType::L2_NORMALIZATION_FLOAT32:
-      return paintbox_nn::L2_NORMALIZATION_FLOAT32;
-    case OperationType::LOGISTIC_FLOAT32:
-      return paintbox_nn::LOGISTIC_FLOAT32;
-    case OperationType::RELU_FLOAT32:
-      return paintbox_nn::RELU_FLOAT32;
-    case OperationType::RELU6_FLOAT32:
-      return paintbox_nn::RELU6_FLOAT32;
-    case OperationType::RELU1_FLOAT32:
-      return paintbox_nn::RELU1_FLOAT32;
-    case OperationType::TANH_FLOAT32:
-      return paintbox_nn::TANH_FLOAT32;
-    case OperationType::DEQUANTIZE_FLOAT32:
-      return paintbox_nn::DEQUANTIZE_FLOAT32;
-    case OperationType::FLOOR_FLOAT32:
-      return paintbox_nn::FLOOR_FLOAT32;
-    case OperationType::GATHER_FLOAT32:
-      return paintbox_nn::GATHER_FLOAT32;
-    case OperationType::RESIZE_BILINEAR_FLOAT32:
-      return paintbox_nn::RESIZE_BILINEAR_FLOAT32;
-    case OperationType::LSH_PROJECTION_FLOAT32:
-      return paintbox_nn::LSH_PROJECTION_FLOAT32;
-    case OperationType::LSTM_FLOAT32:
-      return paintbox_nn::LSTM_FLOAT32;
-    case OperationType::SVDF_FLOAT32:
-      return paintbox_nn::SVDF_FLOAT32;
-    case OperationType::RNN_FLOAT32:
-      return paintbox_nn::RNN_FLOAT32;
-    case OperationType::N_GRAM_FLOAT32:
-      return paintbox_nn::N_GRAM_FLOAT32;
-    case OperationType::LOOKUP_FLOAT32:
-      return paintbox_nn::LOOKUP_FLOAT32;
+    case OperationType::AVERAGE_POOL:
+      return paintbox_nn::AVERAGE_POOL;
+    case OperationType::CONCATENATION:
+      return paintbox_nn::CONCATENATION;
+    case OperationType::CONV:
+      return paintbox_nn::CONV;
+    case OperationType::DEPTHWISE_CONV:
+      return paintbox_nn::DEPTHWISE_CONV;
+    case OperationType::MAX_POOL:
+      return paintbox_nn::MAX_POOL;
+    case OperationType::L2_POOL:
+      return paintbox_nn::L2_POOL;
+    case OperationType::DEPTH_TO_SPACE:
+      return paintbox_nn::DEPTH_TO_SPACE;
+    case OperationType::SPACE_TO_DEPTH:
+      return paintbox_nn::SPACE_TO_DEPTH;
+    case OperationType::LOCAL_RESPONSE_NORMALIZATION:
+      return paintbox_nn::LOCAL_RESPONSE_NORMALIZATION;
+    case OperationType::SOFTMAX:
+      return paintbox_nn::SOFTMAX;
+    case OperationType::RESHAPE:
+      return paintbox_nn::RESHAPE;
+    case OperationType::SPLIT:
+      return paintbox_nn::SPLIT;
+    case OperationType::FAKE_QUANT:
+      return paintbox_nn::FAKE_QUANT;
+    case OperationType::ADD:
+      return paintbox_nn::ADD;
+    case OperationType::FULLY_CONNECTED:
+      return paintbox_nn::FULLY_CONNECTED;
+    case OperationType::CAST:
+      return paintbox_nn::CAST;
+    case OperationType::MUL:
+      return paintbox_nn::MUL;
+    case OperationType::L2_NORMALIZATION:
+      return paintbox_nn::L2_NORMALIZATION;
+    case OperationType::LOGISTIC:
+      return paintbox_nn::LOGISTIC;
+    case OperationType::RELU:
+      return paintbox_nn::RELU;
+    case OperationType::RELU6:
+      return paintbox_nn::RELU6;
+    case OperationType::RELU1:
+      return paintbox_nn::RELU1;
+    case OperationType::TANH:
+      return paintbox_nn::TANH;
+    case OperationType::DEQUANTIZE:
+      return paintbox_nn::DEQUANTIZE;
+    case OperationType::FLOOR:
+      return paintbox_nn::FLOOR;
+    case OperationType::GATHER:
+      return paintbox_nn::GATHER;
+    case OperationType::RESIZE_BILINEAR:
+      return paintbox_nn::RESIZE_BILINEAR;
+    case OperationType::LSH_PROJECTION:
+      return paintbox_nn::LSH_PROJECTION;
+    case OperationType::LSTM:
+      return paintbox_nn::LSTM;
+    case OperationType::SVDF:
+      return paintbox_nn::SVDF;
+    case OperationType::RNN:
+      return paintbox_nn::RNN;
+    case OperationType::N_GRAM:
+      return paintbox_nn::N_GRAM;
+    case OperationType::LOOKUP:
+      return paintbox_nn::LOOKUP;
     default:
       CHECK(false) << "invalid operation type.";
-      return paintbox_nn::AVERAGE_POOL_FLOAT32;
+      return paintbox_nn::AVERAGE_POOL;
   }
 }
 
@@ -132,7 +132,12 @@ void convertHidlModel(const Model& inputModel,
 
   for (auto operation : inputModel.operations) {
     auto protoOperation = outputModel->add_operations();
-    protoOperation->set_type(convertHidlOperationType(operation.type));
+    paintbox_nn::OperationTuple* tuple = new paintbox_nn::OperationTuple();
+    tuple->set_operationtype(
+        convertHidlOperationType(operation.opTuple.operationType));
+    tuple->set_operandtype(
+        convertHidlOperandType(operation.opTuple.operandType));
+    protoOperation->set_allocated_optuple(tuple);
 
     for (auto input : operation.inputs) {
       protoOperation->add_inputs(input);
@@ -149,7 +154,7 @@ void convertHidlModel(const Model& inputModel,
   for (auto outputIndex : inputModel.outputIndexes) {
     outputModel->add_outputindexes(outputIndex);
   }
-  outputModel->add_operandvalues(inputModel.operandValues.data(),
+  outputModel->set_operandvalues(inputModel.operandValues.data(),
                                  inputModel.operandValues.size());
 }
 

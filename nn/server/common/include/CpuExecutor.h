@@ -34,6 +34,9 @@ struct RunTimeOperandInfo {
     // to pass together with the dimension to the functions implementing
     // the operators.
     std::vector<uint32_t> dimensions;
+
+    float scale;
+    int32_t offset;
     // Where the operand's data is stored.  Check the corresponding
     // location information in the model to figure out if this points
     // to memory we have allocated for an temporary operand.
@@ -48,7 +51,9 @@ struct RunTimeOperandInfo {
 
     Shape shape() const {
         return Shape{.type = type,
-                     .dimensions = dimensions};
+                     .dimensions = dimensions,
+                     .scale = scale,
+                     .offset = offset};
     }
 };
 
