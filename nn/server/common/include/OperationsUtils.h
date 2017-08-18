@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_UTILS_H
-#define ANDROID_ML_NN_COMMON_OPERATIONS_UTILS_H
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_UTILS_H
+#define PAINTBOX_NN_COMMON_OPERATIONS_UTILS_H
 
 #include "Utils.h"
 
 #include <cstdint>
 #include <vector>
 
-namespace android {
-namespace nn {
+#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+
+namespace paintbox_nn {
 
 // The type and dimensions of an operand.
 struct Shape {
@@ -50,7 +51,6 @@ inline uint32_t ComputePadding(uint32_t stride, uint32_t in_size, uint32_t filte
   return ((out_size - 1) * stride + filter_size - in_size) / 2;
 }
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn
 
-#endif // ANDROID_ML_NN_COMMON_OPERATIONS_UTILS_H
+#endif // PAINTBOX_NN_COMMON_OPERATIONS_UTILS_H

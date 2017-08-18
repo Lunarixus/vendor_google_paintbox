@@ -86,12 +86,15 @@ message Model {
   repeated Operation operations = 2;
   repeated uint32 inputIndexes = 3;
   repeated uint32 outputIndexes = 4;
-  repeated uint32 operandValues = 5;
-  optional uint32 poolsSize = 6;
+  repeated bytes operandValues = 5;
 }
 
 message Request {
   repeated InputOutputInfo inputs = 1;
   repeated InputOutputInfo outputs = 2;
-  optional uint32 poolsSize = 3;
+  repeated uint64 poolSizes = 3;
+}
+
+message Response {
+  optional int32 result = 1;
 }

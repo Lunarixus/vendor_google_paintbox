@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
-#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -31,8 +31,7 @@
 #include "../common.h"
 #include "../types.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 namespace reference_ops {
 
 inline int32 MultiplyByQuantizedMultiplierSmallerThanOne(
@@ -1845,7 +1844,6 @@ inline void ResizeBilinear(const float* input_data, const Dims<4>& input_dims,
 }
 
 }  // end namespace reference_ops
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
-#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_

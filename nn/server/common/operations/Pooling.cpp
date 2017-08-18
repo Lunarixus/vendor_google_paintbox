@@ -20,8 +20,7 @@
 #include "internal/optimized/optimized_ops.h"
 #include "internal/reference/reference_ops.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 bool genericPoolingFloat32Prepare(const Shape& input,
                                   int32_t padding,
@@ -164,5 +163,4 @@ bool maxPoolFloat32(const float* inputData, const Shape& inputShape,
 
 
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn

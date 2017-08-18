@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
-#define ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
+#ifndef PAINTBOX_NN_COMMON_CPU_EXECUTOR_H
+#define PAINTBOX_NN_COMMON_CPU_EXECUTOR_H
 
-#include "HalInterfaces.h"
 #include "OperationsUtils.h"
 #include "Utils.h"
 
 #include <vector>
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // Information we maintain about each operand during execution that
 // may change during execution.
@@ -55,7 +53,6 @@ struct RunTimeOperandInfo {
 };
 
 struct RunTimePoolInfo {
-    sp<IMemory> memory;
     uint8_t* buffer;
 };
 
@@ -100,7 +97,6 @@ private:
     std::vector<RunTimeOperandInfo> mOperands;
 };
 
-} // namespace nn
-} // namespace android
+} // namespace paintbox_nn
 
-#endif // ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
+#endif // PAINTBOX_NN_COMMON_CPU_EXECUTOR_H

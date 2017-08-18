@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_
-#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_
+#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_
 
 #include <assert.h>
 #include <stdint.h>
@@ -33,8 +33,7 @@
 #include "../common.h"
 #include "../types.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 namespace optimized_ops {
 
 // Make a local VectorMap typedef allowing to map a float array
@@ -2646,12 +2645,11 @@ inline void ResizeBilinear(const float* input_data, const Dims<4>& input_dims,
 }
 
 }  // namespace optimized_ops
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
 #if defined OPTIMIZED_OPS_H__IGNORE_DEPRECATED_DECLARATIONS
 #undef OPTIMIZED_OPS_H__IGNORE_DEPRECATED_DECLARATIONS
 #pragma GCC diagnostic pop
 #endif
 
-#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_
+#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_OPS_H_

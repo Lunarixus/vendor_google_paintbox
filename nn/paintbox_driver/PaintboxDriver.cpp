@@ -115,11 +115,15 @@ Return<sp<IPreparedModel>> PaintboxDriver::prepareModel(const Model& model) {
     return nullptr;
   }
 
+  mComm->close();
   mComm->open(EASEL_SERVICE_NN);
+  mComm->startReceiving();
 
   paintbox_nn::Model protoModel;
   paintbox_util::convertHidlModel(model, &protoModel);
   mComm->send(PREPARE_MODEL, protoModel);
+
+  // TODO(cjluo): Add support for model pools.
 
   LOG(DEBUG) << "PaintboxDriver::prepareModel(" << toString(model) << ")";
   return new PaintboxPreparedModel(model, mComm.get());
@@ -135,6 +139,10 @@ PaintboxPreparedModel::PaintboxPreparedModel(const Model& model,
   // Make a copy of the model, as we need to preserve it.
   mModel = model;
   mComm = comm;
+
+  mExecuteDone = false;
+  mExecuteReturn = ANEURALNETWORKS_NO_ERROR;
+  mOutput = nullptr;
 }
 
 static bool mapPools(std::vector<RunTimePoolInfo>* poolInfos,
@@ -159,22 +167,57 @@ static bool mapPools(std::vector<RunTimePoolInfo>* poolInfos,
   return true;
 }
 
+void PaintboxPreparedModel::executeCallback(
+    const EaselComm2::Message& message) {
+  paintbox_nn::Response response;
+  CHECK(message.toProto(&response));
+  LOG(INFO) << "PaintboxPreparedModel::executeCallback result "
+            << response.result();
+
+  CHECK(message.hasPayload());
+  size_t outputSize = message.getPayload().size;
+
+  std::unique_lock<std::mutex> executeLock(mExecuteMutex);
+  CHECK_EQ(outputSize, static_cast<size_t>(mOutput->memory->getSize()));
+  EaselComm2::HardwareBuffer hardwareBuffer(mOutput->buffer, outputSize);
+  CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
+  mExecuteReturn = response.result();
+  mExecuteDone = true;
+  mExecuteDoneCond.notify_one();
+}
+
 Return<bool> PaintboxPreparedModel::execute(const Request& request) {
   LOG(DEBUG) << "PaintboxDriver::prepareRequest(" << toString(request) << ")";
 
+  // Convert hidl request to proto request.
   paintbox_nn::Request protoRequest;
   paintbox_util::convertHidlRequest(request, &protoRequest);
-  mComm->send(EXECUTE, protoRequest);
 
+  // Convert input data buffer to EaselComm2::HardwareBuffer.
   std::vector<RunTimePoolInfo> poolInfo;
   if (!mapPools(&poolInfo, request.pools)) {
     return false;
   }
+  auto& input = poolInfo[INPUT_POOL];
+  EaselComm2::HardwareBuffer hardwareBuffer(
+      input.buffer, static_cast<size_t>(input.memory->getSize()));
 
-  CpuExecutor executor;
-  int n = executor.run(mModel, request, poolInfo);
-  LOG(DEBUG) << "executor.run returned " << n;
-  return n == ANEURALNETWORKS_NO_ERROR;
+  // Register execute handler.
+  mComm->registerHandler(
+      EXECUTE, [&](const EaselComm2::Message& message) {
+        executeCallback(message);
+      });
+
+  // Send request to Easel and wait for response.
+  std::unique_lock<std::mutex> executeLock(mExecuteMutex);
+  mExecuteDone = false;
+  mExecuteReturn = ANEURALNETWORKS_NO_ERROR;
+  mOutput = &poolInfo[OUTPUT_POOL];
+  mComm->send(EXECUTE, protoRequest, &hardwareBuffer);
+  mExecuteDoneCond.wait(executeLock, [&] { return mExecuteDone; });
+
+  LOG(DEBUG) << "executor.run returned " << mExecuteReturn;
+  return mExecuteReturn == ANEURALNETWORKS_NO_ERROR;
 }
 
 }  // namespace paintbox_driver
