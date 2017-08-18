@@ -122,6 +122,10 @@ pushd ${GOOGLE3_PATH}
 # Generate PCG
 rm -rf ${TMP_PCG_FULL_PATH}
 GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
+if [ $? -ne 0 ]; then
+  echo "Error: ${GOOGLE3_PCG_GEN_SH} returned non-zero"
+  exit 1
+fi
 
 # Build libgcam
 blaze build \
