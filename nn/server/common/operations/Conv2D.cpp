@@ -20,8 +20,7 @@
 #include "internal/optimized/optimized_ops.h"
 #include "internal/reference/reference_ops.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // If possible we will use this static buffer for the tensor.
 static constexpr int kStaticBufferSize = 1605632;
@@ -133,5 +132,4 @@ bool convFloat32(const float* inputData, const Shape& inputShape,
     return true;
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn

@@ -488,16 +488,16 @@ int switchState(enum ControlState nextState)
                     ret |= stopThermalMonitor();
                     ret |= stopLogClient();
                     ret |= teardownEaselConn();
-                    ret |= stopKernelEventThread();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    ret |= stopKernelEventThread();
                     break;
                 case ControlState::RESUMED:
                 case ControlState::INIT:
                     ret |= stopThermalMonitor();
                     ret |= stopLogClient();
                     ret |= teardownEaselConn();
-                    ret |= stopKernelEventThread();
                     ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    ret |= stopKernelEventThread();
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
@@ -511,9 +511,9 @@ int switchState(enum ControlState nextState)
         case ControlState::RESUMED: {
             switch (state) {
                 case ControlState::SUSPENDED:
-                    ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
+                    ret = startKernelEventThread();
                     if (!ret) {
-                        ret = startKernelEventThread();
+                        ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                     }
                     if (!ret) {
                         ret = setupEaselConn();
@@ -540,9 +540,9 @@ int switchState(enum ControlState nextState)
         case ControlState::ACTIVATED: {
             switch (state) {
                 case ControlState::SUSPENDED:
-                    ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
+                    ret = startKernelEventThread();
                     if (!ret) {
-                        ret = startKernelEventThread();
+                        ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                         if (!ret) {
                             ret = setupEaselConn();
                         }

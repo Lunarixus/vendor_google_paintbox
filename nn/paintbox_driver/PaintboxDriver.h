@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
-#define ANDROID_ML_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
+#ifndef PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
+#define PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
 
+#include "CpuExecutor.h"
 #include "EaselComm2.h"
 #include "HalInterfaces.h"
 #include "NeuralNetworks.h"
+
+#include <condition_variable>
+#include <mutex>
 
 namespace android {
 namespace nn {
@@ -46,12 +50,18 @@ class PaintboxPreparedModel : public IPreparedModel {
   virtual Return<bool> execute(const Request& request);
 
  private:
+  void executeCallback(const EaselComm2::Message& message);
   Model mModel;
   EaselComm2::Comm* mComm;
+  std::mutex mExecuteMutex;
+  std::condition_variable mExecuteDoneCond;
+  bool mExecuteDone;
+  int mExecuteReturn;
+  RunTimePoolInfo* mOutput;
 };
 
 }  // namespace paintbox_driver
 }  // namespace nn
 }  // namespace android
 
-#endif  // ANDROID_ML_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
+#endif  // PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H

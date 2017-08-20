@@ -37,16 +37,13 @@ cc_library_static {
         "operations/Pooling.cpp",
         "operations/SimpleMath.cpp",
     ],
+    static_libs: [
+        "paintbox_nn_shared",
+    ],
     shared_libs: [
         "libbase",
-        "libhidlbase",
-        "libhidltransport",
-        "libhidlmemory",
         "liblog",
         "libutils",
-        "android.hardware.neuralnetworks@1.0",
-        "android.hidl.allocator@1.0",
-        "android.hidl.memory@1.0",
     ],
     header_libs: [
         "libneuralnetworks_headers",

@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
-#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
 
 #include "gemmlowp.h"
 #include "../common.h"
 #include "../types.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 namespace optimized_ops {
 
 // Implementation of float DepthwiseConv
@@ -781,8 +780,7 @@ void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
 }
 
 }  // namespace optimized_ops
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
 
-#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_

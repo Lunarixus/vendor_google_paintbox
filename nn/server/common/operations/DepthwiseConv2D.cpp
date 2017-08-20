@@ -20,8 +20,7 @@
 #include "internal/optimized/depthwiseconv_float.h"
 #include "internal/reference/depthwiseconv_float.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 bool depthwiseConvFloat32Prepare(const Shape& input,
                                  const Shape& filter,
@@ -102,5 +101,4 @@ bool depthwiseConvFloat32(const float* inputData, const Shape& inputShape,
     return true;
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn

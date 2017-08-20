@@ -1,5 +1,5 @@
 subdirs = [
-    "paintbox_driver",
-    "server",
-    "shared",
+//    "paintbox_driver",
+//    "server",
+//    "shared",
 ]
