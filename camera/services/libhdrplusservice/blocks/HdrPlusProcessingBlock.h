@@ -118,7 +118,8 @@ private:
         GcamBaseFrameCallback(std::weak_ptr<PipelineBlock> block);
         virtual ~GcamBaseFrameCallback() = default;
     private:
-        virtual void Run(const gcam::IShot* shot, int base_frame_index);
+        virtual void Run(const gcam::IShot* shot, int base_frame_index,
+                         int64_t base_frame_timestamp_ns);
         std::weak_ptr<PipelineBlock> mBlock;
     };
 
@@ -171,6 +172,7 @@ private:
     struct Shutter {
         int32_t shotId;  // Shot id for this shutter.
         int32_t baseFrameIndex; // Base frame index for this shot.
+        int64_t baseFrameTimestampNs;  // Base frame timestamp for this shot.
     };
 
     // Callback invoked when Gcam releases an input image.
@@ -181,7 +183,7 @@ private:
             gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat);
 
     // Callback invoked when Gcam selects a base frame.
-    void onGcamBaseFrameCallback(int shotId, int index);
+    void onGcamBaseFrameCallback(int shotId, int index, int64_t timestamp);
 
     // Initialize a Gcam instance.
     status_t initGcam();

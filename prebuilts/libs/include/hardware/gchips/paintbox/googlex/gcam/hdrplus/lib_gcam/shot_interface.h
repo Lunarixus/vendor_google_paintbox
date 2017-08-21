@@ -315,6 +315,10 @@ class IShot {
   virtual const Tuning& tuning() const = 0;
   virtual const ShotParams& shot_params() const = 0;
   virtual const StaticMetadata& static_metadata() const = 0;
+
+  // Advise background processing to limit CPU usage to roughly a
+  //   cpu_usage_factor fraction (in [0, 1]) of peak performance
+  virtual void LimitCpuUsage(float cpu_usage_factor) = 0;
 };
 // LINT.ThenChange(//depot/google3/java/com/google/googlex/gcam/\
 //                 gcam_minimal.swig)

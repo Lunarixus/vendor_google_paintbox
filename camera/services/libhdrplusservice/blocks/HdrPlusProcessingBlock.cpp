@@ -761,7 +761,7 @@ status_t HdrPlusProcessingBlock::produceRequestOutputBuffers(
     return 0;
 }
 
-void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex) {
+void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex, int64_t baseFrameTimestampNs) {
     ALOGD("%s: Gcam selected a base frame index %d for shot %d.", __FUNCTION__, baseFrameIndex,
         shotId);
     {
@@ -769,6 +769,7 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
         Shutter shutter = {};
         shutter.shotId = shotId;
         shutter.baseFrameIndex = baseFrameIndex;
+        shutter.baseFrameTimestampNs = baseFrameTimestampNs;
         mShutters.push_back(shutter);
     }
 
@@ -1165,8 +1166,6 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.min_payload_frames = kGcamMinPayloadFrames;
     initParams.payload_frame_copy_mode = kGcamPayloadFrameCopyMode;
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
-    initParams.correct_blacklevel = kGcamCorrectBlackLevel;
-    initParams.detect_flare = kGcamDetectFlare;
 
     // The following callbacks are not used.
     initParams.memory_callback = nullptr;
@@ -1235,7 +1234,7 @@ HdrPlusProcessingBlock::GcamBaseFrameCallback::GcamBaseFrameCallback(
 }
 
 void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
-        int base_frame_index) {
+        int base_frame_index, int64_t base_frame_timestamp_ns) {
     if (shot == nullptr) {
         ALOGE("%s: shot is nullptr.", __FUNCTION__);
         return;
@@ -1244,7 +1243,8 @@ void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
     int shotId = shot->shot_id();
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamBaseFrameCallback(shotId, base_frame_index);
+        block->onGcamBaseFrameCallback(shotId, base_frame_index,
+                                       base_frame_timestamp_ns);
     } else {
         ALOGE("%s: Gcam selected a base frame index %d for shot %d but block is destroyed.",
                 __FUNCTION__, base_frame_index, shotId);

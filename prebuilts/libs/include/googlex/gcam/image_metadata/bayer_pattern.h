@@ -105,6 +105,13 @@ void RggbToRgb(const T rggb[4], T rgb_out[3]) {
   rgb_out[2] = rggb[3];
 }
 
+template <typename T>
+void BayerToRgb(BayerPattern pattern, const T* bayer, T* rgb) {
+  T rggb[4];
+  BayerToRggb(pattern, bayer, rggb);
+  RggbToRgb(rggb, rgb);
+}
+
 }  // namespace gcam
 
 #endif  // GOOGLEX_GCAM_IMAGE_METADATA_BAYER_PATTERN_H_
