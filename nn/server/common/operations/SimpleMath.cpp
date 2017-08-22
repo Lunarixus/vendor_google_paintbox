@@ -23,7 +23,7 @@
 
 namespace paintbox_nn {
 
-bool addTensorsFloat32Prepare(const Shape& in1, const Shape& in2, Shape* out) {
+bool addTensorsPrepare(const Shape& in1, const Shape& in2, Shape* out) {
     return SameShape(in1, in2) && SetShape(in1, out);
 }
 
