@@ -21,6 +21,7 @@
 
 #include <CameraMetadata.h>
 #include <inttypes.h>
+#include <QCamera3VendorTags.h>
 #include <stdlib.h>
 
 #include "HdrPlusClientImpl.h"
@@ -338,6 +339,50 @@ void HdrPlusClientImpl::notifyShutter(uint32_t requestId, int64_t apSensorTimest
     mClientListener->onShutter(requestId, apSensorTimestampNs);
 }
 
+status_t HdrPlusClientImpl::updateResultMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
+        const std::string &makernote) {
+    if (cameraMetadata == nullptr || (*cameraMetadata) == nullptr) {
+        ALOGE("%s: camera metadata is nullptr.", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    // Update maker note.
+    (*cameraMetadata)->update(qcamera::NEXUS_EXPERIMENTAL_2017_EXIF_MAKERNOTE,
+            reinterpret_cast<const uint8_t *>(makernote.c_str()), makernote.size());
+
+    return OK;
+}
+
+void HdrPlusClientImpl::notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote) {
+    if (dmaMakernote == nullptr) return;
+    if (dmaMakernote->dmaHandle == nullptr) {
+        ALOGE("%s: DMA handle is nullptr.", __FUNCTION__);
+        return;
+    }
+
+    ALOGV("%s: Received a makernote for request %d.", __FUNCTION__, dmaMakernote->requestId);
+
+    Mutex::Autolock clientLock(mClientListenerLock);
+    Mutex::Autolock requestLock(mPendingRequestsLock);
+
+    // Find the pending request.
+    for (auto &pendingRequest : mPendingRequests) {
+        if (pendingRequest.request.id == dmaMakernote->requestId) {
+            pendingRequest.makernote.resize(dmaMakernote->dmaMakernoteSize);
+            status_t res = mMessengerToService.transferDmaBuffer(dmaMakernote->dmaHandle,
+                    /*dmaBufFd*/-1, static_cast<void*>(&pendingRequest.makernote[0]),
+                    dmaMakernote->dmaMakernoteSize);
+            if (res != 0) {
+                ALOGE("%s: Transferring makernote DMA buffer failed: %s (%d).", __FUNCTION__,
+                        strerror(-res), res);
+            }
+            return;
+        }
+    }
+
+    ALOGW("%s: Cannot find request %d for makernote.", __FUNCTION__, dmaMakernote->requestId);
+}
+
 void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
     if (result == nullptr) return;
 
@@ -414,7 +459,13 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
                             strerror(-res), res);
                     successfulResult = false;
                 } else {
-                    resultMetadata = cameraMetadata->getAndLock();
+                    res = updateResultMetadata(&cameraMetadata, mPendingRequests[i].makernote);
+                    if (res != OK) {
+                        ALOGE("%s: Failed to update result metadata.", __FUNCTION__);
+                        successfulResult = false;
+                    } else {
+                        resultMetadata = cameraMetadata->getAndLock();
+                    }
                 }
 
                 pbcamera::CaptureResult clientResult = {};
