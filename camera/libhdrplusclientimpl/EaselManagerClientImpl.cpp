@@ -188,6 +188,19 @@ status_t EaselManagerClientImpl::convertCameraId(uint32_t cameraId,
     return OK;
 }
 
+status_t EaselManagerClientImpl::getFwVersion(char *fwVersion) {
+    int res = 0;
+
+    Mutex::Autolock l(mEaselControlLock);
+    if (!mEaselControlOpened) {
+        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+        return NO_INIT;
+    }
+    res = mEaselControl.getFwVersion(fwVersion);
+
+    return OK;
+}
+
 status_t EaselManagerClientImpl::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
         bool enableCapture) {
     Mutex::Autolock l(mEaselControlLock);

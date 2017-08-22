@@ -38,6 +38,9 @@
 #define MNH_SM_IOC_MAGIC 'T'
 #define MNH_SM_MAX 8
 
+#define MNH_ION_BUFFER_SIZE SZ_64M
+#define FW_VER_SIZE 16
+
 #define MNH_SM_IOC_GET_STATE \
 	_IOR(MNH_SM_IOC_MAGIC, 1, int *)
 #define MNH_SM_IOC_SET_STATE \
@@ -50,6 +53,12 @@
 	_IOW(MNH_SM_IOC_MAGIC, 5, struct mnh_mipi_config *)
 #define MNH_SM_IOC_WAIT_FOR_POWER \
 	_IO(MNH_SM_IOC_MAGIC, 6)
+#define MNH_SM_IOC_GET_UPDATE_BUF \
+	_IOR(MNH_SM_IOC_MAGIC, 7, int *)
+#define MNH_SM_IOC_POST_UPDATE_BUF \
+	_IOW(MNH_SM_IOC_MAGIC, 8, struct mnh_update_configs *)
+#define MNH_SM_IOC_GET_FW_VER \
+	_IOR(MNH_SM_IOC_MAGIC, 9, char [FW_VER_SIZE])
 
 enum mnh_sm_state {
 	MNH_STATE_OFF, /* powered off */
