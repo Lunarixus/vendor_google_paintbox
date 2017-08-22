@@ -83,6 +83,7 @@ void MessengerToHdrPlusClient::notifyFrameEaselTimestampAsync(int64_t easelTimes
     status_t res = getEmptyMessage(&message);
     if (res != 0) {
         ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
     }
 
     RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_FRAME_EASEL_TIMESTAMP_ASYNC));
@@ -105,14 +106,34 @@ void MessengerToHdrPlusClient::notifyCaptureResult(CaptureResult *result) {
         return;
     }
 
+    // Send the makernote first.
+    Message *message = nullptr;
+    status_t res = getEmptyMessage(&message);
+    if (res != 0) {
+        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_DMA_MAKERNOTE));
+    RETURN_ON_WRITE_ERROR(message->writeUint32(result->requestId));
+
+    res = sendMessageWithDmaBuffer(message, static_cast<void*>(&result->metadata.makernote[0]),
+            result->metadata.makernote.size(), /*dmaBufFd*/-1);
+    if (res != 0) {
+        ALOGE("%s: Sending makernote DMA buffer failed: %s (%d).", __FUNCTION__,
+                strerror(-res), res);
+    }
+
+    returnMessage(message);
+
     // Only one buffer can be transferred via DMA each time so sending a message for every output
     // buffer.
     for (auto buffer : result->outputBuffers) {
         // Prepare the message.
-        Message *message = nullptr;
-        status_t res = getEmptyMessage(&message);
+        res = getEmptyMessage(&message);
         if (res != 0) {
             ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+            return;
         }
 
         RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_DMA_CAPTURE_RESULT));
@@ -144,6 +165,7 @@ void MessengerToHdrPlusClient::notifyShutterAsync(uint32_t requestId, int64_t ap
     status_t res = getEmptyMessage(&message);
     if (res != 0) {
         ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
     }
 
     RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_SHUTTER_ASYNC));

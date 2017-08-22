@@ -178,7 +178,8 @@ private:
 
     // Callback invoked when Gcam finishes a final processed image.
     void onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
-            gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat);
+            gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat,
+            const gcam::ExifMetadata& exifMetadata);
 
     // Callback invoked when Gcam selects a base frame.
     void onGcamBaseFrameCallback(int shotId, int index);
