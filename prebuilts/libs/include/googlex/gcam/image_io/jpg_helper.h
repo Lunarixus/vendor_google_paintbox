@@ -22,6 +22,9 @@ const int kMaxJpgQuality = 100;
 const int kDefaultJpgQuality = 95;
 const int kDefaultJpgQualityThumbnail = 60;
 
+// The MakerNote size is limited by the maximum size of the EXIF APP1 segment.
+const int kMaxMakernoteSize = 65535;
+
 // Encodes image data to a JPG file, with support for grayscale (1 channel),
 // RGB (3 channels), or YUV (semiplanar, NV21 or NV12).
 //
@@ -74,8 +77,11 @@ InterleavedImageU8 DecodeJpgFromMemory(const uint8_t* jpeg_blob_in_memory,
 // MAKERNOTE FUNCTIONS:
 
 // Encodes a string for the purpose of writing it in the EXIF MakerNote field,
-// using weak encryption to obfuscate its contents.
+//   using weak encryption to obfuscate its contents.
+// For the variant using a preallocated char[] buffer, the client must make
+//   sure that the buffer is at least 'kMaxMakernoteSize' bytes.
 std::string EncodeMakerNote(const std::string& str);
+void EncodeMakerNote(const char* str, char out_buffer[], int* out_buffer_size);
 
 // Decode an EXIF MakerNote field previously written by EncodeMakerNote(),
 // and return whether decoding was successful.

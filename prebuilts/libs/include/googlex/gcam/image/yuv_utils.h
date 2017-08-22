@@ -124,18 +124,6 @@ bool FastCrop(YuvReadView* src, const NormalizedRect& crop);
 //
 bool FastCropCentered(YuvReadView* src, int w2, int h2);
 
-// Returns a new cropped version of the image, cropped to a centered rectangle
-// with width w2 and height h2, or as close as possible. Returns nullptr on
-// invalid inputs. Caller takes ownership of the returned object.
-//
-// Because the chroma channel of YUV is downsampled by a factor of 2, the crop
-// is constrained to be a multiple of 2x2 pixels, and aligned accordingly.
-//
-// MakeCenterCroppedCopy() will adjust the rectangle, if necessary, to satisfy
-// these constaints.
-//
-YuvImage MakeCenterCroppedCopy(const YuvReadView& src, int w2, int h2);
-
 void SwapUV(YuvWriteView* yuv);
 
 // Infers image dimensions from file size.

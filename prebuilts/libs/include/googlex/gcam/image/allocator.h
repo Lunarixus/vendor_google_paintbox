@@ -5,6 +5,7 @@
 // unnecessarily, since any included headers also become part of the API.
 
 #include <cstddef>
+#include <cstdint>
 
 // Custom memory allocation for images created by gcam.
 
@@ -39,8 +40,8 @@ void InitCustomMemoryAllocator(MallocFunc custom_malloc,
 void* TrackedMemoryAllocate(size_t num_bytes);
 void TrackedMemoryDeallocate(void* memory);
 
-int GetGcamImageMemCurrent();
-int GetGcamImageMemPeak();
+int64_t GetGcamImageMemCurrent();
+int64_t GetGcamImageMemPeak();
 
 }  // namespace gcam
 
