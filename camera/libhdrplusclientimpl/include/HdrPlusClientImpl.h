@@ -166,10 +166,15 @@ private:
     void notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) override;
     void notifyServiceClosed() override;
     void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) override;
+    void notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote) override;
     // Callbacks from HDR+ service end here.
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.
     void failAllPendingRequestsLocked();
+
+    // Update camera result metadata based on HDR+ result.
+    status_t updateResultMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
+            const std::string &makernote);
 
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
@@ -192,6 +197,7 @@ private:
         pbcamera::CaptureRequest request;
         // stream ID -> output buffer status.
         std::unordered_map<uint32_t, OutputBufferStatus> outputBufferStatuses;
+        std::string makernote;
         DECLARE_PROFILER_TIMER(timer, "HDR+ request");
     };
 

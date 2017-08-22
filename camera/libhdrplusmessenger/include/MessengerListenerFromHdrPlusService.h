@@ -57,6 +57,11 @@ public:
      */
     virtual void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) = 0;
 
+    /*
+     * Invoked when a makernote was generated for a capture request.
+     */
+    virtual void notifyDmaMakernote(DmaMakernote *dmaMakernote) = 0;
+
 private:
     /*
      * Override EaselMessengerListener::onMessage
@@ -90,6 +95,8 @@ private:
     void deserializeNotifyDmaCaptureResult(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
     void deserializeNotifyShutter(Message *message);
+    void deserializeNotifyDmaMakernote(Message *message, DmaBufferHandle handle,
+            int dmaDataSize);
 };
 
 } // namespace pbcamera
