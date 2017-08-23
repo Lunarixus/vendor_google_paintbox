@@ -228,6 +228,10 @@ struct StaticMetadata {
   //   no optical zoom. If this ever changes, we'll need to add focal length to
   //   FrameRequest/FrameMetadata.
   std::vector<float> available_focal_lengths_mm;
+
+  // Time required to readout an entire frame, in msec. This is the reciprocal
+  // of the maximum frame rate of the camera.
+  float frame_readout_time_ms;
 };
 
 // Check whether the specified black regions are consistent with the frame
