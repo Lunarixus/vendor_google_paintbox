@@ -11,6 +11,7 @@
 #include <easelcontrol.h>
 
 #include "googlex/gcam/image/yuv_utils.h"
+#include "googlex/gcam/image_io/jpg_helper.h"
 #include "googlex/gcam/image_proc/resample.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/imx_runtime_apis.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
@@ -761,7 +762,7 @@ status_t HdrPlusProcessingBlock::produceRequestOutputBuffers(
     return 0;
 }
 
-void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex) {
+void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex, int64_t baseFrameTimestampNs) {
     ALOGD("%s: Gcam selected a base frame index %d for shot %d.", __FUNCTION__, baseFrameIndex,
         shotId);
     {
@@ -769,6 +770,7 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
         Shutter shutter = {};
         shutter.shotId = shotId;
         shutter.baseFrameIndex = baseFrameIndex;
+        shutter.baseFrameTimestampNs = baseFrameTimestampNs;
         mShutters.push_back(shutter);
     }
 
@@ -782,7 +784,8 @@ void HdrPlusProcessingBlock::onGcamInputImageReleased(const int64_t imageId) {
 }
 
 void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
-        gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat) {
+        gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat,
+        const gcam::ExifMetadata& exifMetadata) {
     ALOGD("%s: Got a final image (format %d) for request %d.", __FUNCTION__, pixelFormat, shotId);
 
     if (rgbResult != nullptr) {
@@ -839,6 +842,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
             outputResult.metadata.frameMetadata->easelTimestamp;
     outputResult.metadata.resultMetadata->timestamp =
             outputResult.metadata.frameMetadata->timestamp;
+    outputResult.metadata.resultMetadata->makernote = "Maker note";
 
     auto pipeline = mPipeline.lock();
     if (pipeline != nullptr) {
@@ -1165,8 +1169,6 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.min_payload_frames = kGcamMinPayloadFrames;
     initParams.payload_frame_copy_mode = kGcamPayloadFrameCopyMode;
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
-    initParams.correct_blacklevel = kGcamCorrectBlackLevel;
-    initParams.detect_flare = kGcamDetectFlare;
 
     // The following callbacks are not used.
     initParams.memory_callback = nullptr;
@@ -1235,7 +1237,7 @@ HdrPlusProcessingBlock::GcamBaseFrameCallback::GcamBaseFrameCallback(
 }
 
 void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
-        int base_frame_index) {
+        int base_frame_index, int64_t base_frame_timestamp_ns) {
     if (shot == nullptr) {
         ALOGE("%s: shot is nullptr.", __FUNCTION__);
         return;
@@ -1244,7 +1246,8 @@ void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
     int shotId = shot->shot_id();
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamBaseFrameCallback(shotId, base_frame_index);
+        block->onGcamBaseFrameCallback(shotId, base_frame_index,
+                                       base_frame_timestamp_ns);
     } else {
         ALOGE("%s: Gcam selected a base frame index %d for shot %d but block is destroyed.",
                 __FUNCTION__, base_frame_index, shotId);
@@ -1279,7 +1282,7 @@ void HdrPlusProcessingBlock::GcamFinalImageCallback::YuvReady(
     ALOGV("%s: Gcam sent a final image for request %d", __FUNCTION__, shot->shot_id());
     auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
     if (block != nullptr) {
-        block->onGcamFinalImage(shot->shot_id(), yuv_result, nullptr, pixel_format);
+        block->onGcamFinalImage(shot->shot_id(), yuv_result, nullptr, pixel_format, metadata);
     } else {
         ALOGE("%s: Gcam sent a final image for request %d but block is destroyed.",
                 __FUNCTION__, shot->shot_id());

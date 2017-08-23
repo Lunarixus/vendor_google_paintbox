@@ -454,6 +454,10 @@ class Gcam {
   // SEE ALSO: AbortShotCapture.
   bool AbortShotProcessing(IShot* shot);
 
+  // Advise background processing to limit CPU usage to roughly a
+  //   cpu_usage_factor fraction of peak performance.
+  bool LimitShotCpuUsage(IShot* shot, float cpu_usage_factor);
+
   //----------------------------------------------------------
   // Misc
   //----------------------------------------------------------

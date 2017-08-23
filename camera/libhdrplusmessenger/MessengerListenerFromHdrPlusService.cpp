@@ -77,6 +77,10 @@ status_t MessengerListenerFromHdrPlusService::onMessageWithDmaBuffer(Message *me
         case MESSAGE_NOTIFY_DMA_CAPTURE_RESULT:
             deserializeNotifyDmaCaptureResult(message, handle, dmaBufferSize);
             return 0;
+
+        case MESSAGE_NOTIFY_DMA_MAKERNOTE:
+            deserializeNotifyDmaMakernote(message, handle, dmaBufferSize);
+            return 0;
         default:
             ALOGE("%s: Receive invalid message type %d.", __FUNCTION__, type);
             return -EINVAL;
@@ -115,6 +119,19 @@ void MessengerListenerFromHdrPlusService::deserializeNotifyDmaCaptureResult(Mess
     result.buffer.dmaDataSize = dmaDataSize;
 
     notifyDmaCaptureResult(&result);
+}
+
+void MessengerListenerFromHdrPlusService::deserializeNotifyDmaMakernote(Message *message,
+        DmaBufferHandle dmaHandle, int dmaDataSize) {
+
+    DmaMakernote makernote = {};
+
+    RETURN_ON_READ_ERROR(message->readUint32(&makernote.requestId));
+
+    makernote.dmaHandle = dmaHandle;
+    makernote.dmaMakernoteSize = dmaDataSize;
+
+    notifyDmaMakernote(&makernote);
 }
 
 } // namespace pbcamera

@@ -52,6 +52,20 @@ struct DmaCaptureResult {
     ResultMetadata metadata;
 };
 
+/*
+ * DmaMakernote defines a DMA makernote that contains a makernote buffer that is ready to be
+ * transferred via DMA. Upon receiving DmaMakernote, transferDmaBuffer must be called to
+ * transfer the DMA buffer before returning.
+ */
+struct DmaMakernote {
+    // ID of the CaptureRequest that this makernote corresponds to.
+    uint32_t requestId;
+    // DMA handle that can be used to call transferDmaBuffer to transfer the makernote.
+    void *dmaHandle;
+    // Size of the makernote to be transferred in bytes.
+    uint32_t dmaMakernoteSize;
+};
+
 // Maximum message size passed between HDR+ client and service. 5KB for metadata.
 const int kMaxHdrPlusMessageSize = 5120;
 
@@ -73,6 +87,7 @@ enum HdrPlusMessageType {
     // Messages from HDR+ service to HDR+ client
     MESSAGE_NOTIFY_FRAME_EASEL_TIMESTAMP_ASYNC = 0x10000,
     MESSAGE_NOTIFY_DMA_CAPTURE_RESULT,
+    MESSAGE_NOTIFY_DMA_MAKERNOTE,
     MESSAGE_NOTIFY_SHUTTER_ASYNC,
 };
 
