@@ -107,6 +107,17 @@ class RawReadView {
     }
   }
 
+  // Get a row of the raw view, unpacking it if necessary.
+  // The buf[] buffer should be large enough to hold x1 - x0 elements.
+  // The unpacked data will be single-channel and the pixel data will be
+  //   in the original Bayer pattern order.
+  // This function returns a pointer to the view data, using 'buf' to store
+  //   the unpacked data only if necessary (for packed images).
+  const uint16_t* GetRow(int x0, int x1, int y, uint16_t* buf) const;
+  inline const uint16_t* GetRow(int y, uint16_t* buf) const {
+    return GetRow(0, width(), y, buf);
+  }
+
  protected:
   InterleavedReadViewU16 unpacked_read_view_;
   PackedReadViewRaw10 packed10_read_view_;
@@ -136,6 +147,13 @@ class RawWriteView : public RawReadView {
   }
 
   void FastCrop(int x0, int y0, int x1, int y1) override;
+
+  // Set a row of the raw view, packing it if necessary.
+  // The row[] buffer should have x1 - x0 elements.
+  void SetRow(int x0, int x1, int y, const uint16_t* row) const;
+  inline void SetRow(int y, const uint16_t* row) const {
+    SetRow(0, width(), y, row);
+  }
 
  protected:
   InterleavedWriteViewU16 unpacked_write_view_;

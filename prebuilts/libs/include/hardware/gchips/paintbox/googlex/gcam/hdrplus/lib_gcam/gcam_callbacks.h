@@ -38,7 +38,8 @@ struct AeResults;
 class BaseFrameCallback {
  public:
   virtual ~BaseFrameCallback() = default;
-  virtual void Run(const IShot* shot, int base_frame_index) = 0;
+  virtual void Run(const IShot* shot, int base_frame_index,
+                   int64_t base_frame_timestamp_ns) = 0;
 };
 
 // Called when a burst is fully complete. This callback gives the client an

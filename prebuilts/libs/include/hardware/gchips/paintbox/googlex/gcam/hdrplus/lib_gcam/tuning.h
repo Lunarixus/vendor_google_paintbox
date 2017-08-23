@@ -16,6 +16,7 @@
 #include "googlex/gcam/ae/ae_type.h"
 #include "googlex/gcam/base/pixel_rect.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tet_model.h"
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_raw_finish/finish_tuning.h"
 #include "googlex/gcam/image/icc_profile.h"
 #include "googlex/gcam/image_metadata/bayer_pattern.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
@@ -163,6 +164,9 @@ float AverageSnrFromFrame(const RawReadView& raw,
                           const RawNoiseModel& noise_model,
                           const Context& context);
 
+// Estimate the SNR for a frame using only its metadata.
+float EstimateSnrFromFrameMetadata(const FrameMetadata& metadata);
+
 // Description of the noise found in raw/linear images captured by a
 // particular sensor as a function of an analog gain stage followed by a readout
 // stage, followed by digital gain. This model assumes the noise is spatially
@@ -274,20 +278,15 @@ class SensorRowArtifacts {
 
     return result;
   }
+
+  // If true, there are no row artifacts or noise to be suppressed.
+  bool IsEmpty() const {
+    return
+        noise_offset.empty() &&
+        patterns_pre_analog_gain.empty() &&
+        patterns_post_analog_gain.empty();
+  }
 };
-
-// Hot pixels often vary in intensity with analog gain, this stores a set of
-// key-value pairs of analog gains and thresholds, which are linearly
-// interpolated to look up thresholds for a specific analog gain.
-struct HotPixelParams {
-  SmoothKeyValueMap<int> threshold;
-
-  HotPixelParams();
-};
-
-// Get the hot pixel threshold, given the tuning and frame metadata.
-int GetHotPixelThreshold(const HotPixelParams& params,
-                         const FrameMetadata& meta);
 
 // Per-device configurable tuning settings for raw image merging.
 struct RawMergeParams {
@@ -309,23 +308,36 @@ struct RawMergeParams {
   SmoothKeyValueMap<float> spatial_strength;
 };
 
-// The number of frequencies used to describe the shape of the unsharp mask
-// filter.
-static const int kRawSharpenUnsharpMaskFreqs = 3;
-
+// Sharpening is done by decomposing the (tonemapped) image into several
+// frequency bands. The frequency bands are then mapped through a piecewise
+// linear curve specified in this tuning. When the curve f(x) > x, the frequency
+// content is amplified, when f(x) < x, the frequency content is attenuated.
+//
+// The curves are specified by indicating points, connected by lines between the
+// points. The points must be sorted in ascending order by the x coordinate.
+// Both x and y are in the range [0, 1], where 0 is black and 1 is the white
+// level. Note that the frequency content is signed; this curve is evaluated
+// with the absolute value of the frequency content, and the result is given the
+// same sign as the original content.
+static const int kRawSharpenMaxFreqCount = 3;
 struct RawSharpenParams {
+  // The default constructed sharpening is the identity function y = x, which
+  // corresponds to no sharpening.
   RawSharpenParams();
-
-  // An overall scaling amount of the unsharp mask filter.
-  float unsharp_mask_strength;
-  // The maximum overshoot allowed as a fraction of the white level.
-  float max_overshoot;
-  // Describes the amplitude of the Gaussian low pass filters with varying
-  // frequency for the unsharp mask. Let f0 be the frequency described by _f[0],
-  // the highest possible frequency. Then the frequency described by _f[n] is
-  // f0/2^n.
-  float unsharp_mask_f[kRawSharpenUnsharpMaskFreqs];
+  struct Point { float x, y; };
+  typedef std::array<Point, kRawSharpenCurveSize> Curve;
+  Curve curves[kRawSharpenMaxFreqCount];
 };
+
+// Construct a sharpening curve with a few features:
+// - For small amplitude frequency content less than min_detail, the slope is
+//   relatively small, to avoid amplifying noise.
+// - For medimum amplitude frequency content between min_detail and max_detail,
+//   the slope is close to strength, enhancing detail in this range.
+// - For large amplitude frequency content above max_detail, the slope is
+//   small again, to avoid creating significant ringing artifacts.
+RawSharpenParams::Curve MakeSharpenCurve(float strength, float min_detail,
+                                         float max_detail);
 
 // Chromatic aberration (CA) suppression is performed by assigning a probability
 // of CA artifacts to each pixel, and attempting to adjust the chroma of pixels
@@ -454,14 +466,6 @@ struct RawFinishParams {
 
   // Parameters for color saturation to apply during finish.
   ColorSatParams saturation;
-
-  // Biases to apply to the final RGB output color.
-  // The values are normalized, so 1.0 corresponds to kRawFinishWhiteLevel.
-  //   They can be positive or negative.  A value of -0.01, for example, would
-  //   subtract all final pixels (on that color channel) by 1% of
-  //   kRawFinishWhiteLevel.
-  // Use of this feature is HEAVILY DISCOURAGED.
-  float final_rgb_bias_hack[3];
 
   // If > 0, limits the maximum number of synthetic exposures in the HDR block.
   int max_synthetic_exposures;
@@ -865,7 +869,7 @@ struct Tuning {
   //   GetTuningFromDeviceCode("uncalibrated").
   // Later, you can work with the Gcam team to fine-tune these parameters
   //   for optimal image quality.
-  HotPixelParams    hot_pixel_params;
+  bool              suppress_hot_pixels;
   RawMergeParams    raw_merge_params;
   RawFinishParams   raw_finish_params;
   ColorSatParams    output_color_sat_yuv;

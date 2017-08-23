@@ -204,6 +204,11 @@ struct ShotLogData {
 
   // Indicates whether the shot was aborted (during capture or processing).
   bool aborted;
+
+  // The minimum CPU usage factor used during processing. This is important to
+  //   put timing information into context (a slow shot might have been slow
+  //   just because the CPU usage was artifically limited).
+  float cpu_usage_factor;
 };
 
 // Fill in the AE-related fields of ShotLogData from AeResults.

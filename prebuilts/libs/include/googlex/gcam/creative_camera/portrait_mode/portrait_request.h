@@ -11,6 +11,10 @@ namespace creative_camera {
 // LINT.IfChange
 // A list of arguments used by Portrait Mode to finsh processing the image.
 struct GoudaRequest {
+  // Unique id of the request, required to associate all the callbacks with
+  // the request. Guaranteed to be unique per entry into the portrait mode.
+  int64_t id;
+
   // The desired output width and height. The processed images will be resampled
   // to this resolution. 'output_width' and 'output_height' must positive.
   int output_width = 0;
