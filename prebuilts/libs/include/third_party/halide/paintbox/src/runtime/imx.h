@@ -638,8 +638,8 @@ typedef enum {
 /* Same as ImxLoadMatchingPrecompiledGraph except that it doesn't return a
  * handle to the compiled graph and doesn't log errors on failure.
  * Intended for checking whether a matching PCG has already been saved.
+ * Sets the result of PCG (precompiled graph) comparison in find_pcg_result.
  */
-// TODO(ahalambi): Change the return type to ImxFindPcgResult
 ImxError ImxFindMatchingPrecompiledGraph(
     const char *load_dir_base_path,
     const char *file_name,
@@ -647,7 +647,9 @@ ImxError ImxFindMatchingPrecompiledGraph(
     /* Input - Parameter name for each xfer node */
     const char **node_names,
     int node_count,  /* Size of previous two arrays */
-    const ImxCompileGraphInfo *info);
+    const ImxCompileGraphInfo *info,
+    /* Output - Result of matching against pcg */
+    ImxFindPcgResult *find_pcg_result);
 
 /* Preloads all precompiled graph configs that match the given file name and
  * returns them in lexicographical order of their base paths.
@@ -784,6 +786,8 @@ typedef struct ImxGatherInfo {
 ImxError ImxCreateTransferNode(
     const ImxCreateTransferNodeInfo *info,
     ImxNodeHandle *node_handle_ptr);
+
+ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
 
 typedef struct ImxCreatePaddingNodeInfo {
   ImxShape padding_region;  /* Must be two-dimensional. */
@@ -968,6 +972,14 @@ ImxError ImxFlushAndInvalidateDeviceBufferCacheEntries(
 ImxError ImxDeleteDeviceBuffer(
     ImxDeviceBufferHandle buffer_handle);
 
+/* Schedules buffer_handle for deletion. Buffers are deleted in FIFO order
+ * after earlier scheduled jobs are completed.
+ * It is an error if buffer_handle or device_handle is invalid.
+ */
+ImxError ImxDeleteDeviceBufferAsync(
+    ImxDeviceBufferHandle buffer_handle,
+    ImxDeviceHandle device_handle);
+
 /* Lock: Makes the buffer ready for use by CPU user-space process.
  * *(vaddr) will hold the mapped virtual address of the buffer.
  * May result in a mmap operation to map a kernel buffer to user-space.
@@ -1066,22 +1078,34 @@ ImxError ImxExecuteJob(
  * execution and waits for completion of the job.
  * All late-bound configuration information (such as DRAM buffers for DMA
  * transfers) must already be provided before invoking this function.
- *
- * Note: ImxExecuteJobAsync and ImxExecuteJobWait must be used in pairs.
- * After a call to ImxExecuteJobAsync, ImxExecuteJobWait must be called
- * before the next ImxExecuteJobAsync.
  */
 ImxError ImxExecuteJobAsync(
     ImxJobHandle job /* modified */);
 
 /* Waits for the previous asynchronous execution of the job to complete.
  *
- * Note: ImxExecuteJobAsync and ImxExecuteJobWait must be used in pairs.
- * After a call to ImxExecuteJobAsync, ImxExecuteJobWait must be called
- * before the next ImxExecuteJobAsync.
+ * Note: ImxExecuteJobWait must be paired with an ImxExecuteJobAsync.
  */
 ImxError ImxExecuteJobWait(
     ImxJobHandle job /* modified */);
+
+/* Waits for the completion of one item in the asynchronous job queue,
+ * typically ImxJob enqueued using ImxExecuteJobAsync api or ImxDeviceBuffer
+ * deletion enqueued using ImxDeleteDeviceBufferAsync.
+ * It is an error if input device_handle is invalid, or if no
+ * job queue item has been enqueued.
+ */
+ImxError ImxWaitForJobQueueOneItemCompletion(
+    ImxDeviceHandle device_handle /* input */);
+
+/* Waits for completion of all items enqueued in the asynchronous job queue.
+ * If there are no items, returns immediately with IMX_SUCCESS.
+ * If any pending job item times out, returns immediately with IMX_TIMEOUT.
+ * If pending job items fail, returns error code of the last failure.
+ * Returns IMX_SUCCESS otherwise.
+ */
+ImxError ImxWaitForJobQueueEmpty(
+    ImxDeviceHandle device_handle /* input */);
 
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
  * If job execution time exceeds timeout, the job is terminated and
@@ -1193,18 +1217,19 @@ ImxError ImxProfilerSetPhaseName(const char* phase_name);
  */
 ImxError ImxEnableProfiling(const char *profiler_file);
 
-/* Allows to turn full memory profiling on or off at execution time.
- * Call does not need to happen after ImxEnableProfiling. It can be enabled and
- * disabled at any time.
- */
-ImxError ImxProfilerSetFullDeviceBuffers(int cond);
-
 /* Compares stripe configurations stored in two compiled graph. It will print
  * out different configurations.
  * TODO(parkhc): Return the result of comparison to the caller.
  */
 ImxError ImxCompareStripeConfigurations(ImxCompiledGraphHandle one,
                                         ImxCompiledGraphHandle two);
+
+/* Updates compiled graph for the new image dimension (width/height).
+ * The new image dimensions should be already stored in the compiled graph.
+ * This will re-generate new stripe configurations for the new dimensions.
+ */
+ImxError ImxUpdateImageDimensionsIfNecessary(
+    ImxCompiledGraphHandle compiled_graph);
 
 #ifdef __cplusplus
 } /* extern "C" */

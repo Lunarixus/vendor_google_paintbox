@@ -205,15 +205,6 @@ struct InitParams {
   // Allow Gcam to use the IPU to accelerate processing.
   bool use_ipu;
 
-  // Explicit control for blacklevel correct. Setting this to false will disable
-  // TODO(ameixner) Remove this once we're done with Easel bring-up
-  bool correct_blacklevel;
-
-  // Explicit control for flare detection. Setting this to false will disable
-  // TODO(ameixner) Remove this once we're done with Easel bring-up
-  bool detect_flare;
-
-
   // Whether to allow two different shots to simultaneously *execute* in the
   //   merge and finish stages.
   // This is mainly for devices where you plan to use (for example) HVX for
@@ -242,10 +233,11 @@ struct InitParams {
   MallocFunc custom_malloc;
   FreeFunc   custom_free;
 
-  // This allows you to pass in a custom file saving function, to be used for
+  // This allows you to pass in a custom file saving object, to be used for
   // saving image data and sidecar metadata for debugging (if the various
-  // GCAM_DEBUG_* flags are active).
-  FileSaverFunc custom_file_saver;
+  // GCAM_DEBUG_* flags are active).  Gcam does not take ownership of this
+  // object and expects it to persist until after the Gcam object is destroyed.
+  FileSaver* custom_file_saver;
 
   // Callback ownership:
   // Gcam does not take ownership of callback objects passed in and expects them

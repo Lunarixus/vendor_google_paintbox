@@ -12,17 +12,21 @@
 
 namespace gcam {
 
-// Prototype for a custom file saver.  The file saver writes a block of
-// memory, described by a raw pointer and number of bytes, to a file with the
-// given name.
-typedef bool (*FileSaverFunc)(const void* /*data*/, size_t /*byte_count*/,
-                              const std::string& /*filename*/);
+// Base class specifying an interface for a custom file saver.  The file saver
+// writes a block of memory, described by a raw pointer and number of bytes, to
+// a file with the given name.
+class FileSaver {
+ public:
+  virtual ~FileSaver() = default;
+  virtual bool operator()(const void* data, size_t byte_count,
+                          const std::string& filename) = 0;
+};
 
 // Initializes custom file saver.
-void InitCustomFileSaver(FileSaverFunc custom_file_saver);
+void InitCustomFileSaver(FileSaver* custom_file_saver);
 
 // Gets the custom file saver, or nullptr if one has not been set.
-FileSaverFunc GetCustomFileSaver();
+FileSaver* GetCustomFileSaver();
 
 // Writes an empty file.  If the file already exists it will be clobbered.
 // If a custom file saver was specified using InitCustomFileSaver(), it will be

@@ -40,15 +40,6 @@ bool ResampleNearest(const InterleavedReadViewU8& src_map,
                      const InterleavedWriteViewU8* dst_map);
 bool ResampleNearest(const YuvReadView& src_map, const YuvWriteView* dst_map);
 
-// Compute the minimum number of times to cut an image in half (on both axes)
-// until the number of pixels is reduced to some maximum pixel count or lower.
-// If the size cannot be reduced sufficiently with an exact (2^N x 2^N):1
-// downsample, returns -1 and prints an error. Otherwise, returns a value >= 0.
-int GetDownsampleIterations(const YuvReadView& yuv,
-                            int desired_max_pixel_count);
-int GetDownsampleIterations(const RawReadView& raw,
-                            int desired_max_pixel_count);
-
 // Successively downsamples by a factor of two, downsample_iterations times,
 // i.e. the resulting image will have a resolution that is reduced by a factor
 // of (1 << downsample_iterations) in both dimensions. Results are rounded to
