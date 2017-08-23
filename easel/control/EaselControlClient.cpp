@@ -289,6 +289,26 @@ int sendDeactivateCommand()
     return ret;
 }
 
+// Handle incoming messages from EaselControlServer.
+void msgHandlerCallback(EaselComm::EaselMessage* msg) {
+    EaselControlImpl::MsgHeader *h =
+        (EaselControlImpl::MsgHeader *)msg->message_buf;
+
+    ALOGI("Received command %d", h->command);
+
+    switch(h->command) {
+    case EaselControlImpl::CMD_RESET_REQ: {
+        ALOGW("Server requested a chip reset");
+        reportError(EaselErrorReason::IPU_RESET_REQ);
+        break;
+    }
+
+    default:
+        ALOGE("ERROR: unrecognized command %d", h->command);
+        break;
+    }
+}
+
 void easelConnThread()
 {
     int ret;
@@ -334,6 +354,8 @@ void easelConnThread()
     gHandshakeSuccessful = true;
     ALOGI("%s: handshake done\n", __FUNCTION__);
     captureBootTrace();
+
+    easel_conn.startMessageHandlerThread(msgHandlerCallback);
 
     if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
 
