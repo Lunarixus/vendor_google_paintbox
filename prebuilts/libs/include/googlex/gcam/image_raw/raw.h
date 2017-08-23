@@ -71,6 +71,7 @@ class RawReadView {
 
   int width() const;
   int height() const;
+  RawBufferLayout layout() const;
 
   const InterleavedReadViewU16& unpacked_read_view() const {
     return unpacked_read_view_;
@@ -83,7 +84,7 @@ class RawReadView {
   }
 
   // Crop the image view to the requested rectangle, or as close as possible,
-  // using pointer artihmetic. The operation is fast, but if the crop rectangle
+  // using pointer arithmetic. The operation is fast, but if the crop rectangle
   // is small compared to the original image, then the cropped image can waste a
   // lot of memory.
   //
