@@ -2,12 +2,27 @@
 #define LOG_TAG "CaptureResultBlock"
 #include <log/log.h>
 
+#include <sys/sysinfo.h>
 #include <system/graphics.h>
 
 #include "CaptureResultBlock.h"
 #include "HdrPlusPipeline.h"
 
 namespace pbcamera {
+
+static void logSysInfo() {
+    struct sysinfo info;
+    static unsigned long freeram = 0;
+    int ret = sysinfo(&info);
+    if (ret == 0) {
+        ALOGD("HDR+ shot finished: freeram / totalram = %lu / %lu",
+                info.freeram, info.totalram);
+        if (freeram > info.freeram) {
+            ALOGW("%lu bytes leaked in system memory!", freeram - info.freeram);
+        }
+        freeram = info.freeram;
+    }
+}
 
 CaptureResultBlock::CaptureResultBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger) :
         PipelineBlock("CaptureResultBlock"),
@@ -99,6 +114,9 @@ bool CaptureResultBlock::doWorkLocked() {
     }
 
     pipeline->outputDone(blockResult);
+
+    // Log available memory to detect memory leak.
+    logSysInfo();
 
     return true;
 }
