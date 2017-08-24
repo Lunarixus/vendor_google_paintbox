@@ -842,7 +842,12 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, gcam::YuvImage* yuvRes
             outputResult.metadata.frameMetadata->easelTimestamp;
     outputResult.metadata.resultMetadata->timestamp =
             outputResult.metadata.frameMetadata->timestamp;
-    outputResult.metadata.resultMetadata->makernote = "Maker note";
+
+    int makernoteSize = 0;
+    outputResult.metadata.resultMetadata->makernote.resize(gcam::kMaxMakernoteSize);
+    gcam::EncodeMakerNote(exifMetadata.makernote.c_str(),
+            &outputResult.metadata.resultMetadata->makernote[0], &makernoteSize);
+    outputResult.metadata.resultMetadata->makernote.erase(makernoteSize);
 
     auto pipeline = mPipeline.lock();
     if (pipeline != nullptr) {
