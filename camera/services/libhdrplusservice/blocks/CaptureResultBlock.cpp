@@ -2,6 +2,8 @@
 #define LOG_TAG "CaptureResultBlock"
 #include <log/log.h>
 
+#include <fstream>
+#include <limits>
 #include <sys/sysinfo.h>
 #include <system/graphics.h>
 
@@ -15,13 +17,32 @@ static void logSysInfo() {
     static unsigned long freeram = 0;
     int ret = sysinfo(&info);
     if (ret == 0) {
-        ALOGD("HDR+ shot finished: freeram / totalram = %lu / %lu",
+        ALOGD("After HDR+ result: freeram / totalram = %lu / %lu bytes",
                 info.freeram, info.totalram);
         if (freeram > info.freeram) {
             ALOGW("%lu bytes leaked in system memory!", freeram - info.freeram);
         }
         freeram = info.freeram;
     }
+}
+
+static void logCarveoutInfo() {
+    std::ifstream carveout("/sys/kernel/debug/ion/heaps/carveout");
+    const std::string kTotalLabel = "          total";
+    std::string line;
+    static unsigned long total = std::numeric_limits<unsigned long>::max();
+
+    while (std::getline(carveout, line)) {
+        if (line.compare(0, kTotalLabel.length(), kTotalLabel) == 0) {
+            unsigned long newTotal = std::stoul(line.substr(kTotalLabel.length()));
+            ALOGD("After HDR+ result: carveout usage = %lu bytes", newTotal);
+            if (newTotal > total) {
+                ALOGW("%lu bytes leaked in carveout memory!", newTotal - total);
+            }
+            total = newTotal;
+        }
+    }
+    carveout.close();
 }
 
 CaptureResultBlock::CaptureResultBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger) :
@@ -117,6 +138,7 @@ bool CaptureResultBlock::doWorkLocked() {
 
     // Log available memory to detect memory leak.
     logSysInfo();
+    logCarveoutInfo();
 
     return true;
 }
