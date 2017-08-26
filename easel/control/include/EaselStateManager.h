@@ -10,10 +10,20 @@ class EaselStateManager {
 
 public:
     enum State {
-        ESM_STATE_OFF = MNH_STATE_OFF, // powered off
-        ESM_STATE_ACTIVE = MNH_STATE_ACTIVE, // powered on and booted
-        ESM_STATE_SUSPEND = MNH_STATE_SUSPEND, // suspended, ddr in self-refresh
+        /* powered off */
+        ESM_STATE_OFF = MNH_STATE_OFF,
+        /* powered on and booted */
+        ESM_STATE_ACTIVE = MNH_STATE_ACTIVE,
+        /* suspended, ddr in self-refresh */
+        ESM_STATE_SUSPEND = MNH_STATE_SUSPEND,
         ESM_STATE_MAX = MNH_STATE_MAX,
+    };
+
+    enum RegulatorPhaseMode  {
+        /* Force single phase operation for workloads fir low-power workloads */
+        ESL_REGULATOR_PHASE_MODE_SINGLE,
+        /* Enable both phases on switching regulator for high-power workloads */
+        ESL_REGULATOR_PHASE_MODE_DUAL,
     };
 
     struct EaselMipiConfig {
@@ -38,6 +48,10 @@ public:
 
         int rxRate;
         int txRate;
+    };
+
+    struct RegulatorSettings {
+        enum RegulatorPhaseMode corePhaseMode;
     };
 
     EaselStateManager(): mFd(-1) {};
@@ -99,8 +113,30 @@ public:
      */
     int waitForState(enum State state);
 
+    /*
+     * Gets current regulator settings.
+     *
+     * settings: pointer to an empty structure.
+     *
+     * Returns 0 for success; otherwise, returns error number.
+     */
+    int getRegulatorSettings(RegulatorSettings *settings);
+
+    /*
+     * Sets regulator settings.
+     *
+     * settings: pointer to a structure of the desired settings.
+     *
+     * Returns 0 for success; otherwise, returns error number.
+     */
+    int setRegulatorSettings(RegulatorSettings *settings);
+
 private:
     int mFd;
+
+    RegulatorSettings mRegulatorSettings;
+
+    int setDualPhaseRegulator(enum RegulatorPhaseMode mode);
 };
 
 #endif // __EASEL_STATE_MANAGER_H__
