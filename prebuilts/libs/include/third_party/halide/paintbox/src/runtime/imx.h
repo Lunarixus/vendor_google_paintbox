@@ -328,6 +328,29 @@ ImxError ImxGetDeviceWithOptions(
     char **simulator_options,  /* modified */
     ImxDeviceHandle *device_handle_ptr  /* out */);
 
+/* Gets a description of the device's allocated resources.
+ * For each resource group, the following resource description modes are
+ * supported:
+ *
+ * IMX_NO_RESOURCES_DESCRIPTION:
+ *   - No description is returned for the resource group.
+ *
+ * IMX_SPECIFIC_RESOURCES_DESCRIPTION:
+ *   - specific_<resource> arrays must be allocated by the caller.
+ *   - For each specific_<resource> array, set specific_<resource>_count equal
+ *     to the size of the array.
+ *   - Upon return, the specific_<resource> arrays will be filled to the lesser
+ *     of the size of the array and the number of allocated <resource>s.
+ *   - Upon return, specific_<resource>_count is set to the number of allocated
+ *     <resource>s.
+ *
+ * The following device description fields are left unmodified:
+ * resource_usage_mode, device_path, and [num_]simulator_options.
+ */
+ImxError ImxGetDeviceDescription(
+    ImxDeviceHandle device_handle  /* in */,
+    ImxDeviceDescription *device_descr  /* modified */);
+
 /* Sets the command line options (i.e. gFlags FLAG_... variables) for use
  * by IPU compiler, runtime (and simulator, if present).
  * options array contains a list of individual options, specified as
@@ -360,12 +383,12 @@ ImxError ImxDeviceSetTraceDir(ImxDeviceHandle device_handle,
                               const char *trace_dir);
 
 typedef enum {
-  IMX_MEMORY_READ = 0,  /* Transfer node (DMA) reads from memory */
-  IMX_MEMORY_WRITE,     /* Transfer node writes to memory */
-  IMX_MIPI_READ,        /* Transfer node reads from MIPI */
-  IMX_MIPI_WRITE,       /* Transfer node writes to MIPI */
-  IMX_MIPI_READ_MEMORY_WRITE  /* Transfer node reads from MIPI and directly
-                                 writes to memory */
+  IMX_MEMORY_READ = 0,       /* Transfer node (DMA) reads from memory */
+  IMX_MEMORY_WRITE,          /* Transfer node writes to memory */
+  IMX_MIPI_READ,             /* Transfer node reads from MIPI */
+  IMX_MIPI_WRITE,            /* Transfer node writes to MIPI */
+  IMX_MIPI_READ_MEMORY_WRITE /* Transfer node reads from MIPI and
+                                directly writes to memory */
 } ImxParameterUse;
 
 typedef enum {
@@ -734,6 +757,42 @@ typedef struct ImxMipiStreamIdentifier {
                    */
 } ImxMipiStreamIdentifier;
 
+/*
+ * ImxTransferNodes, by default, imply dma channels and linebuffers will be
+ * configured, as decided by the mapper. These values override those decisions
+ * by either stopping the dma or lbp from being configured, or overriding the
+ * mapper's decision on number of read pointers.
+ *
+ * The use of this is for inter-configuration/execution communication through
+ * linebuffers. This is different from the normal flow of all inputs and outputs
+ * of a launch being accounted for and streamed through the dma, by instead
+ * leaving data in the lbp's during one launch, and consuming that data in the
+ * next launch. This situation requires the first launch to skip_configure_dma
+ * of the first launch's outputs along with setting the number of read pointers
+ * that exist in the next launch, then skipping configuration of both the
+ * linebuffer and dma in the second launch and instead consuming the data that
+ * is already at that address.
+ */
+typedef struct ImxTransferNodeOverrides {
+  int skip_configure_linebuffer;         /* boolean: 0 = configure as normal.
+                                          * Otherwise do not configure the lbp
+                                          * for this linebuffer.  */
+  int skip_configure_dma;                /* boolean: 0 = configure as normal.
+                                          * Otherwise do not configure DMA
+                                          * channels to connect to this
+                                          * linebuffer.  */
+  int override_linebuffer_num_consumers; /* boolean: 0 = use the mapper's
+                                          * decison for number of consumers.
+                                          * Otherwise use
+                                          * linebuffer_num_consumers.  */
+  int linebuffer_num_consumers; /* Used in configuring the number of read
+                                 * pointers for the linebuffer.  Only used if
+                                 * skip_configure_linebuffer is 0 and
+                                 * override_linebuffer_num_consumers is
+                                 * non-zero. This should not be greater than the
+                                 * max supported number of read pointers.  */
+} ImxTransferNodeOverrides;
+
 typedef struct ImxCreateTransferNodeInfo {
   ImxParameterUse use;
   ImxParameterType parameter_type;
@@ -745,6 +804,9 @@ typedef struct ImxCreateTransferNodeInfo {
    * the image into multiple stripes and execute one stripe at a time. This is
    * useful for reducing line buffer size requirement. */
   int stripe_width;  /* 0 means no striping */
+  // TODO(tpopp): remove ImxTransferNodeOverrides from being stored inside
+  // ImxCreateTransferNodeInfo. Instead keep it in a separate mapping.
+  ImxTransferNodeOverrides transfer_node_overrides;
 } ImxCreateTransferNodeInfo;
 
 typedef enum ImxGatherChannelType {
@@ -782,6 +844,8 @@ typedef struct ImxGatherInfo {
    */
   int fifo_id;
 } ImxGatherInfo;
+
+ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
 
 ImxError ImxCreateTransferNode(
     const ImxCreateTransferNodeInfo *info,
