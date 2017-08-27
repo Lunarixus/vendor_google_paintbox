@@ -232,8 +232,13 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSubmitCaptureRequest(Mes
         // buffer.data remains nullptr because it's ignored in the service.
         request.outputBuffers.push_back(buffer);
     }
+
+    uint32_t postviewEnable = 0;
     // Deserialize RequestMetadata.
     RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.cropRegion));
+    RETURN_ERROR_ON_READ_ERROR(message->readUint32(&postviewEnable));
+
+    metadata.postviewEnable = (postviewEnable != 0);
 
     return submitCaptureRequest(request, metadata);
 }

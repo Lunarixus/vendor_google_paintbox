@@ -27,11 +27,13 @@ namespace pbcamera {
 std::once_flag loadPcgOnce;
 
 HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
-        bool skipTimestampCheck, std::shared_ptr<MessengerToHdrPlusClient> messenger) :
+        bool skipTimestampCheck, int32_t cameraId,
+        std::shared_ptr<MessengerToHdrPlusClient> messenger) :
         PipelineBlock("HdrPlusProcessingBlock"),
         mMessengerToClient(messenger),
         mSourceCaptureBlock(sourceCaptureBlock),
         mSkipTimestampCheck(skipTimestampCheck),
+        mCameraId(cameraId),
         mImxMemoryAllocatorHandle(nullptr) {
 }
 
@@ -49,11 +51,12 @@ HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
         std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
         std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck,
-        std::shared_ptr<MessengerToHdrPlusClient> messenger) {
+        int32_t cameraId, std::shared_ptr<MessengerToHdrPlusClient> messenger) {
     ALOGV("%s", __FUNCTION__);
 
     auto block = std::shared_ptr<HdrPlusProcessingBlock>(
-            new HdrPlusProcessingBlock(sourceCaptureBlock, skipTimestampCheck, messenger));
+            new HdrPlusProcessingBlock(sourceCaptureBlock, skipTimestampCheck, cameraId,
+                    messenger));
     if (block == nullptr) {
         ALOGE("%s: Failed to create a block instance.", __FUNCTION__);
         return nullptr;
@@ -113,6 +116,16 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         }
 
         mShutters.clear();
+    }
+
+    // Notify postviews
+    {
+        std::unique_lock<std::mutex> postviewsLock(mPostviewsLock);
+        for (auto &postview : mPostviews) {
+            notifyPostviewLocked(postview);
+        }
+
+        mPostviews.clear();
     }
 
     // Check if there is a pending Gcam shot capture.
@@ -383,6 +396,22 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
     return 0;
 }
 
+gcam::ShotCallbacks HdrPlusProcessingBlock::getShotCallbacks(bool isPostviewEnabled) {
+    gcam::ShotCallbacks shotCallbacks = {
+            /*error_callback*/nullptr,
+            /*base_frame_callback*/mGcamBaseFrameCallback.get(),
+            /*postview_callback*/isPostviewEnabled ? mGcamPostviewCallback.get() : nullptr,
+            /*merge_raw_image_callback*/nullptr,
+            /*merged_pd_callback*/nullptr,
+            /*merged_dng_callback*/nullptr,
+            /*final_image_callback*/mGcamFinalImageCallback.get(),
+            /*jpeg_callback*/nullptr,
+            /*progress_callback*/nullptr,
+            /*finished_callback*/nullptr};
+
+    return shotCallbacks;
+}
+
 status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
         const std::vector<Input> &inputs, const OutputRequest &outputRequest) {
     if (mGcam == nullptr) {
@@ -411,12 +440,20 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
 
     START_PROFILER_TIMER(shotCapture->timer);
 
+    gcam::PostviewParams postviewParams;
+    postviewParams.pixel_format = kGcamPostviewFormat;
+    postviewParams.target_width = mCameraId == 0 ? kGcamPostviewWidthBack : kGcamPostviewWidthFront;
+    // Don't speficy target_height for libgcam to decide.
+
+    gcam::ShotCallbacks shotCallbacks = getShotCallbacks(
+            outputRequest.metadata.requestMetadata->postviewEnable);
+
     // camera_id is always 0 because we only set 1 static metadata in GCAM for current camera
     // which could be rear or front camera.
     gcam::IShot* shot = mGcam->StartShotCapture(
             /*camera_id*/0,
             shotParams,
-            mShotCallbacks,
+            shotCallbacks,
             outputFormat,
             /*final_yuv_id=*/gcam::kInvalidImageId,
             /*final_output_yuv_view=*/gcam::YuvWriteView(),
@@ -424,7 +461,7 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
             /*final_output_rgb_view=*/gcam::InterleavedWriteViewU8(),
             /*merged_raw_id=*/gcam::kInvalidImageId,
             /*merged_raw_view=*/gcam::RawWriteView(),
-            gcam::PostviewParams(),
+            postviewParams,
             /*image_saver_params*/nullptr);
     if (shot == nullptr) {
         ALOGE("%s: Failed to start a shot capture.", __FUNCTION__);
@@ -772,6 +809,63 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
         shutter.baseFrameIndex = baseFrameIndex;
         shutter.baseFrameTimestampNs = baseFrameTimestampNs;
         mShutters.push_back(shutter);
+    }
+
+    // Notify worker thread.
+    notifyWorkerThreadEvent();
+}
+
+void HdrPlusProcessingBlock::notifyPostviewLocked(const Postview &postview) {
+    if (mPendingShotCapture == nullptr) {
+        ALOGE("%s: There is no pending shot for shot id %d. Dropping a postview.",
+                __FUNCTION__, postview.shotId);
+        return;
+    }
+
+    if (postview.shotId != mPendingShotCapture->shotId) {
+        ALOGE("%s: Expecting a postview for shot %d but got a postview for shot %d.",
+                __FUNCTION__, mPendingShotCapture->shotId, postview.shotId);
+        return;
+    }
+
+    if (postview.rgbImage == nullptr) {
+        ALOGE("%s: Postview for shot %d is nullptr.", __FUNCTION__, postview.shotId);
+        return;
+    }
+
+    mMessengerToClient->notifyPostview(mPendingShotCapture->outputRequest.metadata.requestId,
+            postview.rgbImage->base_pointer(), /*fd*/-1, postview.rgbImage->width(),
+            postview.rgbImage->height(), postview.rgbImage->y_stride(), HAL_PIXEL_FORMAT_RGB_888);
+}
+
+void HdrPlusProcessingBlock::onGcamPostview(int32_t shotId,
+        std::unique_ptr<gcam::YuvImage> yuvResult,
+        std::unique_ptr<gcam::InterleavedImageU8> rgbResult, gcam::GcamPixelFormat pixelFormat) {
+    ALOGI("%s: Got a postview for shot %d from GCAM", __FUNCTION__, shotId);
+
+    if (yuvResult != nullptr) {
+        ALOGE("%s: Not expecting a YUV postview.", __FUNCTION__);
+        return;
+    }
+
+    if (rgbResult == nullptr) {
+        ALOGW("%s: Expecting an RGB postview from GCAM but rgbResult is nullptr.", __FUNCTION__);
+        return;
+    }
+
+    if (pixelFormat != gcam::GcamPixelFormat::kRgb) {
+        ALOGE("%s: Expecting RGB but got format %d. Dropping this result.", __FUNCTION__,
+                pixelFormat);
+        return;
+    }
+
+    {
+        std::unique_lock<std::mutex> lock(mPostviewsLock);
+
+        Postview postview = {};
+        postview.shotId = shotId;
+        postview.rgbImage = std::move(rgbResult);
+        mPostviews.push_back(std::move(postview));
     }
 
     // Notify worker thread.
@@ -1149,17 +1243,8 @@ status_t HdrPlusProcessingBlock::initGcam() {
             std::make_unique<GcamFinalImageCallback>(shared_from_this());
     mGcamBaseFrameCallback =
             std::make_unique<GcamBaseFrameCallback>(shared_from_this());
-    mShotCallbacks = {
-            /*error_callback*/nullptr,
-            /*base_frame_callback*/mGcamBaseFrameCallback.get(),
-            /*postview_callback*/nullptr,
-            /*merge_raw_image_callback*/nullptr,
-            /*merged_pd_callback*/nullptr,
-            /*merged_dng_callback*/nullptr,
-            /*final_image_callback*/mGcamFinalImageCallback.get(),
-            /*jpeg_callback*/nullptr,
-            /*progress_callback*/nullptr,
-            /*finished_callback*/nullptr};
+    mGcamPostviewCallback =
+            std::make_unique<GcamPostviewCallback>(shared_from_this());
 
     // Set up gcam init params.
     gcam::InitParams initParams;
@@ -1259,6 +1344,28 @@ void HdrPlusProcessingBlock::GcamBaseFrameCallback::Run(const gcam::IShot* shot,
     }
 }
 
+HdrPlusProcessingBlock::GcamPostviewCallback::GcamPostviewCallback(
+        std::weak_ptr<PipelineBlock> block) : mBlock(block) {
+}
+
+void HdrPlusProcessingBlock::GcamPostviewCallback::Run(const gcam::IShot* shot,
+         gcam::YuvImage* yuv_result,
+         gcam::InterleavedImageU8* rgb_result,
+         gcam::GcamPixelFormat pixel_format) {
+    ALOGV("%s: Gcam sent a postview for request %d", __FUNCTION__, shot->shot_id());
+
+    auto yuvImage = std::unique_ptr<gcam::YuvImage>(yuv_result);
+    auto rgbImage = std::unique_ptr<gcam::InterleavedImageU8>(rgb_result);
+
+    auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
+    if (block != nullptr) {
+        block->onGcamPostview(shot->shot_id(), std::move(yuvImage), std::move(rgbImage),
+                pixel_format);
+    } else {
+        ALOGE("%s: Gcam sent a postview for request %d but block is destroyed.",
+                __FUNCTION__, shot->shot_id());
+    }
+}
 
 HdrPlusProcessingBlock::GcamInputImageReleaseCallback::GcamInputImageReleaseCallback(
         std::weak_ptr<PipelineBlock> block) : mBlock(block) {
