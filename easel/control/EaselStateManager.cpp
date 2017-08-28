@@ -157,3 +157,14 @@ int EaselStateManager::setDualPhaseRegulator(enum EaselStateManager::RegulatorPh
 
     return ret;
 }
+
+int EaselStateManager::getFwVersion(char *fwVersion)
+{
+    if (fwVersion == NULL)
+        return -1;
+
+    if (ioctl(mFd, MNH_SM_IOC_GET_FW_VER, &fwVersion[0]) == -1)
+        return -errno;
+
+    return 0;
+}

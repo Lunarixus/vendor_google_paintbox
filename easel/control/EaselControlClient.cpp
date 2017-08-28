@@ -636,6 +636,16 @@ int EaselControlClient::deactivate() {
     return ret;
 }
 
+int EaselControlClient::getFwVersion(char *fwVersion)
+{
+    int ret;
+
+    ret = stateMgr.getFwVersion(fwVersion);
+    ALOGD("%s: Easel getFwVersion: %s code:%d", __FUNCTION__, fwVersion, ret);
+
+    return ret;
+}
+
 int EaselControlClient::startMipi(enum EaselControlClient::Camera camera, int rate,
                                   bool enableIpu)
 {

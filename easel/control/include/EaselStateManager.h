@@ -131,6 +131,15 @@ public:
      */
     int setRegulatorSettings(RegulatorSettings *settings);
 
+    /*
+     * Retrieves the firmware version.
+     *
+     * fwVersion: version string, set in method.
+     *
+     * Returns 0 for success; otherwise, returns error number.
+     */
+    int getFwVersion(char *fwVersion);
+
 private:
     int mFd;
 

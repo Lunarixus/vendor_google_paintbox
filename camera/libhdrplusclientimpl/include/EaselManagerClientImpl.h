@@ -48,6 +48,11 @@ public:
     status_t resume(EaselManagerClientListener *listener) override;
 
     /*
+     * Retrieve Easel firmware version.
+     */
+    status_t getFwVersion(char *fwVersion) override;
+
+    /*
      * Start MIPI with an output pixel lock rate for a camera.
      *
      * Can be called when Easel is powered on or resumed, for Easel to start sending sensor data

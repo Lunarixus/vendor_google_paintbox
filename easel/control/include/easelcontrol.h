@@ -89,6 +89,12 @@ public:
      */
     static int deactivate();
     /*
+     * Retrieve Easel firmware version.
+     *
+     * Returns zero for success or error code for failure.
+     */
+    static int getFwVersion(char *fwVersion);
+    /*
      * Start and/or configure one of the MIPI TX channels. This function will
      * block until Easel is powered.
      *
