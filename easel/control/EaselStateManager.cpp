@@ -19,9 +19,6 @@
 #include "EaselStateManager.h"
 
 #define ESM_DEV_FILE  "/dev/mnh_sm"
-#define PMIC_SYS_FILE "/sys/devices/soc/c1b7000.i2c/i2c-9/9-0008/asr_dual_phase"
-
-static const int kCharBufLength = 32;
 
 int EaselStateManager::open()
 {
@@ -29,23 +26,6 @@ int EaselStateManager::open()
 
     if (mFd < 0)
         return -errno;
-
-    // TODO (b/37941164): remove this workaround once we have silicon
-    {
-        int val = property_get_int32("persist.camera.hdrplus.enable", 0);
-        char buf[kCharBufLength];
-        int fd;
-
-        if ((fd = ::open(PMIC_SYS_FILE, O_RDWR)) < 0) {
-            ALOGE("%s: failed to open pmic sysfs file (%d)", __FUNCTION__, -errno);
-        } else {
-            snprintf(buf, kCharBufLength, "%d", val);
-            if (write(fd, buf, strlen(buf)) < 0) {
-                ALOGE("%s: failed to write to pmic sysfs file (%d)", __FUNCTION__, -errno);
-            }
-            ::close(fd);
-        }
-    }
 
     return 0;
 }
