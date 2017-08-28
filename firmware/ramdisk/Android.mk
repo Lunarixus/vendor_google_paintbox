@@ -191,6 +191,9 @@ $(LOCAL_BUILT_MODULE): \
 
 	$(PRIVATE_MKIMAGE) $(dir $@)/initramfs.cpio $@
 
+	# Append build version to the end of the file
+	@echo $(BUILD_NUMBER) >> $(dir $@)/ramdisk.img
+
 	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
 
 endif
