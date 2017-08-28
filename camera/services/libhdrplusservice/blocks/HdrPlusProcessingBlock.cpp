@@ -154,7 +154,7 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         }
 
         // If we have more inputs than we need, remove the oldest ones.
-        while (mInputQueue.size() > kGcamMaxPayloadFrames) {
+        while (mInputQueue.size() > kGcamMaxZslFrames) {
             ALOGV("%s: Input queue is full (%zu). Send the oldest buffer back.", __FUNCTION__,
                     mInputQueue.size());
 
@@ -1172,6 +1172,8 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.planning_to_process_bayer_for_payload = true;
     initParams.max_full_metering_sweep_frames = kGcamFullMeteringSweepFrames;
     initParams.min_payload_frames = kGcamMinPayloadFrames;
+    initParams.max_payload_frames = kGcamMaxPayloadFrames;
+    initParams.max_zsl_frames = kGcamMaxZslFrames;
     initParams.payload_frame_copy_mode = kGcamPayloadFrameCopyMode;
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
 
