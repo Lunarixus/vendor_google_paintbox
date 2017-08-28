@@ -21,8 +21,11 @@ bool IsGood(const YuvReadView& frame);
 // The optional Context parameter is for internal use only and is used for
 // multi-threading copies. (Pass the default value of nullptr for a
 // single-threaded copy.)
-YuvImage MakeCopy(const YuvReadView& yuv,
-                  const Context* gcam_context = nullptr);
+//
+// The new image is allocated using 'allocator'.
+YuvImage MakeCopy(
+    const YuvReadView& yuv, const Context* gcam_context = nullptr,
+    TImageSampleAllocator* allocator = TImageDefaultSampleAllocator());
 
 // Notes about the "Yuv888" type and conversions to/from it:
 //  - Yuv888 images are currently stored as a PlanarImageU8.
