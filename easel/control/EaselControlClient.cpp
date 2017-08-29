@@ -471,12 +471,6 @@ int stopKernelEventThread()
 int switchState(enum ControlState nextState)
 {
     int ret = 0;
-    struct EaselStateManager::RegulatorSettings singlePhase = {
-        .corePhaseMode = EaselStateManager::RegulatorPhaseMode::ESL_REGULATOR_PHASE_MODE_SINGLE
-    };
-    struct EaselStateManager::RegulatorSettings dualPhase = {
-        .corePhaseMode = EaselStateManager::RegulatorPhaseMode::ESL_REGULATOR_PHASE_MODE_DUAL
-    };
 
     std::unique_lock<std::mutex> state_lock(state_mutex);
 
@@ -490,8 +484,7 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
-                    ret = stateMgr.setRegulatorSettings(&singlePhase);
-                    ret |= sendDeactivateCommand();
+                    ret = sendDeactivateCommand();
                     ret |= stopThermalMonitor();
                     ret |= stopLogClient();
                     ret |= teardownEaselConn();
@@ -520,9 +513,6 @@ int switchState(enum ControlState nextState)
                 case ControlState::SUSPENDED:
                     ret = startKernelEventThread();
                     if (!ret) {
-                        ret = stateMgr.setRegulatorSettings(&singlePhase);
-                    }
-                    if (!ret) {
                         ret = stateMgr.setState(EaselStateManager::ESM_STATE_ACTIVE, false);
                     }
                     if (!ret) {
@@ -536,10 +526,7 @@ int switchState(enum ControlState nextState)
                     }
                     break;
                 case ControlState::ACTIVATED:
-                    ret = stateMgr.setRegulatorSettings(&singlePhase);
-                    if (!ret) {
-                        ret = sendDeactivateCommand();
-                    }
+                    ret = sendDeactivateCommand();
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
@@ -571,18 +558,12 @@ int switchState(enum ControlState nextState)
                         if (!ret) {
                             ret = sendActivateCommand();
                         }
-                        if (!ret) {
-                            ret = stateMgr.setRegulatorSettings(&dualPhase);
-                        }
                     }
                     break;
                 case ControlState::RESUMED:
                     ret = waitForEaselConn();
                     if (!ret) {
                         ret = sendActivateCommand();
-                    }
-                    if (!ret) {
-                        ret = stateMgr.setRegulatorSettings(&dualPhase);
                     }
                     break;
                 default:

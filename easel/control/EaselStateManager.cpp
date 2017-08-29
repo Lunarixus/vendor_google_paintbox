@@ -30,6 +30,23 @@ int EaselStateManager::open()
     if (mFd < 0)
         return -errno;
 
+    // TODO (b/37941164): remove this workaround once we have silicon
+    {
+        int val = property_get_int32("persist.camera.hdrplus.enable", 0);
+        char buf[kCharBufLength];
+        int fd;
+
+        if ((fd = ::open(PMIC_SYS_FILE, O_RDWR)) < 0) {
+            ALOGE("%s: failed to open pmic sysfs file (%d)", __FUNCTION__, -errno);
+        } else {
+            snprintf(buf, kCharBufLength, "%d", val);
+            if (write(fd, buf, strlen(buf)) < 0) {
+                ALOGE("%s: failed to write to pmic sysfs file (%d)", __FUNCTION__, -errno);
+            }
+            ::close(fd);
+        }
+    }
+
     return 0;
 }
 
@@ -110,52 +127,6 @@ int EaselStateManager::waitForState(enum State state)
         return -errno;
 
     return 0;
-}
-
-int EaselStateManager::getRegulatorSettings(RegulatorSettings *settings)
-{
-    if (!settings) {
-        ALOGE("%s: null pointer to regulator settings", __FUNCTION__);
-        return -EINVAL;
-    }
-
-    memcpy(settings, &mRegulatorSettings, sizeof(mRegulatorSettings));
-
-    return 0;
-}
-
-int EaselStateManager::setRegulatorSettings(RegulatorSettings *settings)
-{
-    if (!settings) {
-        ALOGE("%s: null pointer to regulator settings", __FUNCTION__);
-        return -EINVAL;
-    }
-
-    memcpy(&mRegulatorSettings, settings, sizeof(mRegulatorSettings));
-
-    return setDualPhaseRegulator(settings->corePhaseMode);
-}
-
-int EaselStateManager::setDualPhaseRegulator(enum EaselStateManager::RegulatorPhaseMode mode)
-{
-    char buf[kCharBufLength];
-    int fd;
-    int ret = 0;
-    bool enable = (mode == ESL_REGULATOR_PHASE_MODE_DUAL);
-
-    if ((fd = ::open(PMIC_SYS_FILE, O_RDWR)) < 0) {
-        ret = -errno;
-        ALOGE("%s: failed to open pmic sysfs file (%d)", __FUNCTION__, ret);
-    } else {
-        snprintf(buf, kCharBufLength, "%d", enable);
-        if (write(fd, buf, strlen(buf)) < 0) {
-            ret = -errno;
-            ALOGE("%s: failed to write to pmic sysfs file (%d)", __FUNCTION__, ret);
-        }
-        ::close(fd);
-    }
-
-    return ret;
 }
 
 int EaselStateManager::getFwVersion(char *fwVersion)
