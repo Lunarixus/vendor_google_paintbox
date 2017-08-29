@@ -19,9 +19,6 @@
 #include "EaselStateManager.h"
 
 #define ESM_DEV_FILE  "/dev/mnh_sm"
-#define PMIC_SYS_FILE "/sys/devices/soc/c1b7000.i2c/i2c-9/9-0008/asr_dual_phase"
-
-static const int kCharBufLength = 32;
 
 int EaselStateManager::open()
 {
@@ -112,48 +109,13 @@ int EaselStateManager::waitForState(enum State state)
     return 0;
 }
 
-int EaselStateManager::getRegulatorSettings(RegulatorSettings *settings)
+int EaselStateManager::getFwVersion(char *fwVersion)
 {
-    if (!settings) {
-        ALOGE("%s: null pointer to regulator settings", __FUNCTION__);
-        return -EINVAL;
-    }
+    if (fwVersion == NULL)
+        return -1;
 
-    memcpy(settings, &mRegulatorSettings, sizeof(mRegulatorSettings));
+    if (ioctl(mFd, MNH_SM_IOC_GET_FW_VER, &fwVersion[0]) == -1)
+        return -errno;
 
     return 0;
-}
-
-int EaselStateManager::setRegulatorSettings(RegulatorSettings *settings)
-{
-    if (!settings) {
-        ALOGE("%s: null pointer to regulator settings", __FUNCTION__);
-        return -EINVAL;
-    }
-
-    memcpy(&mRegulatorSettings, settings, sizeof(mRegulatorSettings));
-
-    return setDualPhaseRegulator(settings->corePhaseMode);
-}
-
-int EaselStateManager::setDualPhaseRegulator(enum EaselStateManager::RegulatorPhaseMode mode)
-{
-    char buf[kCharBufLength];
-    int fd;
-    int ret = 0;
-    bool enable = (mode == ESL_REGULATOR_PHASE_MODE_DUAL);
-
-    if ((fd = ::open(PMIC_SYS_FILE, O_RDWR)) < 0) {
-        ret = -errno;
-        ALOGE("%s: failed to open pmic sysfs file (%d)", __FUNCTION__, ret);
-    } else {
-        snprintf(buf, kCharBufLength, "%d", enable);
-        if (write(fd, buf, strlen(buf)) < 0) {
-            ret = -errno;
-            ALOGE("%s: failed to write to pmic sysfs file (%d)", __FUNCTION__, ret);
-        }
-        ::close(fd);
-    }
-
-    return ret;
 }
