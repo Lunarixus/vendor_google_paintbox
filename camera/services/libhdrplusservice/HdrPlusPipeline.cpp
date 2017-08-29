@@ -245,7 +245,8 @@ status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputCon
             const std::vector<StreamConfiguration> &outputConfigs) {
 
     if (mImxMemoryAllocatorHandle == nullptr) {
-        ImxError err = ImxGetMemoryAllocator(IMX_MEMORY_ALLOCATOR_ION,
+        // TODO(b/63809896): Switch to ION.
+        ImxError err = ImxGetMemoryAllocator(IMX_MEMORY_ALLOCATOR_MALLOC,
                 &mImxMemoryAllocatorHandle);
         if (err != 0) {
             ALOGE("%s: Creating IMX memory allocator failed.", __FUNCTION__);
