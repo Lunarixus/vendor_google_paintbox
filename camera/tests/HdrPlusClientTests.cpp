@@ -104,6 +104,12 @@ public:
                 requestId, apSensorTimestampNs);
     }
 
+    void onPostview(uint32_t requestId, std::unique_ptr<std::vector<uint8_t>> postview,
+            uint32_t width, uint32_t height, uint32_t stride, int32_t format) {
+        ALOGI("%s: Got a postview %ux%u format %d for request %u.", __FUNCTION__, width, height,
+                format, requestId);
+    }
+
 protected:
     // Constants for input configuration.
     static const uint32_t kDefaultInputWidth = 4048;

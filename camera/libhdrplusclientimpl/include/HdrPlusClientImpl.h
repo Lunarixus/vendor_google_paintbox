@@ -158,7 +158,7 @@ public:
             bool lastMetadata=true);
 
 private:
-    static const size_t kMaxNumFrameHistory = 32;
+    static const size_t kMaxNumFrameHistory = 64;
 
     // Callbacks from HDR+ service start here.
     // Override pbcamera::MessengerListenerFromHdrPlusService
@@ -167,6 +167,8 @@ private:
     void notifyServiceClosed() override;
     void notifyShutter(uint32_t requestId, int64_t apSensorTimestampNs) override;
     void notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote) override;
+    void notifyDmaPostview(uint32_t requestId, void *dmaHandle, uint32_t width,
+            uint32_t height, uint32_t stride, int32_t format) override;
     // Callbacks from HDR+ service end here.
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.

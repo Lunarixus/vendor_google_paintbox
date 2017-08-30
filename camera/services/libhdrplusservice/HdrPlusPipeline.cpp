@@ -298,9 +298,12 @@ status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sen
     }
     mBlocks.push_back(mCaptureResultBlock);
 
+    int32_t cameraId = sensorMode == nullptr ? -1 : sensorMode->cameraId;
+
     // Create an HDR+ processing block for HDR+ processing.
     mHdrPlusProcessingBlock = HdrPlusProcessingBlock::newHdrPlusProcessingBlock(shared_from_this(),
-            mStaticMetadata, sourceCaptureBlock, sensorMode == nullptr, mMessengerToClient);
+            mStaticMetadata, sourceCaptureBlock, sensorMode == nullptr, cameraId,
+            mMessengerToClient);
     if (mHdrPlusProcessingBlock == nullptr) {
         ALOGE("%s: Creating HdrPlusProcessingBlock failed.", __FUNCTION__);
         return -ENODEV;
