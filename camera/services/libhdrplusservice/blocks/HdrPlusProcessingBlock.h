@@ -36,7 +36,7 @@ public:
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
                 std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck,
-                std::shared_ptr<MessengerToHdrPlusClient> messenger);
+                int32_t cameraId, std::shared_ptr<MessengerToHdrPlusClient> messenger);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -47,7 +47,8 @@ protected:
 private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
     HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
-            bool skipTimestampCheck, std::shared_ptr<MessengerToHdrPlusClient> messenger);
+            bool skipTimestampCheck, int32_t cameraId,
+            std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     // Gcam related constants.
     static const int32_t kGcamThreadCounts = 1;
@@ -68,6 +69,9 @@ private:
     static const bool kGcamDetectFlare = false;
     static const int32_t kInvalidBaseFrameIndex = -1;
     static constexpr float kCropRatioThreshold = 0.005;
+    static const gcam::GcamPixelFormat kGcamPostviewFormat = gcam::GcamPixelFormat::kRgb;
+    static const uint32_t kGcamPostviewWidthBack = 168;
+    static const uint32_t kGcamPostviewWidthFront = 162;
 
     // Camera metadata related constants.
     static constexpr float kMaxFaceScore = 100.f;
@@ -126,6 +130,19 @@ private:
         std::weak_ptr<PipelineBlock> mBlock;
     };
 
+    // Callback invoked when Gcam generates a postview.
+    class GcamPostviewCallback : public gcam::PostviewCallback {
+    public:
+        GcamPostviewCallback(std::weak_ptr<PipelineBlock> block);
+        virtual ~GcamPostviewCallback() = default;
+    private:
+        virtual void Run(const gcam::IShot* shot,
+                         gcam::YuvImage* yuv_result,
+                         gcam::InterleavedImageU8* rgb_result,
+                         gcam::GcamPixelFormat pixel_format);
+        std::weak_ptr<PipelineBlock> mBlock;
+    };
+
     // An IMX buffer wrapper for easier buffer life cycle management.
     class ImxBuffer {
     public:
@@ -173,9 +190,15 @@ private:
 
     // Contains information used to send out a shutter event.
     struct Shutter {
-        int32_t shotId;  // Shot id for this shutter.
+        int32_t shotId; // Shot id for this shutter.
         int32_t baseFrameIndex; // Base frame index for this shot.
         int64_t baseFrameTimestampNs;  // Base frame timestamp for this shot.
+    };
+
+    // Contains information used to send out a postview.
+    struct Postview {
+        int32_t shotId; // Shot id for this postview.
+        std::unique_ptr<gcam::InterleavedImageU8> rgbImage;
     };
 
     // Callback invoked when Gcam releases an input image.
@@ -188,6 +211,10 @@ private:
 
     // Callback invoked when Gcam selects a base frame.
     void onGcamBaseFrameCallback(int shotId, int index, int64_t timestamp);
+
+    // Callback invoked when Gcam generates a postview.
+    void onGcamPostview(int32_t shotId, std::unique_ptr<gcam::YuvImage> yuvResult,
+        std::unique_ptr<gcam::InterleavedImageU8> rgbResult, gcam::GcamPixelFormat pixelFormat);
 
     // Initialize a Gcam instance.
     status_t initGcam();
@@ -225,6 +252,9 @@ private:
     status_t fillGcamShotParams(gcam::ShotParams *shotParams, gcam::GcamPixelFormat *outputFormat,
             const std::vector<Input> &inputs, const OutputRequest &outputRequest);
 
+    // Return gcam shot callbacks.
+    gcam::ShotCallbacks getShotCallbacks(bool isPostviewEnabled);
+
     // Produce output buffers with an HDR+ processed image.
     status_t produceRequestOutputBuffers(const gcam::YuvImage* srcYuvImage,
             PipelineBufferSet *outputBuffers);
@@ -238,8 +268,11 @@ private:
     // Return if gcam YUV format is the same as HAL format.
     bool isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat);
 
-    // Notify AP about a shutter. Must be called when mHdrPlusProcessingLock is locked.
+    // Notify AP about a shutter. Must be called when mShuttersLock is locked.
     void notifyShutterLocked(const Shutter &shutter);
+
+    // Notify AP about a postview. Must be called when mPostviewsLock is locked.
+    void notifyPostviewLocked(const Postview &postview);
 
     // Helper functions for managing buffer references.
     void addInputReference(int64_t bufferId, Input input);
@@ -265,6 +298,9 @@ private:
     // Gcam callback for selecting a base frame.
     std::unique_ptr<GcamBaseFrameCallback> mGcamBaseFrameCallback;
 
+    // Gcam callback for postview.
+    std::unique_ptr<GcamPostviewCallback> mGcamPostviewCallback;
+
     // Gcam instance.
     std::unique_ptr<gcam::Gcam> mGcam;
 
@@ -289,16 +325,20 @@ private:
 
     std::mutex mInputIdMapLock;
 
-    gcam::ShotCallbacks mShotCallbacks;
-
     // Whether to skip timestamp check to return old input buffers.
     bool mSkipTimestampCheck;
+
+    // 0 for back camera and 1 for front camera.
+    int32_t mCameraId;
 
     std::mutex mShuttersLock;
     std::deque<Shutter> mShutters; // Shutters ready to send to AP.
 
     // IMX memory allocate handle to allocate IMX buffers.
     ImxMemoryAllocatorHandle mImxMemoryAllocatorHandle;
+
+    std::mutex mPostviewsLock;
+    std::deque<Postview> mPostviews;
 };
 
 } // namespace pbcamera
