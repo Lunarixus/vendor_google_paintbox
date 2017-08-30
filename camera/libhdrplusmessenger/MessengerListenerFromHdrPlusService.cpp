@@ -77,9 +77,11 @@ status_t MessengerListenerFromHdrPlusService::onMessageWithDmaBuffer(Message *me
         case MESSAGE_NOTIFY_DMA_CAPTURE_RESULT:
             deserializeNotifyDmaCaptureResult(message, handle, dmaBufferSize);
             return 0;
-
         case MESSAGE_NOTIFY_DMA_MAKERNOTE:
             deserializeNotifyDmaMakernote(message, handle, dmaBufferSize);
+            return 0;
+        case MESSAGE_NOTIFY_DMA_POSTVIEW:
+            deserializeNotifyDmaPostview(message, handle, dmaBufferSize);
             return 0;
         default:
             ALOGE("%s: Receive invalid message type %d.", __FUNCTION__, type);
@@ -132,6 +134,27 @@ void MessengerListenerFromHdrPlusService::deserializeNotifyDmaMakernote(Message 
     makernote.dmaMakernoteSize = dmaDataSize;
 
     notifyDmaMakernote(&makernote);
+}
+
+void MessengerListenerFromHdrPlusService::deserializeNotifyDmaPostview(Message *message,
+        DmaBufferHandle handle, int dmaDataSize) {
+    uint32_t requestId, width, height, stride;
+    int32_t format;
+
+    // Serialize postview
+    RETURN_ON_READ_ERROR(message->readUint32(&requestId));
+    RETURN_ON_READ_ERROR(message->readUint32(&width));
+    RETURN_ON_READ_ERROR(message->readUint32(&height));
+    RETURN_ON_READ_ERROR(message->readUint32(&stride));
+    RETURN_ON_READ_ERROR(message->readInt32(&format));
+
+    if (stride * height != static_cast<uint>(dmaDataSize)) {
+        ALOGE("%s: Postview stride %u, height %u, but DMA data size is %u.", __FUNCTION__,
+                stride, height, dmaDataSize);
+        return;
+    }
+
+    notifyDmaPostview(requestId, handle, width, height, stride, format);
 }
 
 } // namespace pbcamera
