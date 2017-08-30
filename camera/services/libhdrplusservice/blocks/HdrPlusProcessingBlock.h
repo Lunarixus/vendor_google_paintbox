@@ -59,7 +59,7 @@ private:
     // TODO(b/35848231): Increase max payload frames to 7 after Easel memory leak fixed.
     static const int32_t kGcamMaxPayloadFrames = 5;
     // Max number of frames as input to gcam.
-    static const int32_t kGcamMaxZslFrames = 7;
+    static const int32_t kGcamMaxZslFrames = 6;
     static const gcam::PayloadFrameCopyMode kGcamPayloadFrameCopyMode =
             gcam::PayloadFrameCopyMode::kNeverCopy;
     static const int32_t kGcamRawBitsPerPixel = 10;

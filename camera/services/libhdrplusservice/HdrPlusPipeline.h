@@ -155,7 +155,7 @@ private:
     HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messengerToClient);
 
     // Default number of buffers in input stream.
-    const int kDefaultNumInputBuffers = 11;
+    const int kDefaultNumInputBuffers = 10;
 
     // Default number of buffers in output streams.
     const int kDefaultNumOutputBuffers = 1;
