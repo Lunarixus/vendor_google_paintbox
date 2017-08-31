@@ -128,9 +128,9 @@ $(LOCAL_BUILT_MODULE): EASEL_PCG := prebuilt/data/paintbox/compiled_graph/
 # Max size of Easel ramdisk, to limit boot time
 # (sanitized builds are slightly larger)
 ifeq ($(filter address,$(SANITIZE_TARGET)),)
-    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 38700160
+    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 40894464
 else
-    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 42651584
+    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 45088768
 endif
 
 $(LOCAL_BUILT_MODULE): \
