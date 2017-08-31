@@ -67,6 +67,11 @@ public:
      */
     virtual void notifyDmaPostview(uint32_t requestId, void *dmaHandle, uint32_t width,
             uint32_t height, uint32_t stride, int32_t format) = 0;
+    /*
+     * Invoked when HDR+ service requests to dump data to a file via DMA transfer.
+     */
+    virtual void notifyDmaFileDump(const std::string &filename, DmaBufferHandle dmaHandle,
+            uint32_t dmaDataSize) = 0;
 
 private:
     /*
@@ -104,6 +109,8 @@ private:
     void deserializeNotifyDmaMakernote(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
     void deserializeNotifyDmaPostview(Message *message, DmaBufferHandle handle,
+            int dmaDataSize);
+    void deserializeNotifyDmaFileDump(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
 };
 
