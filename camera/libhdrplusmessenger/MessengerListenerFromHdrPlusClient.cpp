@@ -141,6 +141,7 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSetStaticMetadata(Messag
     RETURN_ERROR_ON_READ_ERROR(message->readFloatVector(&metadata.availableFocalLengths));
     RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.shadingMapSize));
     RETURN_ERROR_ON_READ_ERROR(message->readByte(&metadata.focusDistanceCalibration));
+    RETURN_ERROR_ON_READ_ERROR(message->readUint32(&metadata.debugParams));
 
     return setStaticMetadata(metadata);
 }

@@ -170,6 +170,7 @@ status_t MessengerToHdrPlusService::setStaticMetadata(const StaticMetadata& meta
     RETURN_ERROR_ON_WRITE_ERROR(message->writeFloatVector(metadata.availableFocalLengths));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.shadingMapSize));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeByte(metadata.focusDistanceCalibration));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(metadata.debugParams));
 
     // Send to service.
     return sendMessage(message);
