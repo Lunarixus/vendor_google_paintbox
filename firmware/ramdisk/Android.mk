@@ -14,6 +14,9 @@ LOCAL_MODULE_STEM := ramdisk.img
 LOCAL_MODULE_OWNER := google
 LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 
+FW_VER := $(BUILD_NUMBER)
+FW_DATE := $(shell date +'%Y%m%d.')
+
 # TODO(cjluo): Add notice file before launch.
 
 include $(BUILD_SYSTEM)/base_rules.mk
@@ -191,8 +194,8 @@ $(LOCAL_BUILT_MODULE): \
 	$(PRIVATE_MKIMAGE) $(dir $@)/initramfs.cpio $@
 
 	# Append build version to the end of the file
-	@echo $(BUILD_NUMBER) >> $(dir $@)/ramdisk.img
-
+	@echo -n $(FW_DATE) >> $(dir $@)/ramdisk.img
+	@echo -n $(FW_VER) >> $(dir $@)/ramdisk.img
 	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
 
 endif
