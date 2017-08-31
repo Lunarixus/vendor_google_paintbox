@@ -87,7 +87,7 @@ static void reportError(enum EaselErrorReason reason) {
 
     enum EaselErrorSeverity severity = EaselErrorSeverity::FATAL;
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
         // LINK_FAIL is fatal in bypass mode, because MIPI configuration
         // will not continue.  Others are not fatal, because no further
         // communication needed in bypass mode.
@@ -335,7 +335,7 @@ void easelConnThread()
     ALOGI("%s: handshake done\n", __FUNCTION__);
     captureBootTrace();
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
+    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
 
         ALOGD("%s: sending deactivate command in bypass mode", __FUNCTION__);
 
