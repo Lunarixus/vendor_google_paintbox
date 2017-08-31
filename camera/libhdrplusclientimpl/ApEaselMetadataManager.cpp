@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
+#include <QCamera3VendorTags.h>
 
 #include "ApEaselMetadataManager.h"
 #include "system/camera_metadata.h"
@@ -342,6 +343,8 @@ status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
     pbcamera::RequestMetadata dest = {};
     RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.cropRegion, requestMetadataSrc,
             ANDROID_SCALER_CROP_REGION));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.postviewEnable, requestMetadataSrc,
+            static_cast<camera_metadata_tag>(qcamera::NEXUS_EXPERIMENTAL_2017_POSTVIEW)));
 
     *requestMetadataDest = dest;
     return OK;

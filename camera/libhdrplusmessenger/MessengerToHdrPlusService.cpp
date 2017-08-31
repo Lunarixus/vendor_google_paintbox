@@ -286,6 +286,7 @@ status_t MessengerToHdrPlusService::submitCaptureRequest(CaptureRequest *request
 
     // Serialize request metadata.
     RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.cropRegion));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(metadata.postviewEnable));
 
     return sendMessage(message);
 }

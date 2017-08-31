@@ -181,4 +181,37 @@ void MessengerToHdrPlusClient::notifyShutterAsync(uint32_t requestId, int64_t ap
     }
 }
 
+void MessengerToHdrPlusClient::notifyPostview(uint32_t requestId, uint8_t *data, int fd, uint32_t width,
+        uint32_t height, uint32_t stride, int32_t format) {
+    std::lock_guard<std::mutex> lock(mApiLock);
+    if (!mConnected) {
+        ALOGE("%s: Messenger not connected.", __FUNCTION__);
+        return;
+    }
+
+    // Prepare the message.
+    Message *message = nullptr;
+    status_t res = getEmptyMessage(&message);
+    if (res != 0) {
+        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_DMA_POSTVIEW));
+
+    // Serialize postview
+    RETURN_ON_WRITE_ERROR(message->writeUint32(requestId));
+    RETURN_ON_WRITE_ERROR(message->writeUint32(width));
+    RETURN_ON_WRITE_ERROR(message->writeUint32(height));
+    RETURN_ON_WRITE_ERROR(message->writeUint32(stride));
+    RETURN_ON_WRITE_ERROR(message->writeInt32(format));
+
+    // Send to client.
+    res = sendMessageWithDmaBuffer(message, data, stride * height, fd);
+    if (res != 0) {
+        ALOGE("%s: Sending message with DMA buffer failed: %s (%d).", __FUNCTION__,
+                strerror(-res), res);
+    }
+}
+
 } // namespace pbcamera

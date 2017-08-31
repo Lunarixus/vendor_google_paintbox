@@ -71,6 +71,12 @@ public:
      * apSensorTimestampNs is the AP sensor timestamp of the base frame, in nanoseconds.
      */
     void notifyShutterAsync(uint32_t requestId, int64_t apSensorTimestampNs);
+
+    /*
+     * Invoked when a postview for a request is available.
+     */
+    void notifyPostview(uint32_t requestId, uint8_t *data, int fd, uint32_t width, uint32_t height,
+            uint32_t stride, int format);
 private:
 
     // Protect API methods from being called simultaneously.

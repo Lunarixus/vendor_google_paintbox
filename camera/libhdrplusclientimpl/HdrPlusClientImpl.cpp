@@ -383,6 +383,32 @@ void HdrPlusClientImpl::notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote)
     ALOGW("%s: Cannot find request %d for makernote.", __FUNCTION__, dmaMakernote->requestId);
 }
 
+void HdrPlusClientImpl::notifyDmaPostview(uint32_t requestId, void *dmaHandle, uint32_t width,
+            uint32_t height, uint32_t stride, int32_t format) {
+
+    ALOGI("%s: Received a postview %dx%d for request %d stride %d", __FUNCTION__, width, height,
+            requestId, stride);
+
+    uint32_t dataSize = stride * height;
+    auto postview = std::make_unique<std::vector<uint8_t>>(dataSize);
+
+    status_t res = mMessengerToService.transferDmaBuffer(dmaHandle,
+            /*dmaBufFd*/-1, postview.get()->data(), dataSize);
+
+    if (res != OK) {
+        ALOGE("%s: Transfering DMA buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    {
+        Mutex::Autolock clientLock(mClientListenerLock);
+        if (mClientListener != nullptr) {
+            mClientListener->onPostview(requestId, std::move(postview), width, height, stride,
+                    format);
+        }
+    }
+}
+
 void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
     if (result == nullptr) return;
 

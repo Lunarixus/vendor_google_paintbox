@@ -18,19 +18,51 @@
 # Update the gcam libraries from google3
 #
 
-if [ $# -ne 1 ]; then
-  echo "`basename $0`: Build and update the gcam libraries from google3"
-  echo ""
-  echo "Usage: ./`basename $0` <google3 base path>"
-  echo "For example, \"./`basename $0` ~/google3\""
-  echo ""
-  exit
-fi
+set -o errexit
+
+usage() {
+cat << EOF
+  Usage:
+  $0 [--google3 {google3-path}] [--prod] [--nopcg]
+    --google3 {google3-path}  Local google3 workspace path
+    --prod                    Build gcam with prod=1
+    --nopcg                   Skip PCG generation
+EOF
+}
+
+google3=""
+prod=""
+nopcg=false
+while [ $# -gt 0 ]; do
+  arg="$1"
+  shift
+  case "$arg" in
+    "-h")
+      usage
+      exit 0
+      ;;
+    "--google3")
+      arg="$1"
+      shift
+      google3="$arg"
+      ;;
+    "--prod")
+      prod=" --define prod=1 "
+      ;;
+    "--nopcg")
+      nopcg=true
+      ;;
+    *)
+      usage
+      exit 0
+      ;;
+  esac
+done
 
 ######################################################################
 # Setup paths
 
-GOOGLE3_PATH="$1"
+GOOGLE3_PATH="${google3}"
 
 GOOGLE3_HARDWARE="hardware"
 GOOGLE3_GOOGLEX="googlex"
@@ -120,15 +152,17 @@ echo -e "\e[1;34m** Building libgcam library\e[00m"
 pushd ${GOOGLE3_PATH}
 
 # Generate PCG
-rm -rf ${TMP_PCG_FULL_PATH}
-GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
-if [ $? -ne 0 ]; then
-  echo "Error: ${GOOGLE3_PCG_GEN_SH} returned non-zero"
-  exit 1
+if [ "${nopcg}" = false ]; then
+  rm -rf ${TMP_PCG_FULL_PATH}
+  GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
+  if [ $? -ne 0 ]; then
+    echo "Error: ${GOOGLE3_PCG_GEN_SH} returned non-zero"
+    exit 1
+  fi
 fi
 
 # Build libgcam
-blaze build \
+blaze build $prod \
   --define easel=1 \
   --define ipuonly=1 \
   --config=android_arm64 \
@@ -166,13 +200,12 @@ popd
 
 # Unzip and Copy build results and place in Android tree
 echo -e "\e[1;34m** Copying build results to Android tree\e[00m"
-mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}"
+cp -f "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}"
+
 rm -rf "${ANDROID_INC_FULL_PATH}/"
 mkdir -p "${ANDROID_INC_FULL_PATH}"
-
-mv -vf "${gcam_tmp_lib}/libgcam.so" "${ANDROID_GCAM_LIB_FULL_PATH}"
-mv -vf "${gcam_tmp_lib}/${GOOGLE3_HARDWARE}" "${ANDROID_INC_FULL_PATH}/"
-mv -vf "${gcam_tmp_lib}/${GOOGLE3_GOOGLEX}" "${ANDROID_INC_FULL_PATH}/"
+cp -rf "${gcam_tmp_lib}/${GOOGLE3_HARDWARE}" "${ANDROID_INC_FULL_PATH}/"
+cp -rf "${gcam_tmp_lib}/${GOOGLE3_GOOGLEX}" "${ANDROID_INC_FULL_PATH}/"
 
 [[ -f "$gcam_tmp_lib" ]] && rm -f "$gcam_tmp_lib"
 
@@ -194,9 +227,10 @@ mkdir -p `dirname ${ANDROID_IMX_H_FULL_PATH}`
 cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 
 # Copy PCG
-mkdir -p ${ANDROID_PCG_FULL_PATH}
-rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
-cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
-
+if [ "${nopcg}" = false ]; then
+  mkdir -p ${ANDROID_PCG_FULL_PATH}
+  rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
+  cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
+fi
 ######################################################################
 # All done.
