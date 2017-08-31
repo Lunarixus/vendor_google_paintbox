@@ -19,6 +19,7 @@
 #include <log/log.h>
 
 #include <stdlib.h>
+#include <string>
 
 #include "EaselMessenger.h"
 
@@ -121,6 +122,20 @@ status_t Message::writeByteVector(const std::vector<uint8_t> &values) {
     return 0;
 }
 
+status_t Message::writeString(const std::string &str) {
+    // Write string length.
+    status_t res = writeUint32(str.size());
+    if (res != 0) return res;
+
+    // Write string content.
+    if (mDataPos + str.size() > mCapacity) return -ENOMEM;
+
+    memcpy(mData + mDataPos, str.c_str(), str.size());
+    mDataPos += str.size();
+    mDataSize = mDataPos;
+    return 0;
+}
+
 status_t Message::readInt32(int32_t *value) {
     return read(value);
 }
@@ -194,6 +209,20 @@ status_t Message::readByteVector(std::vector<uint8_t> *values) {
         res = readByte(&(*values)[i]);
         if (res != 0) return res;
     }
+
+    return 0;
+}
+
+status_t Message::readString(std::string *str) {
+    if (str == nullptr) return -EINVAL;
+
+    // Read string length
+    uint32_t length = 0;
+    status_t res = readUint32(&length);
+    if (res != 0) return res;
+
+    str->append((const char *)(mData + mDataPos), length);
+    mDataPos += length;
 
     return 0;
 }

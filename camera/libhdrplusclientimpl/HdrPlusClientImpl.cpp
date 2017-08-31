@@ -20,9 +20,14 @@
 #define ENABLE_HDRPLUS_PROFILER 1
 
 #include <CameraMetadata.h>
+#include <cutils/properties.h>
+#include <dirent.h>
+#include <fstream>
 #include <inttypes.h>
 #include <QCamera3VendorTags.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "HdrPlusClientImpl.h"
 
@@ -125,6 +130,24 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
                 mBlackLevelPattern[i] = entry.data.i32[i];
             }
         }
+    }
+
+    if (property_get_bool("persist.gcam.debug", false)) {
+        staticMetadataDest.debugParams |= (pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING |
+                                           pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD |
+                                           pbcamera::DEBUG_PARAM_SAVE_GCAME_TEXT);
+    }
+
+    if (property_get_bool("persist.gcam.save_text", false)) {
+        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_TEXT;
+    }
+
+    if (property_get_bool("persist.gcam.save_metering", false)) {
+        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING;
+    }
+
+    if (property_get_bool("persist.gcam.save_payload", false)) {
+        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD;
     }
 
     return mMessengerToService.setStaticMetadata(staticMetadataDest);
@@ -407,6 +430,129 @@ void HdrPlusClientImpl::notifyDmaPostview(uint32_t requestId, void *dmaHandle, u
                     format);
         }
     }
+}
+
+status_t HdrPlusClientImpl::createFileDumpDirectory(const std::string &baseDir,
+        const std::vector<std::string>& paths, std::string *finalPath) {
+    std::string path = baseDir;
+    for (uint i = 0; i < paths.size() - 1; i++) {
+        path.append("/" + paths[i]);
+        status_t res = createDir(path);
+        if (res != 0) {
+            ALOGE("%s: createDir (%s) failed: %s (%d)", __FUNCTION__,
+                path.c_str(), strerror(-res), res);
+            return res;
+        }
+    }
+
+    if (finalPath != nullptr) {
+        path.append("/" + paths[paths.size() - 1]);
+        *finalPath = path;
+    }
+
+    return OK;
+}
+
+status_t HdrPlusClientImpl::createDir(const std::string &dir) {
+    // Check if the directory exists.
+    DIR *d = opendir(dir.c_str());
+    if (d != nullptr) {
+        // Directory exists.
+        closedir(d);
+        return OK;
+    } else if (errno == ENOENT) {
+        // Directory doesn't exist, create it.
+        if (mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0) {
+            ALOGE("%s: Creating directory (%s) failed: %s (%d)", __FUNCTION__,
+                    dir.c_str(), strerror(errno), -errno);
+            return -errno;
+        }
+        return OK;
+    } else {
+        ALOGE("%s: opendir failed: %s (%d)", __FUNCTION__, strerror(errno), -errno);
+        return -errno;
+    }
+}
+
+std::vector<std::string> HdrPlusClientImpl::splitPath(const std::string &filename) {
+    // split filename, separated by "/", into strings.
+    std::vector<std::string> paths;
+    std::string::size_type left = 0, right = 0;
+    while (1) {
+        if (filename.substr(left).size() == 0) {
+            break;
+        }
+
+        right = filename.find('/', left);
+        if (right == std::string::npos) {
+            // No more "/" found in the substring.
+            if (filename.substr(left).size() > 0) {
+                paths.push_back(filename.substr(left));
+            }
+            break;
+        } else if (right - left == 0) {
+            // right and left both point to "/", ignore this character.
+            left++;
+        } else {
+            // right points to "/". Push the directory name between left and right to paths.
+            paths.push_back(filename.substr(left, right - left));
+            left = right + 1;
+        }
+    }
+
+    return paths;
+}
+
+void HdrPlusClientImpl::writeData(const std::string& path,
+        std::vector<char> &data) {
+    std::ofstream outfile(path, std::ios::binary);
+    if (!outfile.is_open()) {
+        ALOGE("%s: Opening file (%s) failed.", __FUNCTION__, path.c_str());
+        return;
+    }
+
+    outfile.write(&data[0], data.size());
+    outfile.close();
+}
+
+void HdrPlusClientImpl::notifyDmaFileDump(const std::string &filename, DmaBufferHandle dmaHandle,
+        uint32_t dmaDataSize) {
+
+    static const std::string kDumpDirectory("/data/vendor/camera");
+    std::vector<char> data(dmaDataSize);
+    status_t res;
+
+    {
+        Mutex::Autolock clientLock(mClientListenerLock);
+        res = mMessengerToService.transferDmaBuffer(dmaHandle, /*dmaBufFd*/-1, &data[0],
+                data.size());
+        if (res != 0) {
+            ALOGE("%s: Transferring a file (%s) dump failed: %s (%d)", __FUNCTION__,
+                    filename.c_str(), strerror(-res), res);
+            return;
+        }
+    }
+
+    // Split path.
+    std::vector<std::string> paths = splitPath(filename);
+    if (paths.size() == 0) {
+        ALOGE("%s: Cannot save to %s", __FUNCTION__, filename.c_str());
+        return;
+    }
+
+    // Create the directory for the file.
+    std::string finalPath;
+    res = createFileDumpDirectory(kDumpDirectory, paths, &finalPath);
+    if (res != 0) {
+        ALOGE("%s: Creating file dump directory (%s) failed: %s (%d)", __FUNCTION__,
+                filename.c_str(), strerror(-res), res);
+        return;
+    }
+
+    // Write data to the file.
+    writeData(finalPath, data);
+
+    ALOGD("%s: Dump data to file: %s", __FUNCTION__, finalPath.c_str());
 }
 
 void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {

@@ -412,6 +412,26 @@ gcam::ShotCallbacks HdrPlusProcessingBlock::getShotCallbacks(bool isPostviewEnab
     return shotCallbacks;
 }
 
+void HdrPlusProcessingBlock::fillGcamImageSaverParams(gcam::ImageSaverParams *param) {
+    if (param == nullptr) {
+        ALOGE("%s: param is nullptr.", __FUNCTION__);
+        return;
+    }
+
+    // Make the path in the format of "gcam_<current_ap_timestamp>"
+    std::string destFolder = "gcam_";
+    int64_t now;
+    if (EaselControlServer::getApSynchronizedClockBoottime(&now) == 0) {
+        destFolder.append(std::to_string(now));
+    }
+
+    if (destFolder.size() > kGcamMaxFilenameLength) {
+        destFolder.erase(kGcamMaxFilenameLength - 1);
+    }
+
+    memcpy(param->dest_folder, destFolder.c_str(), destFolder.size());
+}
+
 status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
         const std::vector<Input> &inputs, const OutputRequest &outputRequest) {
     if (mGcam == nullptr) {
@@ -438,6 +458,9 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
         return res;
     }
 
+    gcam::ImageSaverParams imageSaverParams;
+    fillGcamImageSaverParams(&imageSaverParams);
+
     START_PROFILER_TIMER(shotCapture->timer);
 
     gcam::PostviewParams postviewParams;
@@ -462,7 +485,7 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
             /*merged_raw_id=*/gcam::kInvalidImageId,
             /*merged_raw_view=*/gcam::RawWriteView(),
             postviewParams,
-            /*image_saver_params*/nullptr);
+            /*image_saver_params*/&imageSaverParams);
     if (shot == nullptr) {
         ALOGE("%s: Failed to start a shot capture.", __FUNCTION__);
         return -ENODEV;
@@ -1230,6 +1253,12 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     return 0;
 }
 
+bool HdrPlusProcessingBlock::onGcamFileSaver(const void* data, size_t bytes,
+        const std::string& filename) {
+    mMessengerToClient->notifyFileDump(filename, const_cast<void*>(data), /*dmaBufFd*/-1, bytes);
+    return true;
+}
+
 status_t HdrPlusProcessingBlock::initGcam() {
     if (mGcamStaticMetadata == nullptr) {
         ALOGE("%s: mGcamStaticMetadata is nullptr.", __FUNCTION__);
@@ -1245,6 +1274,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
             std::make_unique<GcamBaseFrameCallback>(shared_from_this());
     mGcamPostviewCallback =
             std::make_unique<GcamPostviewCallback>(shared_from_this());
+    mGcamFileSaver = std::make_unique<GcamFileSaver>(shared_from_this());
 
     // Set up gcam init params.
     gcam::InitParams initParams;
@@ -1261,6 +1291,7 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.max_zsl_frames = kGcamMaxZslFrames;
     initParams.payload_frame_copy_mode = kGcamPayloadFrameCopyMode;
     initParams.image_release_callback = mGcamInputImageReleaseCallback.get();
+    initParams.custom_file_saver = mGcamFileSaver.get();
 
     // The following callbacks are not used.
     initParams.memory_callback = nullptr;
@@ -1279,7 +1310,16 @@ status_t HdrPlusProcessingBlock::initGcam() {
     std::vector<gcam::StaticMetadata> gcamMetadataList = {*mGcamStaticMetadata};
 
     gcam::DebugParams debugParams;
-    debugParams.save_bitmask = kGcamDebugSaveBitmask;
+    debugParams.save_bitmask = 0;
+    if (mStaticMetadata->debugParams & DEBUG_PARAM_SAVE_GCAME_INPUT_METERING) {
+        debugParams.save_bitmask |= gcam::GCAM_SAVE_INPUT_METERING;
+    }
+    if (mStaticMetadata->debugParams & DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD) {
+        debugParams.save_bitmask |= gcam::GCAM_SAVE_INPUT_PAYLOAD;
+    }
+    if (mStaticMetadata->debugParams & DEBUG_PARAM_SAVE_GCAME_TEXT) {
+        debugParams.save_bitmask |= gcam::GCAM_SAVE_TEXT;
+    }
 
     // Create a gcam instance.
     mGcam = std::unique_ptr<gcam::Gcam>(gcam::Gcam::Create(
@@ -1367,6 +1407,22 @@ void HdrPlusProcessingBlock::GcamPostviewCallback::Run(const gcam::IShot* shot,
         ALOGE("%s: Gcam sent a postview for request %d but block is destroyed.",
                 __FUNCTION__, shot->shot_id());
     }
+}
+
+HdrPlusProcessingBlock::GcamFileSaver::GcamFileSaver(std::weak_ptr<PipelineBlock> block) :
+        mBlock(block) {
+}
+
+bool HdrPlusProcessingBlock::GcamFileSaver::operator()(const void* data, size_t byte_count,
+        const std::string& filename) {
+    auto block = std::static_pointer_cast<HdrPlusProcessingBlock>(mBlock.lock());
+    if (block != nullptr) {
+        return block->onGcamFileSaver(data, byte_count, filename);
+    }
+
+    ALOGE("%s: Gcam requests to save a file (%s) but block is destroyed.", __FUNCTION__,
+            filename.c_str());
+    return false;
 }
 
 HdrPlusProcessingBlock::GcamInputImageReleaseCallback::GcamInputImageReleaseCallback(
