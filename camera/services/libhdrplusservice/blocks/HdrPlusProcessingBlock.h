@@ -238,6 +238,10 @@ private:
     status_t convertToGcamStaticMetadata(std::unique_ptr<gcam::StaticMetadata> *gcamStaticMetadata,
             std::shared_ptr<StaticMetadata> metadata);
 
+    // Handle capture request. Must called with mHdrPlusProcessingLock locked.
+    status_t handleCaptureRequestLocked(const std::vector<Input> &inputs,
+            const OutputRequest &outputRequest);
+
     // Issue a shot capture.
     status_t IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
             const std::vector<Input> &inputs, const OutputRequest &outputRequest);

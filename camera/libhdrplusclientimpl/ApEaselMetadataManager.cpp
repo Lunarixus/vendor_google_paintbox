@@ -345,6 +345,9 @@ status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
             ANDROID_SCALER_CROP_REGION));
     RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.postviewEnable, requestMetadataSrc,
             static_cast<camera_metadata_tag>(qcamera::NEXUS_EXPERIMENTAL_2017_POSTVIEW)));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.continuousCapturing, requestMetadataSrc,
+            static_cast<camera_metadata_tag>(
+            qcamera::NEXUS_EXPERIMENTAL_2017_CONTINUOUS_ZSL_CAPTURE)));
 
     *requestMetadataDest = dest;
     return OK;

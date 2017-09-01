@@ -241,6 +241,10 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSubmitCaptureRequest(Mes
 
     metadata.postviewEnable = (postviewEnable != 0);
 
+    uint32_t continuousCapturing = 0;
+    RETURN_ERROR_ON_READ_ERROR(message->readUint32(&continuousCapturing));
+    metadata.continuousCapturing = (continuousCapturing != 0);
+
     return submitCaptureRequest(request, metadata);
 }
 
