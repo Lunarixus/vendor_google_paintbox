@@ -161,6 +161,12 @@ private:
     // A future of opening an HDR+ client. Protected by mEaselControlLock.
     std::future<status_t> mOpenFuture;
 
+    // Easel firmware version
+    char mEaselFwVersion[FW_VER_SIZE];
+
+    // Easel firmware version has been cached for this resume sequence
+    bool mEaselFwUpdated = false;
+
     Mutex mEaselControlLock;
 
     // Easel status listener. Protected by mClientListenerLock.

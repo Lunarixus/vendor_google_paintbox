@@ -17,6 +17,10 @@ LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 FW_VER := $(BUILD_NUMBER)
 FW_DATE := $(shell date +'%Y%m%d.')
 
+# Set Easel firmware version number here (b/65286131)
+FW_MAJOR := '001'
+FW_MINOR := '000'
+
 # TODO(cjluo): Add notice file before launch.
 
 include $(BUILD_SYSTEM)/base_rules.mk
@@ -196,6 +200,7 @@ $(LOCAL_BUILT_MODULE): \
 	# Append build version to the end of the file
 	@echo -n $(FW_DATE) >> $(dir $@)/ramdisk.img
 	@echo -n $(FW_VER) >> $(dir $@)/ramdisk.img
+	@echo -n .$(FW_MAJOR).$(FW_MINOR) >> $(dir $@)/ramdisk.img
 	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
 
 endif

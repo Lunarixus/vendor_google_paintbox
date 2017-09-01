@@ -166,6 +166,7 @@ status_t EaselManagerClientImpl::resume(EaselManagerClientListener *listener) {
         return res;
     }
 
+    mEaselFwUpdated = false;
     mEaselResumed = true;
     return OK;
 }
@@ -191,14 +192,25 @@ status_t EaselManagerClientImpl::convertCameraId(uint32_t cameraId,
 status_t EaselManagerClientImpl::getFwVersion(char *fwVersion) {
     int res = 0;
 
-    Mutex::Autolock l(mEaselControlLock);
-    if (!mEaselControlOpened) {
-        ALOGE("%s: Easel control is not opened.", __FUNCTION__);
-        return NO_INIT;
+    // use cached copy if available
+    if (mEaselFwUpdated) {
+        strncpy(fwVersion, mEaselFwVersion, FW_VER_SIZE);
     }
-    res = mEaselControl.getFwVersion(fwVersion);
+    // poll from kernel if not available
+    else {
+        Mutex::Autolock l(mEaselControlLock);
+        if (!mEaselControlOpened) {
+            ALOGE("%s: Easel control is not opened.", __FUNCTION__);
+            return NO_INIT;
+        }
+        res = mEaselControl.getFwVersion(mEaselFwVersion);
+        if (res == 0) {
+            mEaselFwUpdated = true;
+            strncpy(fwVersion, mEaselFwVersion, FW_VER_SIZE);
+        }
+    }
 
-    return OK;
+    return res;
 }
 
 status_t EaselManagerClientImpl::startMipi(uint32_t cameraId, uint32_t outputPixelClkHz,
