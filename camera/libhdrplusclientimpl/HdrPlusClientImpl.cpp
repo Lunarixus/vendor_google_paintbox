@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 //#define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 #define LOG_TAG "HdrPlusClientImpl"
 #include <log/log.h>
 
 #define ENABLE_HDRPLUS_PROFILER 1
+
+#include <utils/Trace.h>
 
 #include <CameraMetadata.h>
 #include <cutils/properties.h>
@@ -184,7 +187,8 @@ status_t HdrPlusClientImpl::setZslHdrPlusMode(bool enabled) {
 
 status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *request,
         const CameraMetadata &requestMetadata) {
-    ALOGV("%s", __FUNCTION__);
+  ATRACE_CALL();
+  ALOGV("%s", __FUNCTION__);
 
     if (mServiceFatalErrorState) {
         ALOGE("%s: HDR+ service is in a fatal error state.", __FUNCTION__);
@@ -216,6 +220,8 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
     }
 
     START_PROFILER_TIMER(pendingRequest.timer);
+
+    ATRACE_INT("PendingEaselCaptures", 1);
 
     // Send the request to HDR+ service.
     res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
@@ -618,6 +624,7 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
                 }
 
                 // All output buffers in this request are back, ready to send capture result.
+                ATRACE_INT("PendingEaselCaptures", 0);
                 END_PROFILER_TIMER(mPendingRequests[i].timer);
 
                 // Get the result metadata using the AP timestamp.
