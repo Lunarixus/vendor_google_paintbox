@@ -68,6 +68,7 @@ public:
     status_t writeInt32Vector(const std::vector<int32_t> &values);
     status_t writeFloatVector(const std::vector<float> &values);
     status_t writeByteVector(const std::vector<uint8_t> &values);
+    status_t writeString(const std::string &str);
 
     template<size_t SIZE>
     status_t writeFloatArray(const std::array<float, SIZE> &values);
@@ -93,6 +94,7 @@ public:
     status_t readInt32Vector(std::vector<int32_t> *values);
     status_t readFloatVector(std::vector<float> *values);
     status_t readByteVector(std::vector<uint8_t> *values);
+    status_t readString(std::string *str);
 
     template<size_t SIZE>
     status_t readFloatArray(std::array<float, SIZE> *values);

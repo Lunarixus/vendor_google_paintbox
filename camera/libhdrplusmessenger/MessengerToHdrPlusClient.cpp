@@ -181,6 +181,33 @@ void MessengerToHdrPlusClient::notifyShutterAsync(uint32_t requestId, int64_t ap
     }
 }
 
+void MessengerToHdrPlusClient::notifyFileDump(const std::string &filename, void* data,
+        int32_t dmaBufFd, int32_t dataSize) {
+    if (!mConnected) {
+        ALOGE("%s: Messenger not connected.", __FUNCTION__);
+        return;
+    }
+
+    // Prepare the message.
+    Message *message = nullptr;
+    status_t res = getEmptyMessage(&message);
+    if (res != 0) {
+        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_DMA_FILE_DUMP));
+
+    // Serialize file dump.
+    RETURN_ON_WRITE_ERROR(message->writeString(filename));
+
+    // Send to client.
+    res = sendMessageWithDmaBuffer(message, data, dataSize, dmaBufFd);
+    if (res != 0) {
+        ALOGE("%s: Sending message failed: %s (%d).", __FUNCTION__, strerror(-res), res);;
+    }
+}
+
 void MessengerToHdrPlusClient::notifyPostview(uint32_t requestId, uint8_t *data, int fd, uint32_t width,
         uint32_t height, uint32_t stride, int32_t format) {
     std::lock_guard<std::mutex> lock(mApiLock);

@@ -59,11 +59,10 @@ private:
     // TODO(b/35848231): Increase max payload frames to 7 after Easel memory leak fixed.
     static const int32_t kGcamMaxPayloadFrames = 5;
     // Max number of frames as input to gcam.
-    static const int32_t kGcamMaxZslFrames = 7;
+    static const int32_t kGcamMaxZslFrames = 6;
     static const gcam::PayloadFrameCopyMode kGcamPayloadFrameCopyMode =
             gcam::PayloadFrameCopyMode::kNeverCopy;
     static const int32_t kGcamRawBitsPerPixel = 10;
-    static const uint32_t kGcamDebugSaveBitmask = 0;
     static constexpr float kPostRawSensitivityBoostUnity = 100.0f;
     static const bool kGcamCorrectBlackLevel = false;
     static const bool kGcamDetectFlare = false;
@@ -72,6 +71,8 @@ private:
     static const gcam::GcamPixelFormat kGcamPostviewFormat = gcam::GcamPixelFormat::kRgb;
     static const uint32_t kGcamPostviewWidthBack = 168;
     static const uint32_t kGcamPostviewWidthFront = 162;
+    // kGcamMaxFilenameLength must match the size of gcam::ImageSaverParams.dest_folder.
+    static const int32_t kGcamMaxFilenameLength = 512;
 
     // Camera metadata related constants.
     static constexpr float kMaxFaceScore = 100.f;
@@ -141,6 +142,17 @@ private:
                          gcam::InterleavedImageU8* rgb_result,
                          gcam::GcamPixelFormat pixel_format);
         std::weak_ptr<PipelineBlock> mBlock;
+    };
+
+    // Callback invoked when Gcam requests to dump data to a file.
+    class GcamFileSaver : public gcam::FileSaver {
+    public:
+        GcamFileSaver(std::weak_ptr<PipelineBlock> block);
+        virtual ~GcamFileSaver() = default;
+    private:
+        std::weak_ptr<PipelineBlock> mBlock;
+        virtual bool operator()(const void* data, size_t byte_count,
+                              const std::string& filename) override;
     };
 
     // An IMX buffer wrapper for easier buffer life cycle management.
@@ -216,6 +228,9 @@ private:
     void onGcamPostview(int32_t shotId, std::unique_ptr<gcam::YuvImage> yuvResult,
         std::unique_ptr<gcam::InterleavedImageU8> rgbResult, gcam::GcamPixelFormat pixelFormat);
 
+    // Callback invoked when Gcam requests to dump data to a file.
+    bool onGcamFileSaver(const void* data, size_t bytes, const std::string& filename);
+
     // Initialize a Gcam instance.
     status_t initGcam();
 
@@ -238,6 +253,9 @@ private:
     // Fill gcam frame metadata in a payload frame.
     status_t fillGcamFrameMetadata(std::shared_ptr<PayloadFrame> frame,
             const std::shared_ptr<FrameMetadata>& metadata);
+
+    // Fill gcam image saver parameters.
+    void fillGcamImageSaverParams(gcam::ImageSaverParams *param);
 
     // Return an input. Must be called with mQueueLock held.
     void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
@@ -300,6 +318,9 @@ private:
 
     // Gcam callback for postview.
     std::unique_ptr<GcamPostviewCallback> mGcamPostviewCallback;
+
+    // Gcam callback for saving a file.
+    std::unique_ptr<GcamFileSaver> mGcamFileSaver;
 
     // Gcam instance.
     std::unique_ptr<gcam::Gcam> mGcam;

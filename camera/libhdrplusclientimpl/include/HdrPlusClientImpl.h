@@ -169,6 +169,8 @@ private:
     void notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote) override;
     void notifyDmaPostview(uint32_t requestId, void *dmaHandle, uint32_t width,
             uint32_t height, uint32_t stride, int32_t format) override;
+    void notifyDmaFileDump(const std::string &filename, DmaBufferHandle dmaHandle,
+            uint32_t dmaDataSize) override;
     // Callbacks from HDR+ service end here.
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.
@@ -177,6 +179,19 @@ private:
     // Update camera result metadata based on HDR+ result.
     status_t updateResultMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
             const std::string &makernote);
+
+    // Create a directory for file dump if it doesn't exist, and return the final path.
+    status_t createFileDumpDirectory(const std::string &baseDir,
+        const std::vector<std::string>& paths, std::string *finalPath);
+
+    // Create a directory if it doesn't exist.
+    status_t createDir(const std::string &dir);
+
+    // Split filename, separated by "/", into a vector of strings.
+    std::vector<std::string> splitPath(const std::string &filename);
+
+    // Write data to a file.
+    void writeData(const std::string& path, std::vector<char> &data);
 
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
