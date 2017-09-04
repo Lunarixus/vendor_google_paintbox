@@ -133,9 +133,10 @@ int LogBufferEasel::log(
     } else {
       f = (prio >= ANDROID_LOG_ERROR) ? stderr : stdout;
     }
-    fprintf(f, "%lu(us) <%s> PID %d TID %d %s %s\n",
-        realtime.usec(), PRIO_LIST[prio].c_str(),
-        pid, tid, entry.tag, entry.text);
+    fprintf(f, "%lu.%09lu <%s> PID %d TID %d %s %s\n",
+        static_cast<unsigned long>(LOG_TIME_SEC(&realtime)),
+        static_cast<unsigned long>(LOG_TIME_NSEC(&realtime)),
+        PRIO_LIST[prio].c_str(), pid, tid, entry.tag, entry.text);
     fflush(f);
   }
   return len;

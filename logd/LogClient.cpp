@@ -70,10 +70,10 @@ void LogClient::receiveLogThread() {
       // on the first line for debugging purpose.
       // If text is too long, it may gets truncated.
       snprintf(textBuf, LOGGER_ENTRY_MAX_PAYLOAD - (entry.text - log),
-          "EASEL (%02d:%02d.%03d P%d T%d): %s",
-          (logMsg->realtime.tv_sec / 60) % 60,
-          logMsg->realtime.tv_sec % 60,
-          logMsg->realtime.tv_nsec / (uint32_t)1e6,
+          "EASEL (%02u:%02u.%03u P%d T%d): %s",
+          static_cast<unsigned>(((LOG_TIME_SEC(&logMsg->realtime) / 60) % 60)),
+          static_cast<unsigned>((LOG_TIME_SEC(&logMsg->realtime) % 60)),
+          static_cast<unsigned>((LOG_TIME_NSEC(&logMsg->realtime) * MS_PER_SEC / NS_PER_SEC)),
           static_cast<int>(logMsg->pid),
           static_cast<int>(logMsg->tid), entry.text);
 
