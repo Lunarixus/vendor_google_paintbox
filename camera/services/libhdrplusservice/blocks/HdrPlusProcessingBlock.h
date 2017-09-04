@@ -263,8 +263,8 @@ private:
     // Given an input crop resolution and output resolution, calculate the overall crop region that
     // has the same aspect ratio as the output resolution.
     status_t calculateCropRect(int32_t inputCropW, int32_t inputCropH,
-            int32_t outputW, int32_t outputH, int32_t *outputCropX0, int32_t *outputCropY0,
-            int32_t *outputCropX1, int32_t *outputCropY1);
+            int32_t outputW, int32_t outputH, float *outputCropX0, float *outputCropY0,
+            float *outputCropX1, float *outputCropY1);
 
     // Given input and output buffers, fill gcam shot parameters.
     status_t fillGcamShotParams(gcam::ShotParams *shotParams, gcam::GcamPixelFormat *outputFormat,
