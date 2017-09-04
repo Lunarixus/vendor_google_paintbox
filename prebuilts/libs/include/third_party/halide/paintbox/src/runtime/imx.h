@@ -1044,6 +1044,15 @@ ImxError ImxDeleteDeviceBufferAsync(
     ImxDeviceBufferHandle buffer_handle,
     ImxDeviceHandle device_handle);
 
+/* Provides the host (i.e. CPU) mapped address for buffer_handle device buffer.
+ * vaddr is initialized with the host address.
+ * If the buffer has not been mapped to a host address (i.e. it is a device
+ * only buffer), then vaddr is initialized to NULL.
+ */
+ImxError ImxGetDeviceBufferHostAddress(
+    ImxDeviceBufferHandle buffer_handle,
+    void **vaddr);
+
 /* Lock: Makes the buffer ready for use by CPU user-space process.
  * *(vaddr) will hold the mapped virtual address of the buffer.
  * May result in a mmap operation to map a kernel buffer to user-space.

@@ -199,6 +199,11 @@ struct StaticMetadata {
   // For example, if the device produces RAW10, set this to 10.
   int raw_bits_per_pixel;
 
+  // The physical size of the sensor in millimeters. Both values are set to -1
+  // if unknown.
+  float sensor_physical_width_mm;
+  float sensor_physical_height_mm;
+
   // Color calibrations for different illuminants.
   // Like the DNG spec, we support either one or two color calibrations. Two
   //   color calibrations is more typical, because it gives you something to
