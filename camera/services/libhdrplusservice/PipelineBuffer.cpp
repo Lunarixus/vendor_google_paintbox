@@ -41,15 +41,15 @@ std::weak_ptr<PipelineBlock> PipelineBuffer::getPipelineBlock() const {
 }
 
 int32_t PipelineBuffer::getWidth() const {
-    return mAllocatedConfig.image.width;
+    return mRequestedConfig.image.width;
 }
 
 int32_t PipelineBuffer::getHeight() const {
-    return mAllocatedConfig.image.height;
+    return mRequestedConfig.image.height;
 }
 
 int32_t PipelineBuffer::getFormat() const {
-    return mAllocatedConfig.image.format;
+    return mRequestedConfig.image.format;
 }
 
 int32_t PipelineBuffer::getStride(uint32_t planeNum) const {
@@ -190,12 +190,7 @@ PipelineImxBuffer::PipelineImxBuffer(const std::weak_ptr<PipelineStream> &stream
 }
 
 PipelineImxBuffer::~PipelineImxBuffer() {
-    if (mImxDeviceBufferHandle != nullptr) {
-        ImxDeleteDeviceBuffer(mImxDeviceBufferHandle);
-        mImxDeviceBufferHandle = nullptr;
-        mLockedData = nullptr;
-        mDataSize = 0;
-    }
+    destroy();
 }
 
 status_t PipelineImxBuffer::allocate() {
@@ -203,9 +198,21 @@ status_t PipelineImxBuffer::allocate() {
     return -EINVAL;
 }
 
+void PipelineImxBuffer::destroy() {
+    if (mImxDeviceBufferHandle != nullptr) {
+        ImxDeleteDeviceBuffer(mImxDeviceBufferHandle);
+        mImxDeviceBufferHandle = nullptr;
+    }
+
+    mYuvImage = nullptr;
+    mLockedData = nullptr;
+    mDataSize = 0;
+    mAllocatedConfig = {};
+}
+
 status_t PipelineImxBuffer::allocate(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle) {
     // Check if buffer is already allocated.
-    if (mImxDeviceBufferHandle != nullptr) return -EEXIST;
+    if (mImxDeviceBufferHandle != nullptr || mYuvImage != nullptr) return -EEXIST;
 
     status_t res = validateConfig(mRequestedConfig);
     if (res != 0) {
@@ -237,8 +244,8 @@ status_t PipelineImxBuffer::allocate(ImxMemoryAllocatorHandle imxMemoryAllocator
 }
 
 uint8_t* PipelineImxBuffer::getPlaneData(uint32_t planeNum) {
-    if (mImxDeviceBufferHandle == nullptr) {
-        ALOGE("%s: Device buffer is nullptr.", __FUNCTION__);
+    if (mImxDeviceBufferHandle == nullptr && mYuvImage == nullptr) {
+        ALOGE("%s: Buffer is not allocated.", __FUNCTION__);
         return nullptr;
     } else if(planeNum >= mAllocatedConfig.image.planes.size()) {
         ALOGE("%s: Getting plane %d but the image has %lu planes.", __FUNCTION__, planeNum,
@@ -259,8 +266,21 @@ uint8_t* PipelineImxBuffer::getPlaneData(uint32_t planeNum) {
 }
 
 int PipelineImxBuffer::getFd() {
+    ImxDeviceBufferHandle handle = nullptr;
     int fd = -1;
-    ImxShareDeviceBuffer(mImxDeviceBufferHandle, &fd);
+
+    if (mYuvImage != nullptr) {
+        uint64_t offset = 0;
+        ImxError err = ImxGetDeviceBufferFromAddress(&mYuvImage->luma_read_view().at(0, 0, 0),
+                &handle, &offset);
+        if (err != 0) {
+            return -1;
+        }
+    } else {
+        handle = mImxDeviceBufferHandle;
+    }
+
+    ImxShareDeviceBuffer(handle, &fd);
     return fd;
 }
 
@@ -270,8 +290,8 @@ uint32_t PipelineImxBuffer::getDataSize() const {
 }
 
 status_t PipelineImxBuffer::lockData() {
-    if (mImxDeviceBufferHandle == nullptr) {
-        ALOGE("%s: Device buffer is nullptr.", __FUNCTION__);
+    if (mImxDeviceBufferHandle == nullptr && mYuvImage == nullptr) {
+        ALOGE("%s: Buffer is not allocated.", __FUNCTION__);
         return -EINVAL;
     }
 
@@ -279,11 +299,15 @@ status_t PipelineImxBuffer::lockData() {
         return 0;
     }
 
-    ImxError err = ImxLockDeviceBuffer(mImxDeviceBufferHandle, &mLockedData);
-    if (err != 0) {
-        ALOGE("%s: Locking buffer failed: %d", __FUNCTION__, err);
-        mLockedData = nullptr;
-        return -ENOMEM;
+    if (mYuvImage != nullptr) {
+        mLockedData = static_cast<void*>(&mYuvImage->luma_write_view().at(0, 0, 0));
+    } else {
+        ImxError err = ImxLockDeviceBuffer(mImxDeviceBufferHandle, &mLockedData);
+        if (err != 0) {
+            ALOGE("%s: Locking buffer failed: %d", __FUNCTION__, err);
+            mLockedData = nullptr;
+            return -ENOMEM;
+        }
     }
 
     return 0;
@@ -293,14 +317,102 @@ void PipelineImxBuffer::unlockData() {
     if (mLockedData == nullptr)
         return;
 
-    ImxError err = ImxUnlockDeviceBuffer(mImxDeviceBufferHandle);
-    if (err != 0) {
-        ALOGE("%s: Unlocking buffer failed: %d", __FUNCTION__, err);
-        return;
+    if (mImxDeviceBufferHandle != nullptr) {
+        ImxError err = ImxUnlockDeviceBuffer(mImxDeviceBufferHandle);
+        if (err != 0) {
+            ALOGE("%s: Unlocking buffer failed: %d", __FUNCTION__, err);
+            return;
+        }
+
     }
 
     mLockedData = nullptr;
 }
+
+bool PipelineImxBuffer::attachable(const std::unique_ptr<gcam::YuvImage> &yuvImage) {
+    if (yuvImage == nullptr) {
+        return false;
+    }
+    switch(yuvImage->yuv_format()) {
+        case gcam::YuvFormat::kNv12:
+            if (mRequestedConfig.image.format != HAL_PIXEL_FORMAT_YCbCr_420_SP) {
+                return false;
+            }
+            break;
+        case gcam::YuvFormat::kNv21:
+            if (mRequestedConfig.image.format != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+                return false;
+            }
+            break;
+        default:
+            return false;
+    }
+
+    const gcam::InterleavedReadViewU8& lumaReadView = yuvImage->luma_read_view();
+    const gcam::InterleavedReadViewU8& chromaReadView = yuvImage->chroma_read_view();
+
+    if (mRequestedConfig.image.width != static_cast<uint32_t>(lumaReadView.width()) ||
+        mRequestedConfig.image.height != static_cast<uint32_t>(lumaReadView.height())) {
+        return false;
+    }
+
+    if (mRequestedConfig.image.planes.size() != 2) {
+        return false;
+    }
+
+    if (mRequestedConfig.image.planes[0].stride != lumaReadView.y_stride()) {
+        return false;
+    }
+
+    int64_t lumaPlaneSize = (int64_t)&chromaReadView.at(0, 0, 0) -
+                            (int64_t)&lumaReadView.at(0, 0, 0);
+
+    if (mRequestedConfig.image.planes[0].scanline !=
+            lumaPlaneSize / lumaReadView.y_stride()) {
+        return false;
+    }
+
+    if (mRequestedConfig.image.planes[1].stride != chromaReadView.y_stride()) {
+        return false;
+    }
+
+    // Requested chroma scanline must be larger than chroma height.
+    if (mRequestedConfig.image.planes[1].scanline <
+            static_cast<uint32_t>(chromaReadView.height())) {
+        return false;
+    }
+
+    return true;
+}
+
+status_t PipelineImxBuffer::attachImage(std::unique_ptr<gcam::YuvImage> *yuvImage) {
+    if (yuvImage == nullptr) return -EINVAL;
+
+    if (mYuvImage != nullptr || mImxDeviceBufferHandle != nullptr) {
+        ALOGE("%s: Buffer is allocated.", __FUNCTION__);
+        return -EEXIST;
+    }
+
+    if (!attachable(*yuvImage)) {
+        ALOGE("%s: Not attachable.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    mYuvImage = std::move(*yuvImage);
+    mDataSize = (int64_t)&mYuvImage->chroma_read_view().at(0, 0, 0) -
+                    (int64_t)&mYuvImage->luma_read_view().at(0, 0, 0) +
+                    mYuvImage->chroma_read_view().sample_array_size();
+    mAllocatedConfig = mRequestedConfig;
+
+    // Update the chroma scanline to the height the chroma plane because we can't query
+    // YuvImage's scanline and we can't be sure that YuvImage's scanline is the same as
+    // the requested configuration.
+    mAllocatedConfig.image.planes[1].scanline = mYuvImage->chroma_read_view().height();
+
+    return 0;
+}
+
+
 
 /***************************************************
  * PipelineCaptureFrameBuffer implementation starts.
@@ -314,6 +426,12 @@ PipelineCaptureFrameBuffer::PipelineCaptureFrameBuffer(const std::weak_ptr<Pipel
 status_t PipelineCaptureFrameBuffer::allocate() {
     ALOGE("%s: Use CaptureFrameBufferFactory to allocate capture frame buffers.", __FUNCTION__);
     return -EINVAL;
+}
+
+void PipelineCaptureFrameBuffer::destroy() {
+    mCaptureFrameBuffer = nullptr;
+    mLockedData = nullptr;
+    mAllocatedConfig = {};
 }
 
 status_t PipelineCaptureFrameBuffer::allocate(
