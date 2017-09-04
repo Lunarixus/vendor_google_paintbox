@@ -416,8 +416,9 @@ status_t EaselMessenger::transferDmaBuffer(EaselMessengerListener::DmaBufferHand
 
     DmaBufferInfo *dmaBufferInfo = reinterpret_cast<DmaBufferInfo*>(handle);
 
-    if (dmaBufferInfo->easelMessage->dma_buf_size != bufferSize) {
-        ALOGE("%s: Expecting buffer size %u but bufferSize is %u", __FUNCTION__,
+    // Source buffer may be smaller than destination buffer.
+    if (dmaBufferInfo->easelMessage->dma_buf_size > bufferSize) {
+        ALOGE("%s: Source buffer size is %u but destination buffer size is %u", __FUNCTION__,
                 (uint32_t)dmaBufferInfo->easelMessage->dma_buf_size, bufferSize);
         return -EINVAL;
     }

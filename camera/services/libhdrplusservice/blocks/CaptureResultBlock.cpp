@@ -126,6 +126,7 @@ bool CaptureResultBlock::doWorkLocked() {
 
     for (auto buffer : blockResult.buffers) {
         buffer->unlockData();
+        buffer->destroy();
     }
 
     auto pipeline = mPipeline.lock();

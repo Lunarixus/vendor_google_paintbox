@@ -54,14 +54,9 @@ status_t PipelineStream::create(ImxMemoryAllocatorHandle imxMemoryAllocatorHandl
             destroyLocked();
             return -EINVAL;
         }
-        status_t res = buffer->allocate(imxMemoryAllocatorHandle);
-        if (res != 0) {
-            ALOGE("%s: Allocating stream (%ux%u format %d with %d buffers) failed: %s (%d)",
-                    __FUNCTION__, config.image.width, config.image.height, config.image.format,
-                    numBuffers, strerror(-res), res);
-            destroyLocked();
-            return res;
-        }
+
+        // Due to Easel memory limitation, do not allocate output buffers up-front. Output
+        // buffers will be allocated when needed.
 
         mAvailableBuffers.push_back(buffer.get());
         mAllBuffers.push_back(std::move(buffer));
