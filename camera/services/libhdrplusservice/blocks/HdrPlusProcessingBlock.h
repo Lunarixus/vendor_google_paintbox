@@ -36,7 +36,8 @@ public:
     static std::shared_ptr<HdrPlusProcessingBlock> newHdrPlusProcessingBlock(
                 std::weak_ptr<HdrPlusPipeline> pipeline, std::shared_ptr<StaticMetadata> metadata,
                 std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock, bool skipTimestampCheck,
-                int32_t cameraId, std::shared_ptr<MessengerToHdrPlusClient> messenger);
+                int32_t cameraId, ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
+                std::shared_ptr<MessengerToHdrPlusClient> messenger);
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
@@ -48,6 +49,7 @@ private:
     // Use newHdrPlusProcessingBlock to create a HdrPlusProcessingBlock.
     HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
             bool skipTimestampCheck, int32_t cameraId,
+            ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
             std::shared_ptr<MessengerToHdrPlusClient> messenger);
 
     // Gcam related constants.
@@ -217,9 +219,8 @@ private:
     void onGcamInputImageReleased(const int64_t imageId);
 
     // Callback invoked when Gcam finishes a final processed image.
-    void onGcamFinalImage(int shotId, gcam::YuvImage* yuvResult,
-            gcam::InterleavedImageU8* rgbResult, gcam::GcamPixelFormat pixelFormat,
-            const gcam::ExifMetadata& exifMetadata);
+    void onGcamFinalImage(int shotId, std::unique_ptr<gcam::YuvImage> yuvResult,
+            gcam::GcamPixelFormat pixelFormat, const gcam::ExifMetadata& exifMetadata);
 
     // Callback invoked when Gcam selects a base frame.
     void onGcamBaseFrameCallback(int shotId, int index, int64_t timestamp);
@@ -263,8 +264,8 @@ private:
     // Given an input crop resolution and output resolution, calculate the overall crop region that
     // has the same aspect ratio as the output resolution.
     status_t calculateCropRect(int32_t inputCropW, int32_t inputCropH,
-            int32_t outputW, int32_t outputH, int32_t *outputCropX0, int32_t *outputCropY0,
-            int32_t *outputCropX1, int32_t *outputCropY1);
+            int32_t outputW, int32_t outputH, float *outputCropX0, float *outputCropY0,
+            float *outputCropX1, float *outputCropY1);
 
     // Given input and output buffers, fill gcam shot parameters.
     status_t fillGcamShotParams(gcam::ShotParams *shotParams, gcam::GcamPixelFormat *outputFormat,
@@ -274,14 +275,16 @@ private:
     gcam::ShotCallbacks getShotCallbacks(bool isPostviewEnabled);
 
     // Produce output buffers with an HDR+ processed image.
-    status_t produceRequestOutputBuffers(const gcam::YuvImage* srcYuvImage,
+    status_t produceRequestOutputBuffers(std::unique_ptr<gcam::YuvImage> srcYuvImage,
             PipelineBufferSet *outputBuffers);
 
     // Copy a YUV image to a dst YUV buffer.
-    status_t copyBuffer(const gcam::YuvImage* srcYuvImage, PipelineBuffer *dstBuffer);
+    status_t copyBuffer(const std::unique_ptr<gcam::YuvImage> &srcYuvImage,
+            PipelineBuffer *dstBuffer);
 
     // Resample a source YUV image to a destination YUV buffer.
-    status_t resampleBuffer(const gcam::YuvImage* srcYuvImage, PipelineBuffer *dstBuffer);
+    status_t resampleBuffer(const std::unique_ptr<gcam::YuvImage> &srcYuvImage,
+            PipelineBuffer *dstBuffer);
 
     // Return if gcam YUV format is the same as HAL format.
     bool isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat);

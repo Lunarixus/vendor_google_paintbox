@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <vector>
 
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam.h"
 #include "hardware/gchips/paintbox/system/include/capture.h"
 
 #include "HdrPlusTypes.h"
@@ -36,6 +37,9 @@ public:
      */
     virtual status_t allocate() = 0;
 
+    // Free the image data.
+    virtual void destroy() = 0;
+
     // Return width of the image.
     int32_t getWidth() const;
 
@@ -63,6 +67,12 @@ public:
 
     // Get the file descriptor for this buffer.
     virtual int getFd() = 0;
+
+    // Return if a gcam::YuvImage can be attached to this buffer.
+    virtual bool attachable(const std::unique_ptr<gcam::YuvImage> &yuvImage) { return false; } ;
+
+    // Attach a gcam::YuvImage to this buffer. If succeeded, *yuvImage will be nullptr;
+    virtual status_t attachImage(std::unique_ptr<gcam::YuvImage> *yuvImage) { return -EINVAL; };
 
     // Set each pixel to black.
     status_t clear();
@@ -117,6 +127,9 @@ public:
     // Use ImxMemoryAllocatorHandle to allocate a buffer instead.
     virtual status_t allocate() override;
 
+    // Free the image data.
+    virtual void destroy() override;
+
      // Allocate a IMX buffer.
     status_t allocate(ImxMemoryAllocatorHandle imxMemoryAllocatorHandle);
 
@@ -136,11 +149,22 @@ public:
     // Unlock the data of the frame buffer.
     virtual void unlockData() override;
 
+    // Return if a gcam::YuvImage can be attached to this buffer. It can be attached if the YuvImage
+    // has the same configuration and memory layout, and if the buffer has no allocated image data
+    // yet.
+    virtual bool attachable(const std::unique_ptr<gcam::YuvImage> &yuvImage) override;
+
+    // Attach a gcam::YuvImage to this buffer.
+    virtual status_t attachImage(std::unique_ptr<gcam::YuvImage> *yuvImage) override;
+
 private:
     // Raw data of the image.
     ImxDeviceBufferHandle mImxDeviceBufferHandle;
     void* mLockedData; // pointer to access data when it's locked.
     uint32_t mDataSize;
+
+    // Attached YuvImage.
+    std::unique_ptr<gcam::YuvImage> mYuvImage;
 };
 
 /**
@@ -157,6 +181,9 @@ public:
 
     // Use allocate(std::unique_ptr<paintbox::CaptureFrameBufferFactory> &bufferFactory) to allocate buffers.
     virtual status_t allocate() override;
+
+    // Free the image data.
+    virtual void destroy() override;
 
     // Allocate the image data using paintbox::CaptureFrameBufferFactory.
     status_t allocate(std::unique_ptr<paintbox::CaptureFrameBufferFactory> &bufferFactory);
