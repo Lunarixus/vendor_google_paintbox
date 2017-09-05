@@ -158,12 +158,24 @@ public:
      *
      * msg points to the message returned by receiveMessage(), with field
      * msg->dma_buf set to the DMA destination buffer address.  That buffer must
-     * have at least msg->dbusz bytes.  Or, if msg->dma_buf is NULL, discard the
-     * DMA transaction without receiving.
+     * have at least msg->dbusz bytes.
      *
-     * Returns 0 for success, -1 for failure.
+     * Returns 0 for success, -errno for failure.
      */
     virtual int receiveDMA(const EaselMessage *msg);
+
+    /*
+     * Cancel receiving a DMA tranfer and notify the sender that this DMA
+     * transfer should be discarded.
+     * Returns when the DMA transfer is cancelled.
+     *
+     * msg points to the message returned by receiveMessage(), with field
+     * msg->message_id set to mark the related message.  Other fields of msg
+     * are optional and will be ignored.
+     *
+     * Returns 0 for success, -errno for failure.
+     */
+    virtual int cancelReceiveDMA(const EaselMessage *msg);
 
     /*
      * Open communications for the specified service.
@@ -233,6 +245,20 @@ protected:
     std::thread mHandlerThread;
     bool mClosed;
     std::mutex mStatusMutex;  // Guards mClosed.
+
+    /*
+     * Implementation to read the DMA transfer requested by the remote.
+     * Called when receiveMessage() returns a message with dmasz != 0.
+     * Returns when the DMA transfer is complete.
+     *
+     * msg: points to the message returned by receiveMessage(), with field
+     * msg->dma_buf set to the DMA destination buffer address.  That buffer must
+     * have at least msg->dbusz bytes if not intended to cancel.
+     * cancel: discard (receiving) DMA transfer if this field is true.
+     *
+     * Returns 0 for success, -errno for failure.
+     */
+    virtual int receiveDMAImpl(const EaselMessage *msg, bool cancel = false);
 
     /*
      * Thread function for mHandlerThread.
