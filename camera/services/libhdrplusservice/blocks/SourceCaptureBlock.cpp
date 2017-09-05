@@ -5,13 +5,9 @@
 #include <inttypes.h>
 #include <system/graphics.h>
 
-#include <easelcontrol.h>
-
 #include "CaptureServiceConsts.h"
 #include "SourceCaptureBlock.h"
 #include "HdrPlusPipeline.h"
-
-#define STABLE_BUFFER_COUNT 30
 
 namespace pbcamera {
 
@@ -26,7 +22,9 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
         PipelineBlock("SourceCaptureBlock", BLOCK_EVENT_TIMEOUT_MS),
         mMessengerToClient(messenger),
         mCaptureConfig(config),
-        mPaused(false) {
+        mPaused(false),
+        mIsIpuProcessing(false),
+        mClockMode(EaselControlServer::ClockMode::Max) {
     // Check if capture config is valid.
     if (mCaptureConfig.stream_config_list.size() > 0) {
         mIsMipiInput = true;
@@ -37,10 +35,11 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
 
 SourceCaptureBlock::~SourceCaptureBlock() {
     // Enforce the right order to destroy capture service.
-    destroyCaptureService();
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    destroyCaptureServiceLocked();
 }
 
-status_t SourceCaptureBlock::createCaptureService() {
+status_t SourceCaptureBlock::createCaptureServiceLocked() {
     if (mCaptureService != nullptr) {
         return -EEXIST;
     }
@@ -54,10 +53,11 @@ status_t SourceCaptureBlock::createCaptureService() {
 
     // Create a dequeue request thread.
     mDequeueRequestThread = std::make_unique<DequeueRequestThread>(this);
+    mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
     return 0;
 }
 
-void SourceCaptureBlock::destroyCaptureService() {
+void SourceCaptureBlock::destroyCaptureServiceLocked() {
     mDequeueRequestThread = nullptr;
     mCaptureService = nullptr;
 }
@@ -133,14 +133,58 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
     return block;
 }
 
-void SourceCaptureBlock::pause() {
-    std::unique_lock<std::mutex> lock(mPauseLock);
-    destroyCaptureService();
+void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    // Pause if continuous capturing is false or we need to change clock mode.
+    if (!continuousCapturing || mClockMode != EaselControlServer::ClockMode::Functional) {
+        pauseLocked();
+
+        if (mClockMode != EaselControlServer::ClockMode::Functional) {
+            EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
+            mClockMode = EaselControlServer::ClockMode::Functional;
+        }
+
+        if (continuousCapturing) {
+            resumeLocked(false);
+        }
+    }
+
+    mIsIpuProcessing = true;
+}
+
+void SourceCaptureBlock::notifyIpuProcessingDone() {
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    resumeLocked(true);
+
+    mIsIpuProcessing = false;
+}
+
+void SourceCaptureBlock::notifyFrameCounterDone() {
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    // Capturing is in a stable state so set clock mode to capture if IPU is not processing.
+    if (!mIsIpuProcessing && mClockMode != EaselControlServer::ClockMode::Capture) {
+        mCaptureService->Pause();
+        EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
+        mClockMode = EaselControlServer::ClockMode::Capture;
+        mCaptureService->Resume();
+    }
+}
+
+void SourceCaptureBlock::pauseLocked() {
+    if (mPaused) return;
+
+    destroyCaptureServiceLocked();
     mPaused = true;
 }
 
-void SourceCaptureBlock::resume() {
-    std::unique_lock<std::mutex> lock(mPauseLock);
+void SourceCaptureBlock::resumeLocked(bool startFrameCounter) {
+    if (!mPaused) {
+        if (startFrameCounter) {
+             mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
+        }
+        return;
+    }
+
     mPaused = false;
     notifyWorkerThreadEvent();
 }
@@ -158,11 +202,11 @@ bool SourceCaptureBlock::doWorkLocked() {
     // here.
     if (!mIsMipiInput) return false;
 
-    std::unique_lock<std::mutex> lock(mPauseLock);
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
     if (mPaused) return false;
 
     if (mCaptureService == nullptr) {
-        status_t res = createCaptureService();
+        status_t res = createCaptureServiceLocked();
         if (res != 0) {
             ALOGE("%s: Creating capture service failed: %s (%d)", __FUNCTION__, strerror(-res),
                     res);
@@ -211,7 +255,10 @@ status_t SourceCaptureBlock::flushLocked() {
     // and destroy camera service to flush capture service. Capture service will be created again
     // when handling a request.
     // b/35676087.
-    destroyCaptureService();
+    {
+        std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+        destroyCaptureServiceLocked();
+    }
 
     // Return incomplete output results.
     {
@@ -443,7 +490,8 @@ void SourceCaptureBlock::requestCaptureToPreventFrameDrop() {
 }
 
 DequeueRequestThread::DequeueRequestThread(
-        SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false) {
+        SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false),
+        mFrameCounter(0) {
     mThread = std::make_unique<std::thread>(dequeueRequestThread, this);
 }
 
@@ -470,6 +518,11 @@ void DequeueRequestThread::signalExit() {
     mEventCondition.notify_one();
 }
 
+void DequeueRequestThread::requestFrameCounterNotification(uint32_t frameCount) {
+    std::unique_lock<std::mutex> lock(mDequeueThreadLock);
+    mFrameCounter = frameCount;
+}
+
 void DequeueRequestThread::checkNumberPendingRequests() {
     bool needMoreRequest = false;
 
@@ -487,8 +540,6 @@ void DequeueRequestThread::checkNumberPendingRequests() {
 }
 
 void DequeueRequestThread::dequeueRequestThreadLoop() {
-    static int capturedBufferCount = 0;
-
     while (1) {
         // Wait for new event for pending request.
         bool waitForRequest = false;
@@ -567,15 +618,13 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
                 ALOGI("[EASEL_STARTUP_LATENCY] %s: First RAW capture done at %" PRId64 " ms",
                         __FUNCTION__, now / kNsPerMs);
                 mFirstCaptureDone = true;
-                capturedBufferCount = 1;
             }
 
-            // TODO (b/37850485): if we switch to Capture mode too quickly,
-            // capture service gets into a bad state
-            if (capturedBufferCount++ == STABLE_BUFFER_COUNT) {
-                mParent->mCaptureService->Pause();
-                EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
-                mParent->mCaptureService->Resume();
+            if (mFrameCounter > 0) {
+                if (--mFrameCounter == 0) {
+                    // Notify the parent.
+                    mParent->notifyFrameCounterDone();
+                }
             }
 
             int64_t syncedEaselTimeNs = 0;
