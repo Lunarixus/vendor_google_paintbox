@@ -40,7 +40,7 @@ export USE_IPU=true
 export HL_IPU_PRECOMPILED_GRAPH_PATH=/data/paintbox/compiled_graph/
 # To enable saving precompiled graph, please set the following to "save"
 export HL_IPU_SAVE_LOAD_PRECOMPILED_GRAPH=load
-export HL_IPU_VERIFY_PRECOMPILED_GRAPH=nodes
+export HL_IPU_VERIFY_PRECOMPILED_GRAPH=none
 # GLOG_v controls libimageprocessor logging. Set to warning here.
 # To show verbosed log, please set GLOG_v=0 or GLOG_v=1
 export GLOG_v=-2
