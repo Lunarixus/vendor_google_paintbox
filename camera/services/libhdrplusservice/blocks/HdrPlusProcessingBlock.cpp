@@ -950,6 +950,10 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, std::unique_ptr<gcam::
     END_PROFILER_TIMER(finishingShot->timer);
 
     OutputResult outputResult = finishingShot->outputRequest;
+
+    // Notify AP that it's ready to take another capture request.
+    mMessengerToClient->notifyNextCaptureReadyAsync(outputResult.metadata.requestId);
+
     status_t res = produceRequestOutputBuffers(std::move(yuvResult), &outputResult.buffers);
     if (res != 0) {
         ALOGE("%s: Producing request output buffers failed: %s (%d).", __FUNCTION__, strerror(-res),
