@@ -268,7 +268,7 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
 
     // Find the largest crop region within the digital zoom crop to fit all output buffer aspect
     // ratios.
-    float cropX0 = zoomCropW, cropY0 = zoomCropW, cropX1 = 0, cropY1 = 0;
+    float cropX0 = zoomCropW, cropY0 = zoomCropH, cropX1 = 0, cropY1 = 0;
     for (auto buffer : outputRequest.buffers) {
         switch (buffer->getFormat()) {
             case HAL_PIXEL_FORMAT_YCrCb_420_SP:
