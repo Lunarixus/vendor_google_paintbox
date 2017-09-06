@@ -460,7 +460,8 @@ int EaselComm::sendReply(EaselMessage *origmessage, int replycode,
 }
 
 // Receive a DMA transfer for an Easel Message that requests DMA.
-int EaselComm::receiveDMA(const EaselMessage *msg) {
+// Returns 0 on success, -errno on EASELCOMM_IOC_RECVDMA failure
+int EaselComm::receiveDMAImpl(const EaselMessage *msg, bool cancel) {
     struct easelcomm_kbuf_desc buf_desc;
 
 #ifdef PROFILE_DMA
@@ -469,7 +470,12 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
     clock_gettime(CLOCK_MONOTONIC, &begin);
 #endif
 
-    fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_DMA);
+    if (cancel) {
+        ALOGD("%s: cancel receiving a DMA", __FUNCTION__);
+        fill_kbuf(&buf_desc, msg->message_id, nullptr, KBUF_FILL_DMA);
+    } else {
+        fill_kbuf(&buf_desc, msg->message_id, msg, KBUF_FILL_DMA);
+    }
 
     // Acquire rwlock as a reader
     pthread_rwlock_rdlock(&mFdRwlock);
@@ -489,6 +495,18 @@ int EaselComm::receiveDMA(const EaselMessage *msg) {
 #endif
 
     return 0;
+}
+
+// Receive a DMA transfer for an Easel Message that requests DMA.
+// Returns 0 on successful receiving, -errno on failure
+int EaselComm::receiveDMA(const EaselMessage *msg) {
+    return receiveDMAImpl(msg, /*cancel=*/false);
+}
+
+// Cancel receiving a DMA transfer for an Easel Message that requests DMA.
+// Returns 0 on successful canceling, -errno on failure
+int EaselComm::cancelReceiveDMA(const EaselMessage *msg) {
+    return receiveDMAImpl(msg, /*cancel=*/true);
 }
 
 bool EaselComm::isConnected() {

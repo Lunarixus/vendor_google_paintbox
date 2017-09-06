@@ -190,35 +190,17 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         mOutputRequestQueue.pop_front();
     }
 
-    auto shotCapture = std::make_shared<ShotCapture>();
-
-    auto sourceCaptureBlock = mSourceCaptureBlock.lock();
-    if (sourceCaptureBlock != nullptr) {
-        sourceCaptureBlock->pause();
-    }
-
-    EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
-
-    // Start a HDR+ shot.
-    status_t res = IssueShotCapture(shotCapture, inputs, outputRequest);
+    status_t res = handleCaptureRequestLocked(inputs, outputRequest);
     if (res != 0) {
-        ALOGE("%s: Issuing a HDR+ capture failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        ALOGE("%s: Handling capture request failed: %s (%d).", __FUNCTION__, strerror(-res), res);
 
         // Push inputs and output request back to the front of the queue.
         std::unique_lock<std::mutex> lock(mQueueLock);
         mInputQueue.insert(mInputQueue.begin(), inputs.begin(), inputs.end());
         mOutputRequestQueue.push_front(outputRequest);
 
-        if (sourceCaptureBlock != nullptr) {
-            sourceCaptureBlock->resume();
-        }
-
         return false;
     }
-
-    shotCapture->outputRequest = outputRequest;
-    shotCapture->baseFrameIndex = kInvalidBaseFrameIndex;
-    mPendingShotCapture = shotCapture;
 
     return true;
 }
@@ -286,7 +268,7 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
 
     // Find the largest crop region within the digital zoom crop to fit all output buffer aspect
     // ratios.
-    float cropX0 = zoomCropW, cropY0 = zoomCropW, cropX1 = 0, cropY1 = 0;
+    float cropX0 = zoomCropW, cropY0 = zoomCropH, cropX1 = 0, cropY1 = 0;
     for (auto buffer : outputRequest.buffers) {
         switch (buffer->getFormat()) {
             case HAL_PIXEL_FORMAT_YCrCb_420_SP:
@@ -425,6 +407,33 @@ void HdrPlusProcessingBlock::fillGcamImageSaverParams(gcam::ImageSaverParams *pa
     }
 
     memcpy(param->dest_folder, destFolder.c_str(), destFolder.size());
+}
+
+status_t HdrPlusProcessingBlock::handleCaptureRequestLocked(const std::vector<Input> &inputs,
+        const OutputRequest &outputRequest) {
+    std::shared_ptr<SourceCaptureBlock> sourceCaptureBlock;
+    bool continuousCapturing = outputRequest.metadata.requestMetadata->continuousCapturing;
+
+    sourceCaptureBlock = mSourceCaptureBlock.lock();
+    if (sourceCaptureBlock != nullptr) {
+        sourceCaptureBlock->notifyIpuProcessingStart(continuousCapturing);
+    }
+
+    auto shotCapture = std::make_shared<ShotCapture>();
+
+    // Start a HDR+ shot.
+    status_t res = IssueShotCapture(shotCapture, inputs, outputRequest);
+    if (res != 0) {
+        ALOGE("%s: Issuing a HDR+ capture failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        sourceCaptureBlock->notifyIpuProcessingDone();
+
+        return res;
+    }
+
+    shotCapture->outputRequest = outputRequest;
+    shotCapture->baseFrameIndex = kInvalidBaseFrameIndex;
+    mPendingShotCapture = shotCapture;
+    return 0;
 }
 
 status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> shotCapture,
@@ -953,7 +962,7 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, std::unique_ptr<gcam::
 
     auto sourceCaptureBlock = mSourceCaptureBlock.lock();
     if (sourceCaptureBlock != nullptr) {
-        sourceCaptureBlock->resume();
+        sourceCaptureBlock->notifyIpuProcessingDone();
     }
 
     // Set frame metadata.

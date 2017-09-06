@@ -388,7 +388,7 @@ void EaselMessenger::listenerThreadLoop() {
             if (res != 0) {
                 if (easelMessage.dma_buf_size) {
                     // Cancel DMA
-                    mEaselComm->receiveDMA(&easelMessage);
+                    mEaselComm->cancelReceiveDMA(&easelMessage);
                 }
                 if (easelMessage.need_reply) {
                     mEaselComm->sendReply(&easelMessage, res, nullptr);

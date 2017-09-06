@@ -1,6 +1,8 @@
 #ifndef PAINTBOX_HDR_PLUS_PIPELINE_SOURCE_CAPTURE_BLOCK_H
 #define PAINTBOX_HDR_PLUS_PIPELINE_SOURCE_CAPTURE_BLOCK_H
 
+#include <easelcontrol.h>
+
 #include "HdrPlusMessageTypes.h"
 #include "MessengerToHdrPlusClient.h"
 #include "PipelineBlock.h"
@@ -66,10 +68,12 @@ public:
     // Override PipelineBlock::handleTimeoutLocked.
     void handleTimeoutLocked() override;
 
-    // Paused and resume capturing from MIPI. This is to work around the limitation that MIPI
-    // capture and IPU HDR+ processing cannot happen at the same time. b/34854987
-    void pause();
-    void resume();
+    // Notify IPU processing is going to start. If continuousCapturing is true, Source Capture
+    // block will continue capturing. Otherwise, it will stop capturing.
+    void notifyIpuProcessingStart(bool continuousCapturing);
+
+    // Notify IPU processing is done.
+    void notifyIpuProcessingDone();
 
 private:
     // Timeout duration for waiting for events.
@@ -80,15 +84,18 @@ private:
     // not accurate.
     static const int64_t FRAME_METADATA_TIMEOUT_NS = 500000000; // 500ms
 
+    // Number of frames to capture to enter a stable state to change clock mode.
+    static const int32_t kStableFrameCount = 30;
+
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
         const paintbox::CaptureConfig &config);
 
-    // Create capture service.
-    status_t createCaptureService();
+    // Create capture service. Protected by mSourceCaptureLock.
+    status_t createCaptureServiceLocked();
 
-    // Destroy capture service.
-    void destroyCaptureService();
+    // Destroy capture service. Protected by mSourceCaptureLock.
+    void destroyCaptureServiceLocked();
 
     // Send a completed output result back to pipeline.
     void sendOutputResult(const OutputResult &result);
@@ -110,6 +117,17 @@ private:
     // DMA transfer a buffer.
     status_t transferDmaBuffer(const DmaImageBuffer &dmaInputBuffer, PipelineBuffer *buffer);
 
+    // Invoked when mDequeueRequestThread has captured some amount of frames after
+    // requestFrameCounterNotification() is called.
+    void notifyFrameCounterDone();
+
+    // Pause and resume capture service. Must be protected by mSourceCaptureLock.
+    void pauseCaptureServiceLocked();
+    void resumeCaptureServiceLocked(bool startFrameCounter);
+
+    // Change clock mode to capture. Must be protected by mSourceCaptureLock.
+    void changeToCaptureClockModeLocked();
+
     // Messenger for transferring the DMA buffer.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
 
@@ -122,20 +140,26 @@ private:
     bool mIsMipiInput;
 
     // Capture service for MIPI capture.
-    std::unique_ptr<paintbox::CaptureService> mCaptureService;
+    std::mutex mCaptureServiceLock;
+    std::unique_ptr<paintbox::CaptureService> mCaptureService; // Protected by mCaptureServiceLock.
 
     // Capture config used to create the capture service.
     const paintbox::CaptureConfig mCaptureConfig;
 
     // A DequeueRequestThread to dequeue completed buffers from capture service.
+    // Protected by mCaptureServiceLock.
     std::unique_ptr<DequeueRequestThread> mDequeueRequestThread;
 
     // A thread to notify AP about Easel timestmap.
     std::unique_ptr<TimestampNotificationThread> mTimestampNotificationThread;
 
-    // Whether to pause capturing from MIPI to work around b/34854987.
-    std::mutex mPauseLock;
-    bool mPaused;
+    std::mutex mSourceCaptureLock;
+    bool mCaptureServicePaused;  // If capture service is paused. Protected by mSourceCaptureLock.
+    bool mIsIpuProcessing;  // If IPU is processing. Protected by mSourceCaptureLock.
+    // Current clock mode. Protected by mSourceCaptureLock.
+    EaselControlServer::ClockMode mClockMode;
+    // If it's ready to change clock mode to capture. Protected by mSourceCaptureLock.
+    bool mReadyForClockCaptureMode;
 };
 
 // DequeueRequestThread dequeues completed buffers from capture service.
@@ -148,11 +172,21 @@ public:
     // on a completed buffer from capture service.
     void addPendingRequest(PipelineBlock::OutputRequest request);
 
+    // Start a frame counter. After frameCount frames have been captured, invoke
+    // notifyFrameCounterDone.
+    void requestFrameCounterNotification(uint32_t frameCount);
+
     // Thread loop that dequeues completed buffers from capture service.
     void dequeueRequestThreadLoop();
 
     // Signal the thread to exit.
     void signalExit();
+
+    // Pause dequeue request thread.
+    void pause();
+
+    // Resume dequeue request thread.
+    void resume();
 
 private:
     const static int64_t kNsPerMs = 1000000;
@@ -169,11 +203,30 @@ private:
     // Protecting mPendingCaptureRequests and mExiting.
     std::mutex mDequeueThreadLock;
     std::deque<PipelineBlock::OutputRequest> mPendingCaptureRequests;
-    bool mExiting;
 
     std::unique_ptr<std::thread> mThread;
     std::condition_variable mEventCondition;
     bool mFirstCaptureDone;
+
+    // Frame counter to invoke notifyFrameCounterDone() when becoming 0 from 1.
+    int32_t mFrameCounter;
+
+    // States of the thread.
+    enum State {
+        // Pausing the thread is requested.
+        STATE_PAUSING = 0,
+        // The thread is paused.
+        STATE_PAUSED,
+        // Resuming the thread is requested.
+        STATE_RESUMING,
+        // Thread is running.
+        STATE_RUNNING,
+        // Exiting the thread is requested.
+        STATE_EXITING,
+    };
+
+    State mState; // State of the thread. Protected by mDequeueThreadLock.
+    std::condition_variable mStateChangedCondition; // Used to signal the state change.
 };
 
 // TimestampNotificationThread creates a thread to send Easel timestamps to AP.

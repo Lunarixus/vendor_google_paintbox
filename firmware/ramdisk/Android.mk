@@ -17,6 +17,10 @@ LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 FW_VER := $(BUILD_NUMBER)
 FW_DATE := $(shell date +'%Y%m%d.')
 
+# Set Easel firmware version number here (b/65286131)
+FW_MAJOR := '001'
+FW_MINOR := '000'
+
 # TODO(cjluo): Add notice file before launch.
 
 include $(BUILD_SYSTEM)/base_rules.mk
@@ -42,11 +46,11 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbase)/libbase.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc)/libc.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libc++)/libc++.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libcapture)/libcapture.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
@@ -179,7 +183,7 @@ $(LOCAL_BUILT_MODULE): \
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
 	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
-	@chmod +w $(dir $@)/$(EASEL_LIB)/libgcam.so
+	@chmod +w $(dir $@)/$(EASEL_LIB)/*
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*
 
@@ -197,6 +201,7 @@ $(LOCAL_BUILT_MODULE): \
 	# Append build version to the end of the file
 	@echo -n $(FW_DATE) >> $(dir $@)/ramdisk.img
 	@echo -n $(FW_VER) >> $(dir $@)/ramdisk.img
+	@echo -n .$(FW_MAJOR).$(FW_MINOR) >> $(dir $@)/ramdisk.img
 	$(call assert-max-image-size,$@,$(EASEL_RAMDISK_SIZE))
 
 endif

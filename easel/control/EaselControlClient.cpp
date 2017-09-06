@@ -622,7 +622,8 @@ int EaselControlClient::getFwVersion(char *fwVersion)
     int ret;
 
     ret = stateMgr.getFwVersion(fwVersion);
-    ALOGD("%s: Easel getFwVersion: %s code:%d", __FUNCTION__, fwVersion, ret);
+    ALOGD("%s: Easel getFwVersion: %.*s code:%d",
+          __FUNCTION__, FW_VER_SIZE, fwVersion, ret);
 
     return ret;
 }

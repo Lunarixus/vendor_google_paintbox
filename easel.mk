@@ -41,7 +41,7 @@ PRODUCT_PACKAGES += \
     easel_boot_test \
     ezlsh \
     ezlspi \
-    libcapture \
+    libeaselsystem \
     libeaselcontrolservice \
     libgcam \
     libhdrplusservice \
