@@ -112,7 +112,7 @@ ANDROID_IMX_H_FULL_PATH="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_IMX_H}"
 ANDROID_SYSTEM_OUT_FULL_PATH="${ANDROID_LIB_FULL_PATH%%/}/libeaselsystem.so"
 ANDROID_SYSTEM_INCLUDE_FULL_PATH="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_SYSTEM_INCLUDE}"
 
-ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}"
+ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}/pcg.tar"
 TMP_PCG_FULL_PATH="/tmp/pcg"
 
 ######################################################################
@@ -228,9 +228,9 @@ cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 
 # Copy PCG
 if [ "${nopcg}" = false ]; then
-  mkdir -p ${ANDROID_PCG_FULL_PATH}
-  rm -rf ${ANDROID_PCG_FULL_PATH}/vhash*
-  cp -rf ${TMP_PCG_FULL_PATH}/* ${ANDROID_PCG_FULL_PATH}/
+  mkdir -p `dirname ${ANDROID_PCG_FULL_PATH}`
+  rm -f ${ANDROID_PCG_FULL_PATH}
+  tar -cf ${ANDROID_PCG_FULL_PATH} -C ${TMP_PCG_FULL_PATH}/*
 fi
 ######################################################################
 # All done.
