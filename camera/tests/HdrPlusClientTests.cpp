@@ -104,6 +104,10 @@ public:
                 requestId, apSensorTimestampNs);
     }
 
+    void onNextCaptureReady(uint32_t requestId) {
+        ALOGI("%s: Got a next capture ready callback for request %u", __FUNCTION__, requestId);
+    }
+
     void onPostview(uint32_t requestId, std::unique_ptr<std::vector<uint8_t>> postview,
             uint32_t width, uint32_t height, uint32_t stride, int32_t format) {
         ALOGI("%s: Got a postview %ux%u format %d for request %u.", __FUNCTION__, width, height,

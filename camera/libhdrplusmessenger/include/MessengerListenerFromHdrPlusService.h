@@ -73,6 +73,11 @@ public:
     virtual void notifyDmaFileDump(const std::string &filename, DmaBufferHandle dmaHandle,
             uint32_t dmaDataSize) = 0;
 
+    /*
+     * Invoked when HDR+ service is ready to take another capture request.
+     */
+    virtual void notifyNextCaptureReady(uint32_t requestId);
+
 private:
     /*
      * Override EaselMessengerListener::onMessage
@@ -112,6 +117,7 @@ private:
             int dmaDataSize);
     void deserializeNotifyDmaFileDump(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
+    void deserializeNotifyNextCaptureReady(Message *message);
 };
 
 } // namespace pbcamera
