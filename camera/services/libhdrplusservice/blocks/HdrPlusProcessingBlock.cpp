@@ -412,7 +412,10 @@ void HdrPlusProcessingBlock::fillGcamImageSaverParams(gcam::ImageSaverParams *pa
 status_t HdrPlusProcessingBlock::handleCaptureRequestLocked(const std::vector<Input> &inputs,
         const OutputRequest &outputRequest) {
     std::shared_ptr<SourceCaptureBlock> sourceCaptureBlock;
-    bool continuousCapturing = outputRequest.metadata.requestMetadata->continuousCapturing;
+
+    // TODO(b/65014354): Enable continuous capturing after it's stable.
+    bool continuousCapturing = false;//outputRequest.metadata.requestMetadata->continuousCapturing;
+
 
     sourceCaptureBlock = mSourceCaptureBlock.lock();
     if (sourceCaptureBlock != nullptr) {

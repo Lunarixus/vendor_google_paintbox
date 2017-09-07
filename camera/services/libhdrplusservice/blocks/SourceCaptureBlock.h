@@ -122,11 +122,8 @@ private:
     void notifyFrameCounterDone();
 
     // Pause and resume capture service. Must be protected by mSourceCaptureLock.
-    void pauseCaptureServiceLocked();
-    void resumeCaptureServiceLocked(bool startFrameCounter);
-
-    // Change clock mode to capture. Must be protected by mSourceCaptureLock.
-    void changeToCaptureClockModeLocked();
+    void pauseLocked();
+    void resumeLocked(bool startFrameCounter);
 
     // Messenger for transferring the DMA buffer.
     std::shared_ptr<MessengerToHdrPlusClient> mMessengerToClient;
@@ -154,12 +151,9 @@ private:
     std::unique_ptr<TimestampNotificationThread> mTimestampNotificationThread;
 
     std::mutex mSourceCaptureLock;
-    bool mCaptureServicePaused;  // If capture service is paused. Protected by mSourceCaptureLock.
-    bool mIsIpuProcessing;  // If IPU is processing. Protected by mSourceCaptureLock.
-    // Current clock mode. Protected by mSourceCaptureLock.
-    EaselControlServer::ClockMode mClockMode;
-    // If it's ready to change clock mode to capture. Protected by mSourceCaptureLock.
-    bool mReadyForClockCaptureMode;
+    bool mPaused;  // If capture service is paused. Proected by mSourceCaptureLock.
+    bool mIsIpuProcessing; // If IPU is processing. Proected by mSourceCaptureLock.
+    EaselControlServer::ClockMode mClockMode; // Current clock mode. Proected by mSourceCaptureLock.
 };
 
 // DequeueRequestThread dequeues completed buffers from capture service.
@@ -182,12 +176,6 @@ public:
     // Signal the thread to exit.
     void signalExit();
 
-    // Pause dequeue request thread.
-    void pause();
-
-    // Resume dequeue request thread.
-    void resume();
-
 private:
     const static int64_t kNsPerMs = 1000000;
 
@@ -203,6 +191,7 @@ private:
     // Protecting mPendingCaptureRequests and mExiting.
     std::mutex mDequeueThreadLock;
     std::deque<PipelineBlock::OutputRequest> mPendingCaptureRequests;
+    bool mExiting;
 
     std::unique_ptr<std::thread> mThread;
     std::condition_variable mEventCondition;
@@ -210,23 +199,6 @@ private:
 
     // Frame counter to invoke notifyFrameCounterDone() when becoming 0 from 1.
     int32_t mFrameCounter;
-
-    // States of the thread.
-    enum State {
-        // Pausing the thread is requested.
-        STATE_PAUSING = 0,
-        // The thread is paused.
-        STATE_PAUSED,
-        // Resuming the thread is requested.
-        STATE_RESUMING,
-        // Thread is running.
-        STATE_RUNNING,
-        // Exiting the thread is requested.
-        STATE_EXITING,
-    };
-
-    State mState; // State of the thread. Protected by mDequeueThreadLock.
-    std::condition_variable mStateChangedCondition; // Used to signal the state change.
 };
 
 // TimestampNotificationThread creates a thread to send Easel timestamps to AP.
