@@ -83,6 +83,20 @@ class RawReadView {
     return packed12_read_view_;
   }
 
+  // Samples a single Bayer pixel from the packed image, at the logical
+  //   coordinates (x,y).
+  inline uint16_t at(int x, int y) const {
+    if (unpacked_read_view_) {
+      return unpacked_read_view_.at(x, y, 0);
+    } else if (packed10_read_view_) {
+      return packed10_read_view_.at(x, y);
+    } else if (packed12_read_view_) {
+      return packed12_read_view_.at(x, y);
+    } else {
+      return 0;
+    }
+  }
+
   // Crop the image view to the requested rectangle, or as close as possible,
   // using pointer arithmetic. The operation is fast, but if the crop rectangle
   // is small compared to the original image, then the cropped image can waste a
