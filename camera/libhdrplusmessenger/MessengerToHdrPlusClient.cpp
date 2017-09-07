@@ -181,6 +181,34 @@ void MessengerToHdrPlusClient::notifyShutterAsync(uint32_t requestId, int64_t ap
     }
 }
 
+void MessengerToHdrPlusClient::notifyNextCaptureReadyAsync(uint32_t requestId) {
+    std::lock_guard<std::mutex> lock(mApiLock);
+
+    if (!mConnected) {
+        ALOGE("%s: Messenger not connected.", __FUNCTION__);
+        return;
+    }
+
+    // Prepare the message.
+    Message *message = nullptr;
+    status_t res = getEmptyMessage(&message);
+    if (res != 0) {
+        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_NEXT_CAPTURE_READY_ASYNC));
+
+    // Serialize shutter
+    RETURN_ON_WRITE_ERROR(message->writeUint32(requestId));
+
+    // Send to client.
+    res = sendMessage(message, /*async*/true);
+    if (res != 0) {
+        ALOGE("%s: Sending message failed: %s (%d).", __FUNCTION__, strerror(-res), res);;
+    }
+}
+
 void MessengerToHdrPlusClient::notifyFileDump(const std::string &filename, void* data,
         int32_t dmaBufFd, int32_t dataSize) {
     if (!mConnected) {
