@@ -136,28 +136,46 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
     return block;
 }
 
+namespace {
+
+bool isGoodThermalCondition(EaselControlServer::ThermalCondition condition) {
+    // Empirically determined that good thermal condition is less than Medium
+    return (condition < EaselControlServer::ThermalCondition::Medium);
+}
+
+}  // namespace
+
 void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    bool paused = false;
-    // Pause if continuous capturing is false or we need to change clock mode.
-    if (!continuousCapturing || mClockMode != EaselControlServer::ClockMode::Functional) {
+    bool goodThermal = isGoodThermalCondition(EaselControlServer::getThermalCondition());
+    // Pause if continuous capturing is false or we need to change clock mode, or if we have a
+    // potential thermal situation.
+    bool doPause = !continuousCapturing || !goodThermal ||
+        (mClockMode != EaselControlServer::ClockMode::Functional) ||
+        EaselControlServer::isNewThermalCondition();
+    if (doPause) {
         pauseCaptureServiceLocked();
+        ALOGD("%s: Continuous Capture paused\n", __FUNCTION__);
 
-        if (mClockMode != EaselControlServer::ClockMode::Functional) {
+        EaselControlServer::ThermalCondition newThermal =
             EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
-            mClockMode = EaselControlServer::ClockMode::Functional;
-            ALOGV("%s: Clock mode is Functional", __FUNCTION__);
-        }
-
-        paused = true;
+        goodThermal = isGoodThermalCondition(newThermal);
+        mClockMode = EaselControlServer::ClockMode::Functional;
     }
 
-    if (continuousCapturing) {
+    // Do continuous capture only if we have good thermal condition.
+    if (continuousCapturing && goodThermal) {
+        ALOGD("%s: Do Continuous Capture\n", __FUNCTION__);
         paintbox::dram_controller::ContinuousCaptureSettings();
-        if (paused) {
+        if (doPause) {
             resumeCaptureServiceLocked(false);
+            ALOGD("%s: Capture Service resumed\n", __FUNCTION__);
         }
     } else {
+        ALOGD("%s: Not Continuous Capture\n", __FUNCTION__);
+        if (continuousCapturing) {
+            ALOGD("%s: Did not resume Continuous Capture due to bad thermal\n", __FUNCTION__);
+        }
         paintbox::dram_controller::DefaultSettings();
     }
 
