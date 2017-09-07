@@ -208,23 +208,6 @@ struct OisMetadata {
   bool Equals(const OisMetadata& other) const;
 };
 
-// Angular velocities provided by gyroscope sensor at a specific time.
-struct GyroSample {
-  // Time in nanoseconds at which the sample was recorded.
-  int64_t timestamp_ns;
-
-  // Angular velocities in x, y and z axes (rad/s).
-  // These axes correspond with the gyroscope sensor coordinates, which may or
-  // may not map to the same image coordinates.
-  //
-  // https://developer.android.com/guide/topics/sensors/sensors_overview.html#sensors-coords
-  float x;        // Positive to right of phone screen
-  float y;        // Positive upward of phone screen
-  float z;        // Positive coming out of phone screen
-
-  bool Equals(const GyroSample& other) const;
-};
-
 // This structure contains metadata for an actual frame captured by the HAL
 //   and then passed to Gcam.  It is usually produced by the client and
 //   passed into Gcam.  (This is usually in response to a FrameRequest
@@ -513,9 +496,6 @@ struct FrameMetadata {
 
   // Optical image stabilization metadata.
   OisMetadata ois_metadata;
-
-  // Gyroscope sensor samples.
-  std::vector<GyroSample> gyro_samples;
 
   // Exposure time boost associated with a change to exposure factorization,
   //   controlled by motion metering.

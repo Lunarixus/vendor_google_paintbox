@@ -8,15 +8,6 @@
 
 namespace creative_camera {
 
-// How PD was processed prior to portrait mode. This should be updated any
-// time there is a change in PD align and merge in HDR+ that would affect
-// portrait reprocessing.
-// Version 0: Original.
-// Version 1: Fixed a bug in version 0, in which the PD data was shifted
-//            relative to the RGB image by a few pixels in x and y that depends
-//            on the crop.
-static const int kPdCurrentVersion = 1;
-
 // LINT.IfChange
 // A list of arguments used by Portrait Mode to finsh processing the image.
 struct GoudaRequest {
@@ -42,10 +33,6 @@ struct GoudaRequest {
   // Merged frame and static metadata from HDR+.
   gcam::FrameMetadata frame_metadata;
   gcam::StaticMetadata static_metadata;
-
-  // Version number corresponding to how PD was processed prior to portrait
-  // mode. This field should not be set manually.
-  int pd_version = kPdCurrentVersion;
 
   // A path at which to save the raw inputs to the GoudaProcessor. To skip
   // saving raw inputs, leave this string empty. This field is not serialized.
