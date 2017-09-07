@@ -368,6 +368,12 @@ void HdrPlusClientImpl::notifyShutter(uint32_t requestId, int64_t apSensorTimest
     mClientListener->onShutter(requestId, apSensorTimestampNs);
 }
 
+void HdrPlusClientImpl::notifyNextCaptureReady(uint32_t requestId) {
+    ALOGV("%s: Got next capture ready callback for request %u", __FUNCTION__, requestId);
+
+    mClientListener->onNextCaptureReady(requestId);
+}
+
 status_t HdrPlusClientImpl::updateResultMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
         const std::string &makernote) {
     if (cameraMetadata == nullptr || (*cameraMetadata) == nullptr) {

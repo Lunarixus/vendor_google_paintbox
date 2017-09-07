@@ -88,6 +88,14 @@ public:
      */
     void notifyFileDump(const std::string &filename, void* data, int32_t dmaBufFd,
             int32_t dataSize);
+
+    /*
+     * Invoked when Easel is ready to take another capture request.
+     *
+     * requestId is current request ID that Eaesl HDR+ is processing.
+     */
+    void notifyNextCaptureReadyAsync(uint32_t requestId);
+
 private:
 
     // Protect API methods from being called simultaneously.
