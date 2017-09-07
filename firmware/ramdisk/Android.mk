@@ -73,7 +73,7 @@ endif
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
 
-PCG_MODULE := $(EASEL_PCG_DIR)/pcg.tar
+PCG_MODULES := $(wildcard $(EASEL_PCG_DIR)/*)
 
 EASEL_RAMDISK_TOOL_DIR := vendor/google_paintbox/firmware/tools/
 
@@ -122,7 +122,7 @@ $(LOCAL_BUILT_MODULE): PRIVATE_EASEL_RAMDISK_SRC_DIR := $(EASEL_RAMDISK_SRC_DIR)
 $(LOCAL_BUILT_MODULE): PRIVATE_PREBUILT_BIN_MODULES := $(PREBUILT_BIN_MODULES)
 $(LOCAL_BUILT_MODULE): PRIVATE_BIN_MODULES := $(BIN_MODULES)
 $(LOCAL_BUILT_MODULE): PRIVATE_LIB_MODULES := $(LIB_MODULES)
-$(LOCAL_BUILT_MODULE): PRIVATE_PCG_MODULE := $(PCG_MODULE)
+$(LOCAL_BUILT_MODULE): PRIVATE_PCG_MODULES := $(PCG_MODULES)
 
 $(LOCAL_BUILT_MODULE): EASEL_PREBUILT := prebuilt/
 $(LOCAL_BUILT_MODULE): EASEL_BIN := prebuilt/system/bin/
@@ -141,7 +141,7 @@ $(LOCAL_BUILT_MODULE): \
 	$(PREBUILT_BIN_MODULES) \
 	$(BIN_MODULES) \
 	$(LIB_MODULES) \
-	$(PCG_MODULE) \
+	$(PCG_MODULES) \
 	$(GEN_CPIO) $(GEN_INITRAMFS_LIST) $(MKIMAGE) \
 	$(EASEL_RAMDISK_SRC_DIR)/files.txt \
 	$(EASEL_RAMDISK_SRC_DIR)/init
@@ -188,7 +188,8 @@ $(LOCAL_BUILT_MODULE): \
 
 	# PCG
 	@mkdir -p $(dir $@)/$(EASEL_PCG)
-	@tar -xf $(PRIVATE_PCG_MODULE) -C $(dir $@)/$(EASEL_PCG)
+	$(foreach pcg, $(PRIVATE_PCG_MODULES),\
+		cp -rf $(pcg) $(dir $@)/$(EASEL_PCG) &&) (true)
 
 	$(PRIVATE_GEN_INITRAMFS_LIST) $(dir $@)/$(EASEL_PREBUILT) >> $(dir $@)/files.txt
 
