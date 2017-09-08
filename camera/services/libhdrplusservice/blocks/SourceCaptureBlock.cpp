@@ -5,6 +5,8 @@
 #include <inttypes.h>
 #include <system/graphics.h>
 
+#include <hardware/gchips/paintbox/system/include/dram_controller_settings.h>
+
 #include "CaptureServiceConsts.h"
 #include "SourceCaptureBlock.h"
 #include "HdrPlusPipeline.h"
@@ -22,9 +24,10 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
         PipelineBlock("SourceCaptureBlock", BLOCK_EVENT_TIMEOUT_MS),
         mMessengerToClient(messenger),
         mCaptureConfig(config),
-        mPaused(false),
+        mCaptureServicePaused(false),
         mIsIpuProcessing(false),
-        mClockMode(EaselControlServer::ClockMode::Max) {
+        mClockMode(EaselControlServer::ClockMode::Max),
+        mReadyForClockCaptureMode(false) {
     // Check if capture config is valid.
     if (mCaptureConfig.stream_config_list.size() > 0) {
         mIsMipiInput = true;
@@ -135,57 +138,73 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
 
 void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    bool paused = false;
     // Pause if continuous capturing is false or we need to change clock mode.
     if (!continuousCapturing || mClockMode != EaselControlServer::ClockMode::Functional) {
-        pauseLocked();
+        pauseCaptureServiceLocked();
 
         if (mClockMode != EaselControlServer::ClockMode::Functional) {
             EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
             mClockMode = EaselControlServer::ClockMode::Functional;
+            ALOGV("%s: Clock mode is Functional", __FUNCTION__);
         }
 
-        if (continuousCapturing) {
-            resumeLocked(false);
-        }
+        paused = true;
     }
 
+    if (continuousCapturing) {
+        paintbox::dram_controller::ContinuousCaptureSettings();
+        if (paused) {
+            resumeCaptureServiceLocked(false);
+        }
+    } else {
+        paintbox::dram_controller::DefaultSettings();
+    }
+
+    mReadyForClockCaptureMode = false;
     mIsIpuProcessing = true;
 }
 
 void SourceCaptureBlock::notifyIpuProcessingDone() {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    resumeLocked(true);
+    resumeCaptureServiceLocked(true);
 
     mIsIpuProcessing = false;
 }
 
 void SourceCaptureBlock::notifyFrameCounterDone() {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    // Capturing is in a stable state so set clock mode to capture if IPU is not processing.
-    if (!mIsIpuProcessing && mClockMode != EaselControlServer::ClockMode::Capture) {
-        mCaptureService->Pause();
-        EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
-        mClockMode = EaselControlServer::ClockMode::Capture;
-        mCaptureService->Resume();
+    if (!mIsIpuProcessing) {
+        mReadyForClockCaptureMode = true;
     }
 }
 
-void SourceCaptureBlock::pauseLocked() {
-    if (mPaused) return;
-
-    destroyCaptureServiceLocked();
-    mPaused = true;
+void SourceCaptureBlock::changeToCaptureClockModeLocked() {
+    pauseCaptureServiceLocked();
+    EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
+    ALOGV("%s: Clock mode is Capture", __FUNCTION__);
+    mClockMode = EaselControlServer::ClockMode::Capture;
+    resumeCaptureServiceLocked(false);
 }
 
-void SourceCaptureBlock::resumeLocked(bool startFrameCounter) {
-    if (!mPaused) {
-        if (startFrameCounter) {
-             mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
-        }
+void SourceCaptureBlock::pauseCaptureServiceLocked() {
+    if (mCaptureServicePaused) return;
+
+    mDequeueRequestThread->pause();
+    mCaptureServicePaused = true;
+}
+
+void SourceCaptureBlock::resumeCaptureServiceLocked(bool startFrameCounter) {
+    if (startFrameCounter) {
+         mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
+    }
+
+    if (!mCaptureServicePaused) {
         return;
     }
 
-    mPaused = false;
+    mDequeueRequestThread->resume();
+    mCaptureServicePaused = false;
     notifyWorkerThreadEvent();
 }
 
@@ -203,7 +222,6 @@ bool SourceCaptureBlock::doWorkLocked() {
     if (!mIsMipiInput) return false;
 
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    if (mPaused) return false;
 
     if (mCaptureService == nullptr) {
         status_t res = createCaptureServiceLocked();
@@ -212,6 +230,11 @@ bool SourceCaptureBlock::doWorkLocked() {
                     res);
             return false;
         }
+    }
+
+    if (mReadyForClockCaptureMode) {
+        changeToCaptureClockModeLocked();
+        mReadyForClockCaptureMode = false;
     }
 
     // Check if we have any output request
@@ -314,7 +337,7 @@ void SourceCaptureBlock::removeTimedoutPendingOutputResult() {
 
 void SourceCaptureBlock::handleTimeoutLocked() {
     // Timeout is expected if it's paused.
-    if (mPaused) return;
+    if (mCaptureServicePaused) return;
 
     ALOGI("%s: Source capture block timed out", __FUNCTION__);
 
@@ -490,8 +513,8 @@ void SourceCaptureBlock::requestCaptureToPreventFrameDrop() {
 }
 
 DequeueRequestThread::DequeueRequestThread(
-        SourceCaptureBlock* parent) : mParent(parent), mExiting(false), mFirstCaptureDone(false),
-        mFrameCounter(0) {
+        SourceCaptureBlock* parent) : mParent(parent), mFirstCaptureDone(false),
+        mFrameCounter(0), mState(STATE_RUNNING) {
     mThread = std::make_unique<std::thread>(dequeueRequestThread, this);
 }
 
@@ -514,8 +537,22 @@ void DequeueRequestThread::addPendingRequest(PipelineBlock::OutputRequest reques
 
 void DequeueRequestThread::signalExit() {
     std::unique_lock<std::mutex> lock(mDequeueThreadLock);
-    mExiting = true;
+    mState = STATE_EXITING;
     mEventCondition.notify_one();
+}
+
+void DequeueRequestThread::pause() {
+    std::unique_lock<std::mutex> lock(mDequeueThreadLock);
+    mState = STATE_PAUSING;
+    mEventCondition.notify_one();
+    mStateChangedCondition.wait(lock, [&] { return mState == STATE_PAUSED; });
+}
+
+void DequeueRequestThread::resume() {
+    std::unique_lock<std::mutex> lock(mDequeueThreadLock);
+    mState = STATE_RESUMING;
+    mEventCondition.notify_one();
+    mStateChangedCondition.wait(lock, [&] { return mState == STATE_RUNNING; });
 }
 
 void DequeueRequestThread::requestFrameCounterNotification(uint32_t frameCount) {
@@ -545,9 +582,43 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
         bool waitForRequest = false;
         {
             std::unique_lock<std::mutex> lock(mDequeueThreadLock);
-            if (mPendingCaptureRequests.size() == 0 && !mExiting) {
-                mEventCondition.wait(lock,
-                        [&] { return mPendingCaptureRequests.size() > 0 || mExiting; });
+            if ((mPendingCaptureRequests.size() == 0 || mState == STATE_PAUSED) &&
+                    mState != STATE_EXITING) {
+                mEventCondition.wait(lock, [&] { return (mPendingCaptureRequests.size() > 0 &&
+                        mState != STATE_PAUSED) || mState == STATE_EXITING; });
+            }
+
+            // Handle the transient state.
+            if (mState != STATE_RUNNING) {
+                switch (mState) {
+                    case STATE_PAUSING:
+                        // When pausing is requeseted, pause capture service, change the state
+                        // to paused, and notify the parent it's paused.
+                        mParent->mCaptureService->Pause();
+                        mState = STATE_PAUSED;
+                        mStateChangedCondition.notify_one();
+                        break;
+                    case STATE_RESUMING:
+                        // When resuming is requeseted, resume capture service, change the state
+                        // to running, and notify the parent it's running.
+                        mParent->mCaptureService->Resume();
+                        mState = STATE_RUNNING;
+                        mStateChangedCondition.notify_one();
+                        break;
+                    case STATE_EXITING:
+                        // Upon exiting, pending requests in camera service have not be flushed.
+                        // b/35676087. So after exit, mCaptureService must be destroyed before
+                        // releasing all pending buffers.
+                        ALOGV("%s: Exit thread loop.", __FUNCTION__);
+                        return;
+
+                    default:
+                        break;
+                }
+
+                // All transient state is handled, continue to wait for the new state, or new
+                // buffers.
+                continue;
             }
 
             if (mPendingCaptureRequests.size() > 0) {
@@ -555,15 +626,10 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             }
         }
 
-        if (mExiting) {
-            // Upon exiting, pending requests in camera service have not be flushed. b/35676087
-            // So after exit, mCaptureService must be destroyed before releasing all pending
-            // buffers.
-            ALOGV("%s: Exit thread loop.", __FUNCTION__);
-            return;
-        } else if (waitForRequest) {
+        if (waitForRequest) {
             ALOGV("%s: Waiting for a completed request from capture service.", __FUNCTION__);
-            paintbox::CaptureFrameBuffer *frameBuffer = mParent->mCaptureService->DequeueCompletedRequest();
+            paintbox::CaptureFrameBuffer *frameBuffer =
+                    mParent->mCaptureService->DequeueCompletedRequest();
             if (frameBuffer == nullptr) {
                 ALOGE("%s: DequeueCompletedRequest return NULL. Trying again.", __FUNCTION__);
                 continue;
