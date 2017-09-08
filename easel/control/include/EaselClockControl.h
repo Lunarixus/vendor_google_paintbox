@@ -79,6 +79,12 @@ public:
     static enum Mode getMode();
 
     /*
+     * Checks if the thermal condition is different from the last time
+     * setMode was called.
+     */
+    static bool isNewThermalCondition(enum EaselThermalMonitor::Condition thermalCond);
+
+    /*
      * Gets the current frequency of the given subsystem.
      *
      * Returns the frequency in MHz for success; otherwise it returns error

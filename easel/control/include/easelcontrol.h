@@ -167,6 +167,18 @@ public:
         Max,
     };
 
+    enum ThermalCondition {
+        /* Recognized thermal conditions, ranges are defined when calling
+         * start function below.
+         */
+        Low,
+        Medium,
+        High,
+        Critical,
+        /* Special case thermal condition if no thermal zones are valid */
+        Unknown,
+    };
+
     /*
      * Open an easelcontrol connection.  Initialize easelcomm communications
      * for the easelcontrol service.
@@ -224,14 +236,27 @@ public:
     /*
      * Sets the clock operating mode.
      *
-     * Returns zero for success or negative errno for failure.
+     * Returns the thermal condition that was used when calling
+     * EaselClockControl::setMode.
      */
-    static int setClockMode(ClockMode mode);
+    static ThermalCondition setClockMode(ClockMode mode);
 
     /*
      * Returns the current clock operating mode.
      */
     static ClockMode getClockMode();
+
+    /*
+     * Returns the current thermal condition
+     */
+    static ThermalCondition getThermalCondition();
+
+    /*
+     * Checks if the thermal condition is different from the last time
+     * setClockMode was called.
+     */
+    static bool isNewThermalCondition();
+
 };
 
 /* returns true if Easel is present in the system */
