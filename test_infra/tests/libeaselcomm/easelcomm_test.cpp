@@ -74,7 +74,7 @@ testxfer testxfers[NXFERS] = {
     },
 
     {
-      (char*)"#4 needs a reply and has no DMA", 31, nullptr, 0,
+      (char*)"#4 needs a reply and has no DMA", 32, nullptr, 0,
       { (char*)"yes it is reply to message #4", 30, nullptr, 0, 1099}
     },
 
@@ -166,9 +166,13 @@ static void msgSenderTestIteration(EaselComm *sender) {
                 if (reply.dma_buf)
                     EXPECT_STREQ((char *)reply.dma_buf,
                                  testxfers[senderXferIdx].replymsg.dma);
-
-                free(reply.message_buf);
                 free(reply.dma_buf);
+            }
+
+            if (reply.message_buf) {
+                // Caller (us) is responsible for freeing message_buf after use
+                free(reply.message_buf);
+                reply.message_buf = nullptr;
             }
         } else {
             EXPECT_EQ(sender->sendMessage(&msg), 0);
