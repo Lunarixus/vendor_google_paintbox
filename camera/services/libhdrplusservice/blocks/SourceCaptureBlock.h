@@ -87,6 +87,8 @@ private:
     // Number of frames to capture to enter a stable state to change clock mode.
     static const int32_t kStableFrameCount = 30;
 
+    static const int32_t kInvalidFrameCounterId = -1;
+
     // Use newSourceCaptureBlock to create a SourceCaptureBlock.
     SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient> messenger,
         const paintbox::CaptureConfig &config);
@@ -119,11 +121,12 @@ private:
 
     // Invoked when mDequeueRequestThread has captured some amount of frames after
     // requestFrameCounterNotification() is called.
-    void notifyFrameCounterDone();
+    // frameCounterId is the frame counter ID passed to requestFrameCounterNotification().
+    void notifyFrameCounterDone(int32_t frameCounterId);
 
     // Pause and resume capture service. Must be protected by mSourceCaptureLock.
     void pauseCaptureServiceLocked();
-    void resumeCaptureServiceLocked(bool startFrameCounter);
+    void resumeCaptureServiceLocked(bool startFrameCounter, int32_t frameCounterId);
 
     // Change clock mode to capture. Must be protected by mSourceCaptureLock.
     void changeToCaptureClockModeLocked();
@@ -155,11 +158,14 @@ private:
 
     std::mutex mSourceCaptureLock;
     bool mCaptureServicePaused;  // If capture service is paused. Protected by mSourceCaptureLock.
-    bool mIsIpuProcessing;  // If IPU is processing. Protected by mSourceCaptureLock.
     // Current clock mode. Protected by mSourceCaptureLock.
     EaselControlServer::ClockMode mClockMode;
-    // If it's ready to change clock mode to capture. Protected by mSourceCaptureLock.
-    bool mReadyForClockCaptureMode;
+
+    std::mutex mFrameCounterLock;
+    // Last request frame counter ID that is expected.
+    int32_t mLastRequestedFrameCounterId;
+    // Last frame counter ID received from dequeue request thread. Protected by mFrameCounterLock.
+    int32_t mLastFinishedFrameCounterId;
 };
 
 // DequeueRequestThread dequeues completed buffers from capture service.
@@ -174,7 +180,7 @@ public:
 
     // Start a frame counter. After frameCount frames have been captured, invoke
     // notifyFrameCounterDone.
-    void requestFrameCounterNotification(uint32_t frameCount);
+    void requestFrameCounterNotification(uint32_t frameCount, int32_t requestId);
 
     // Thread loop that dequeues completed buffers from capture service.
     void dequeueRequestThreadLoop();
@@ -210,6 +216,7 @@ private:
 
     // Frame counter to invoke notifyFrameCounterDone() when becoming 0 from 1.
     int32_t mFrameCounter;
+    int32_t mFrameCounterId;
 
     // States of the thread.
     enum State {
