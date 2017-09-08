@@ -21,10 +21,9 @@ public:
          * start function below.
          */
         Low,
-        MediumLow,
         Medium,
-        MediumHigh,
         High,
+        Critical,
         /* Special case thermal condition if no thermal zones are valid */
         Unknown,
     };
@@ -46,11 +45,11 @@ public:
         /* An array of temperature thresholds in millidegree celsius
          * that are used when calculating the thermal condition:
          *     Low:       0 <= temperature < thresholds[Low]
-         *     MediumLow: thresholds[Low] <= temperature < thresholds[MediumLow]
-         *     ...
-         *     High:      thresholds[MediumHigh] <= temperature
+         *     Medium:    thresholds[Low] <= temperature < thresholds[Medium]
+         *     High:      thresholds[Medium] <= temperature < thresholds[High]
+         *     Critical:  thresholds[High] <= temperature
          */
-        int thresholds[4];
+        int thresholds[3];
     };
 
     /*
