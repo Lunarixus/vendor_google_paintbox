@@ -87,6 +87,28 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
     }
 }
 
+static int sendResetReqCommand()
+{
+    EaselControlImpl::MsgHeader resetReqMsg;
+    EaselComm::EaselMessage msg;
+    int ret = 0;
+
+    ALOGW("%s: Server requesting client to reset chip\n", __FUNCTION__);
+
+    resetReqMsg.command = EaselControlImpl::CMD_RESET_REQ;
+    msg.message_buf = &resetReqMsg;
+    msg.message_buf_size = sizeof(resetReqMsg);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    ret = easel_conn.sendMessage(&msg);
+    if (ret) {
+        ALOGE("%s: failed to send reset request to Easel (%d)\n",
+              __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
 // Handle incoming messages from EaselControlClient.
 void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
@@ -327,4 +349,9 @@ bool EaselControlServer::isNewThermalCondition()
 EaselControlServer::ThermalCondition EaselControlServer::getThermalCondition()
 {
   return (EaselControlServer::ThermalCondition)thermalMonitor.getCondition();
+}
+
+int EaselControlServer::requestChipReset()
+{
+    return sendResetReqCommand();
 }

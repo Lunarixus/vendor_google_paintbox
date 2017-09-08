@@ -257,6 +257,13 @@ public:
      */
     static bool isNewThermalCondition();
 
+    /*
+     * Requests client to reset the whole chip. This should only be called
+     * on non-recoverable errors.
+     *
+     * Returns zero for success or negative errno for failure.
+     */
+    static int requestChipReset();
 };
 
 /* returns true if Easel is present in the system */
