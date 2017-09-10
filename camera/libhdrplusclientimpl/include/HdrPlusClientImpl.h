@@ -171,6 +171,7 @@ private:
             uint32_t height, uint32_t stride, int32_t format) override;
     void notifyDmaFileDump(const std::string &filename, DmaBufferHandle dmaHandle,
             uint32_t dmaDataSize) override;
+    void notifyNextCaptureReady(uint32_t requestId) override;
     // Callbacks from HDR+ service end here.
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.

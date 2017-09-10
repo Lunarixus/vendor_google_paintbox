@@ -58,10 +58,10 @@ int64_t timesync_local_boottime = 0;
 // EaselThermalMonitor instance
 EaselThermalMonitor thermalMonitor;
 static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
-    {"lpddr", 1, {55000, 65000, 75000, 85000}},
-    {"cpu",   1, {55000, 65000, 75000, 85000}},
-    {"ipu1",  1, {55000, 65000, 75000, 85000}},
-    {"ipu2",  1, {55000, 65000, 75000, 85000}},
+    {"lpddr", 1, {65000, 75000, 85000}},
+    {"cpu",   1, {65000, 75000, 85000}},
+    {"ipu1",  1, {65000, 75000, 85000}},
+    {"ipu2",  1, {65000, 75000, 85000}},
 };
 
 void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
@@ -85,6 +85,28 @@ void setTimeFromMsg(uint64_t boottime, uint64_t realtime)
     if (clock_settime(CLOCK_REALTIME, &ts) != 0) {
       assert(0);
     }
+}
+
+static int sendResetReqCommand()
+{
+    EaselControlImpl::MsgHeader resetReqMsg;
+    EaselComm::EaselMessage msg;
+    int ret = 0;
+
+    ALOGW("%s: Server requesting client to reset chip\n", __FUNCTION__);
+
+    resetReqMsg.command = EaselControlImpl::CMD_RESET_REQ;
+    msg.message_buf = &resetReqMsg;
+    msg.message_buf_size = sizeof(resetReqMsg);
+    msg.dma_buf = 0;
+    msg.dma_buf_size = 0;
+    ret = easel_conn.sendMessage(&msg);
+    if (ret) {
+        ALOGE("%s: failed to send reset request to Easel (%d)\n",
+              __FUNCTION__, ret);
+    }
+
+    return ret;
 }
 
 // Handle incoming messages from EaselControlClient.
@@ -307,13 +329,29 @@ int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
     return 0;
 }
 
-int EaselControlServer::setClockMode(ClockMode mode)
+EaselControlServer::ThermalCondition EaselControlServer::setClockMode(ClockMode mode)
 {
-    return EaselClockControl::setMode((EaselClockControl::Mode)mode,
-                                      thermalMonitor.getCondition());
+    enum EaselThermalMonitor::Condition condition = thermalMonitor.getCondition();
+    EaselClockControl::setMode((EaselClockControl::Mode)mode, condition);
+    return (EaselControlServer::ThermalCondition)condition;
 }
 
 EaselControlServer::ClockMode EaselControlServer::getClockMode()
 {
     return (EaselControlServer::ClockMode)EaselClockControl::getMode();
+}
+
+bool EaselControlServer::isNewThermalCondition()
+{
+    return EaselClockControl::isNewThermalCondition(thermalMonitor.getCondition());
+}
+
+EaselControlServer::ThermalCondition EaselControlServer::getThermalCondition()
+{
+  return (EaselControlServer::ThermalCondition)thermalMonitor.getCondition();
+}
+
+int EaselControlServer::requestChipReset()
+{
+    return sendResetReqCommand();
 }

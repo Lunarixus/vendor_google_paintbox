@@ -175,10 +175,9 @@ enum EaselThermalMonitor::Condition EaselThermalMonitor::checkCondition()
 
     switch (maxCondition) {
         case Condition::Low: ss2 << "(Low)"; break;
-        case Condition::MediumLow: ss2 << "(MediumLow)"; break;
         case Condition::Medium: ss2 << "(Medium)"; break;
-        case Condition::MediumHigh: ss2 << "(MediumHigh)"; break;
         case Condition::High: ss2 << "(High)"; break;
+        case Condition::Critical: ss2 << "(Critical)"; break;
         default: ss2 << "(Unknown)"; break;
     }
 

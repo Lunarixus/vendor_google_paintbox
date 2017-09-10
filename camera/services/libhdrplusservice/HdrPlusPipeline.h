@@ -158,7 +158,7 @@ private:
     const int kDefaultNumInputBuffers = 10;
 
     // Default number of buffers in output streams.
-    const int kDefaultNumOutputBuffers = 1;
+    const int kDefaultNumOutputBuffers = 2;
 
     // Time to wait when getting a buffer from a stream.
     const uint32_t kGetBufferTimeoutMs = 5000;

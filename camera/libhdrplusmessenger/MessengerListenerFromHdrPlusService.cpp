@@ -54,6 +54,9 @@ status_t MessengerListenerFromHdrPlusService::onMessage(Message *message) {
         case MESSAGE_NOTIFY_SHUTTER_ASYNC:
             deserializeNotifyShutter(message);
             return 0;
+        case MESSAGE_NOTIFY_NEXT_CAPTURE_READY_ASYNC:
+            deserializeNotifyNextCaptureReady(message);
+            return 0;
         default:
             ALOGE("%s: Receive invalid message type %d.", __FUNCTION__, type);
             return -EINVAL;
@@ -108,6 +111,13 @@ void MessengerListenerFromHdrPlusService::deserializeNotifyShutter(Message *mess
     RETURN_ON_READ_ERROR(message->readInt64(&apSensorTimestampNs));
 
     notifyShutter(requestId, apSensorTimestampNs);
+}
+
+void MessengerListenerFromHdrPlusService::deserializeNotifyNextCaptureReady(Message *message) {
+    uint32_t requestId = 0;
+    RETURN_ON_READ_ERROR(message->readUint32(&requestId));
+
+    notifyNextCaptureReady(requestId);
 }
 
 void MessengerListenerFromHdrPlusService::deserializeNotifyDmaCaptureResult(Message *message,

@@ -49,12 +49,11 @@ struct ModeConfig {
 
 // The frequency configurations for Functional mode based on thermal conditions
 static const std::map<enum EaselThermalMonitor::Condition, struct ModeConfig> functionalModeConfigs = {
-    { EaselThermalMonitor::Condition::Low,        {2400, 950, 425}},
-    { EaselThermalMonitor::Condition::MediumLow,  {2400, 950, 425}},
-    { EaselThermalMonitor::Condition::Medium,     {1600, 800, 425}},
-    { EaselThermalMonitor::Condition::MediumHigh, {1600, 800, 300}},
-    { EaselThermalMonitor::Condition::High,       {1600, 800, 200}},
-    { EaselThermalMonitor::Condition::Unknown,    {1600, 800, 200}},
+    { EaselThermalMonitor::Condition::Low,      {2400, 950, 425}},
+    { EaselThermalMonitor::Condition::Medium,   {1600, 800, 425}},
+    { EaselThermalMonitor::Condition::High,     {1600, 800, 300}},
+    { EaselThermalMonitor::Condition::Critical, {1600, 800, 200}},
+    { EaselThermalMonitor::Condition::Unknown,  {1600, 800, 200}},
 };
 
 int EaselClockControl::setMode(enum Mode mode, enum EaselThermalMonitor::Condition thermalCond)
@@ -114,6 +113,11 @@ int EaselClockControl::setMode(enum Mode mode, enum EaselThermalMonitor::Conditi
 enum EaselClockControl::Mode EaselClockControl::getMode()
 {
     return mMode;
+}
+
+bool EaselClockControl::isNewThermalCondition(enum EaselThermalMonitor::Condition thermalCond)
+{
+    return mThermalCondition != thermalCond;
 }
 
 int EaselClockControl::getFrequency(enum Subsystem system)

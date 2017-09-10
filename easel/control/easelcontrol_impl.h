@@ -19,6 +19,7 @@ public:
       CMD_DEACTIVATE,      // Deactivate Easel
       CMD_SUSPEND,         // Suspend Easel
       CMD_SET_TIME,        // Sync AP boottime and time of day clocks
+      CMD_RESET_REQ,       // Reset request sent from server to client
   };
 
   enum ReplyCode {

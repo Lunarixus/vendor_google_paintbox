@@ -25,9 +25,9 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
         mMessengerToClient(messenger),
         mCaptureConfig(config),
         mCaptureServicePaused(false),
-        mIsIpuProcessing(false),
         mClockMode(EaselControlServer::ClockMode::Max),
-        mReadyForClockCaptureMode(false) {
+        mLastRequestedFrameCounterId(kInvalidFrameCounterId),
+        mLastFinishedFrameCounterId(kInvalidFrameCounterId) {
     // Check if capture config is valid.
     if (mCaptureConfig.stream_config_list.size() > 0) {
         mIsMipiInput = true;
@@ -54,9 +54,15 @@ status_t SourceCaptureBlock::createCaptureServiceLocked() {
         return -ENODEV;
     }
 
+    int32_t frameCounterId = kInvalidFrameCounterId;
+    {
+        std::unique_lock<std::mutex> lock(mFrameCounterLock);
+        frameCounterId = ++mLastRequestedFrameCounterId;
+    }
+
     // Create a dequeue request thread.
     mDequeueRequestThread = std::make_unique<DequeueRequestThread>(this);
-    mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
+    mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount, frameCounterId);
     return 0;
 }
 
@@ -136,47 +142,71 @@ std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
     return block;
 }
 
+namespace {
+
+bool isGoodThermalCondition(EaselControlServer::ThermalCondition condition) {
+    // Empirically determined that good thermal condition is less than Medium
+    return (condition < EaselControlServer::ThermalCondition::Medium);
+}
+
+}  // namespace
+
 void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    bool paused = false;
-    // Pause if continuous capturing is false or we need to change clock mode.
-    if (!continuousCapturing || mClockMode != EaselControlServer::ClockMode::Functional) {
-        pauseCaptureServiceLocked();
 
-        if (mClockMode != EaselControlServer::ClockMode::Functional) {
-            EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
-            mClockMode = EaselControlServer::ClockMode::Functional;
-            ALOGV("%s: Clock mode is Functional", __FUNCTION__);
-        }
-
-        paused = true;
+    {
+        // Increment last requested frame counter ID so older frame counter ID will be ignored.
+        std::unique_lock<std::mutex> lock(mFrameCounterLock);
+        mLastRequestedFrameCounterId++;
     }
 
-    if (continuousCapturing) {
+    bool goodThermal = isGoodThermalCondition(EaselControlServer::getThermalCondition());
+    // Pause if continuous capturing is false or we need to change clock mode, or if we have a
+    // potential thermal situation.
+    bool doPause = !continuousCapturing || !goodThermal ||
+        (mClockMode != EaselControlServer::ClockMode::Functional) ||
+        EaselControlServer::isNewThermalCondition();
+    if (doPause) {
+        pauseCaptureServiceLocked();
+        ALOGD("%s: Continuous Capture paused\n", __FUNCTION__);
+
+        EaselControlServer::ThermalCondition newThermal =
+            EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
+        goodThermal = isGoodThermalCondition(newThermal);
+        mClockMode = EaselControlServer::ClockMode::Functional;
+    }
+
+    // Do continuous capture only if we have good thermal condition.
+    if (continuousCapturing && goodThermal) {
+        ALOGD("%s: Do Continuous Capture\n", __FUNCTION__);
         paintbox::dram_controller::ContinuousCaptureSettings();
-        if (paused) {
-            resumeCaptureServiceLocked(false);
+        if (doPause) {
+            resumeCaptureServiceLocked(false, kInvalidFrameCounterId);
+            ALOGD("%s: Capture Service resumed\n", __FUNCTION__);
         }
     } else {
+        ALOGD("%s: Not Continuous Capture\n", __FUNCTION__);
+        if (continuousCapturing) {
+            ALOGD("%s: Did not resume Continuous Capture due to bad thermal\n", __FUNCTION__);
+        }
         paintbox::dram_controller::DefaultSettings();
     }
-
-    mReadyForClockCaptureMode = false;
-    mIsIpuProcessing = true;
 }
 
 void SourceCaptureBlock::notifyIpuProcessingDone() {
-    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    resumeCaptureServiceLocked(true);
+    int32_t frameCounterId = kInvalidFrameCounterId;
+    {
+        std::unique_lock<std::mutex> lock(mFrameCounterLock);
+        frameCounterId = mLastRequestedFrameCounterId;
+    }
 
-    mIsIpuProcessing = false;
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    resumeCaptureServiceLocked(true, frameCounterId);
 }
 
-void SourceCaptureBlock::notifyFrameCounterDone() {
-    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
-    if (!mIsIpuProcessing) {
-        mReadyForClockCaptureMode = true;
-    }
+void SourceCaptureBlock::notifyFrameCounterDone(int32_t frameCounterId) {
+    std::unique_lock<std::mutex> lock(mFrameCounterLock);
+    mLastFinishedFrameCounterId = frameCounterId;
 }
 
 void SourceCaptureBlock::changeToCaptureClockModeLocked() {
@@ -184,7 +214,7 @@ void SourceCaptureBlock::changeToCaptureClockModeLocked() {
     EaselControlServer::setClockMode(EaselControlServer::ClockMode::Capture);
     ALOGV("%s: Clock mode is Capture", __FUNCTION__);
     mClockMode = EaselControlServer::ClockMode::Capture;
-    resumeCaptureServiceLocked(false);
+    resumeCaptureServiceLocked(false, kInvalidFrameCounterId);
 }
 
 void SourceCaptureBlock::pauseCaptureServiceLocked() {
@@ -194,9 +224,9 @@ void SourceCaptureBlock::pauseCaptureServiceLocked() {
     mCaptureServicePaused = true;
 }
 
-void SourceCaptureBlock::resumeCaptureServiceLocked(bool startFrameCounter) {
+void SourceCaptureBlock::resumeCaptureServiceLocked(bool startFrameCounter, int32_t frameCountId) {
     if (startFrameCounter) {
-         mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount);
+         mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount, frameCountId);
     }
 
     if (!mCaptureServicePaused) {
@@ -232,9 +262,18 @@ bool SourceCaptureBlock::doWorkLocked() {
         }
     }
 
-    if (mReadyForClockCaptureMode) {
-        changeToCaptureClockModeLocked();
-        mReadyForClockCaptureMode = false;
+
+
+    {
+        std::unique_lock<std::mutex> lock(mFrameCounterLock);
+        // If last requested frame counter ID is valid and it's the same as the last frame counter
+        // ID received from dequeue request thread, capture service is in a stable state to change
+        // clock mode.
+        if (mLastRequestedFrameCounterId != kInvalidFrameCounterId &&
+                mLastRequestedFrameCounterId == mLastFinishedFrameCounterId) {
+            changeToCaptureClockModeLocked();
+            mLastFinishedFrameCounterId = kInvalidFrameCounterId;
+        }
     }
 
     // Check if we have any output request
@@ -514,7 +553,8 @@ void SourceCaptureBlock::requestCaptureToPreventFrameDrop() {
 
 DequeueRequestThread::DequeueRequestThread(
         SourceCaptureBlock* parent) : mParent(parent), mFirstCaptureDone(false),
-        mFrameCounter(0), mState(STATE_RUNNING) {
+        mFrameCounter(0), mFrameCounterId(SourceCaptureBlock::kInvalidFrameCounterId),
+        mState(STATE_RUNNING) {
     mThread = std::make_unique<std::thread>(dequeueRequestThread, this);
 }
 
@@ -555,9 +595,10 @@ void DequeueRequestThread::resume() {
     mStateChangedCondition.wait(lock, [&] { return mState == STATE_RUNNING; });
 }
 
-void DequeueRequestThread::requestFrameCounterNotification(uint32_t frameCount) {
+void DequeueRequestThread::requestFrameCounterNotification(uint32_t frameCount, int32_t requestId) {
     std::unique_lock<std::mutex> lock(mDequeueThreadLock);
     mFrameCounter = frameCount;
+    mFrameCounterId = requestId;
 }
 
 void DequeueRequestThread::checkNumberPendingRequests() {
@@ -689,7 +730,7 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
             if (mFrameCounter > 0) {
                 if (--mFrameCounter == 0) {
                     // Notify the parent.
-                    mParent->notifyFrameCounterDone();
+                    mParent->notifyFrameCounterDone(mFrameCounterId);
                 }
             }
 
