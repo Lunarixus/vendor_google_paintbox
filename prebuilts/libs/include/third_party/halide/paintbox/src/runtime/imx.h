@@ -38,6 +38,7 @@ typedef enum {
   IMX_NOT_FOUND, /* Resource not found */
   IMX_TYPE_MISMATCH, /* Type doesn't match */
   IMX_OVERFLOW,  /* Data transfer/stream overflow; typically with MIPI Input */
+  IMX_CANCEL,  /* Job ended early due to a cancel request */
 } ImxError;
 
 /* Data types.  Corresponding validation routine is "numeric_type_valid()". */
@@ -1161,6 +1162,13 @@ ImxError ImxExecuteJobAsync(
  */
 ImxError ImxExecuteJobWait(
     ImxJobHandle job /* modified */);
+
+/* timeout_ns: elapsed time (in nanoseconds) to wait for the MIPI flush to
+ * complete.  If MIPI flush time exceeds timeout then IMX_TIMEOUT is returned.
+ */
+ImxError ImxFlushMipiInputJobWait(
+    ImxJobHandle job, /* modified */
+    int64_t timeout_ns);
 
 /* Waits for the completion of one item in the asynchronous job queue,
  * typically ImxJob enqueued using ImxExecuteJobAsync api or ImxDeviceBuffer

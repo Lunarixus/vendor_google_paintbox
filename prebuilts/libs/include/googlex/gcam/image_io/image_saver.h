@@ -48,7 +48,6 @@ class ImageSaver {
 
   // Save the given image to the folder specified in ImageSaverParams, with a
   //   unique name determined by GetUniquePath().
-  // The YUV variants assume standard YUV matrix.
   // Returns the full path where the image was saved; this is typically ignored.
   std::string Save(const InterleavedReadViewU8& map,
                    const std::string& filename);
