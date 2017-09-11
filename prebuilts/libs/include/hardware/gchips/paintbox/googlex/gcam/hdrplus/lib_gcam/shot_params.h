@@ -200,9 +200,6 @@ struct ShotParams {
   //   2. Begin/Add/EndMeteringFrames calls are illegal for a ZSL shot.
   //   3. AE will be run on the base frame, and the brightness (and HDR shadow
   //        boost) of the shot will be based on that.
-  // TODO(dsharlet): This feature is not yet complete; alignment needs
-  //   modifications to properly support aligning frames at different exposure
-  //   levels.
   bool zsl;
 
   // For ZSL shots, the client can pass a hint to Gcam about what it thinks is
