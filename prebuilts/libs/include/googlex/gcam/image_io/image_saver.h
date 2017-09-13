@@ -23,17 +23,17 @@ struct ImageSaverParams {
 
   // Optional filename suffix. If non-empty, should begin with "_".
   char filename_suffix[512] = "";
-
-  // Whether the debugging output normally saved as PNG should be saved as JPG
-  // instead, overriding the ".png" extensions provided in the filename. JPG's
-  // write much faster and take up less disk space.
-  bool save_as_jpg_override = false;
 };
 
 class ImageSaver {
  public:
-  ImageSaver(const ImageSaverParams& image_saver_params,
+  ImageSaver(const std::string& dest_folder,
+             const std::string& filename_prefix,
+             const std::string& filename_suffix,
              const std::string& gcam_version);
+  ImageSaver(const ImageSaverParams& params, const std::string& gcam_version)
+      : ImageSaver(params.dest_folder, params.filename_prefix,
+                   params.filename_suffix, gcam_version) {}
   void Clear();
 
   // Get the full path for saving a file, or the empty string if the stage
@@ -53,9 +53,13 @@ class ImageSaver {
                    const std::string& filename);
   std::string Save(const InterleavedReadViewU16& map,
                    const std::string& filename);
+  std::string Save(const PlanarReadViewU16& map,
+                   const std::string& filename);
 
  private:
-  const ImageSaverParams image_saver_params_;
+  std::string dest_folder_;
+  std::string filename_prefix_;
+  std::string filename_suffix_;
   std::string gcam_version_;
 
   // The number of maps written so far. We make this atomic because it could

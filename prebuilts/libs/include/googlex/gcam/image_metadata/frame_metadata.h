@@ -167,18 +167,14 @@ struct OisPosition {
   // the same clock as OisMetadata::timestamp_ois_clock_ns.
   int64_t timestamp_ns;
 
-  // Raw register readouts for the X and Y position of the lens. The positive
-  // direction is from right to left and bottom to top respectively. The range
-  // should be within [-32768, 32767].
-  int32_t raw_readout_x;
-  int32_t raw_readout_y;
+  // OIS shift in pixel units.
+  // The coordiate system is the same as that of the image sensor.
+  float shift_pixel_x;
+  float shift_pixel_y;
 
   bool Check() const;
   bool Equals(const OisPosition& other) const;
 };
-
-// The maximum number of OisPositions that should be added by the client.
-const int kMaxOisPositions = 16;
 
 // Metadata related to optical image stabilization (OIS). This contains
 // the lens position at several times during frame capture.
@@ -191,17 +187,10 @@ struct OisMetadata {
   // recorded by the CPU clock. All OIS timestamps are on the same clock.
   // The zero point is arbitrary and not necessarily consistent with the Camera2
   // frame timestamp recorded in FrameMetadata::timestamp_ns.
-
   int64_t timestamp_ois_clock_ns = 0;
 
-  // A multiplicative factor to convert the values in OisPosition::raw_readout_x
-  // and OisPosition::raw_readout_y to pixels. In pixel units, the positive
-  // direction corresponds to going from left to right and top to bottom.
-  float raw_to_pixels = -1.0f;
-
   // OIS position data of where the lens was at several times during frame
-  // capture. The client should not add more than kMaxOisPositions values to
-  // this vector. This limit is not enforced in gcam.
+  // capture.
   std::vector<OisPosition> ois_positions;
 
   bool Check() const;
