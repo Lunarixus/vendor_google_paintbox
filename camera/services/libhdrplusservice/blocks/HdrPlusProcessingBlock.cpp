@@ -14,6 +14,7 @@
 #include "googlex/gcam/image_io/jpg_helper.h"
 #include "googlex/gcam/image_proc/resample.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/imx_runtime_apis.h"
+#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/ipu_algorithms_public.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_interface.h"
 
 #include "HdrPlusProcessingBlock.h"
@@ -695,15 +696,7 @@ status_t HdrPlusProcessingBlock::resampleBuffer(const std::unique_ptr<gcam::YuvI
     ALOGV("%s: Resampling from %dx%d to %dx%d", __FUNCTION__, srcYuvImage->luma_read_view().width(),
         srcYuvImage->luma_read_view().height(), dstBuffer->getWidth(), dstBuffer->getHeight());
 
-    /*
-     * Resample using ResampleLanczos in RGB for better image quality:
-     *   1. Logically crop source YUV image to match dstBuffer aspect ration.
-     *   2. Convert YUV -> RGB.
-     *   3. Resample using ResampleLanczos in RGB.
-     *   4. Convert RGB back to YUV.
-     */
-
-    // 1. Logically crop source YUV image to match dstBuffer aspect ration.
+    // Logically crop source YUV image to match dstBuffer aspect ration.
     float cropX0, cropY0, cropX1, cropY1;
     status_t res = calculateCropRect(srcYuvImage->luma_read_view().width(),
             srcYuvImage->luma_read_view().height(), dstBuffer->getWidth(), dstBuffer->getHeight(),
@@ -711,48 +704,6 @@ status_t HdrPlusProcessingBlock::resampleBuffer(const std::unique_ptr<gcam::YuvI
 
     gcam::YuvReadView croppedSrcYuvImage(*srcYuvImage);
     croppedSrcYuvImage.FastCrop(cropX0, cropY0, cropX1, cropY1);
-
-    // Create a RGB image for source buffer.
-    auto rgbSrcImxBuffer = std::make_unique<ImxBuffer>();
-    res = rgbSrcImxBuffer->allocate(mImxMemoryAllocatorHandle,
-            croppedSrcYuvImage.luma_read_view().width(),
-            croppedSrcYuvImage.luma_read_view().height(),
-            HAL_PIXEL_FORMAT_RGB_888);
-    if (res != 0) {
-        ALOGE("%s: Creating an temporary RGB IMX buffer failed.", __FUNCTION__);
-        return -ENODEV;
-    }
-
-    gcam::InterleavedWriteViewU8 srcRgbImage(rgbSrcImxBuffer->getWidth(),
-            rgbSrcImxBuffer->getHeight(), 3, rgbSrcImxBuffer->getData(),
-            rgbSrcImxBuffer->getStride() - rgbSrcImxBuffer->getWidth() * 3);
-
-    // 1. Convert YUV to RGB.
-    bool success = gcam::YuvToRgb(croppedSrcYuvImage, &srcRgbImage);
-    if (!success) {
-        ALOGE("%s: Converting source YUV image to RGB failed.", __FUNCTION__);
-        return -ENODEV;
-    }
-
-    // Create a RGB image for destination buffer.
-    auto rgbDstImxBuffer = std::make_unique<ImxBuffer>();
-    res = rgbDstImxBuffer->allocate(mImxMemoryAllocatorHandle,
-            dstBuffer->getWidth(), dstBuffer->getHeight(), HAL_PIXEL_FORMAT_RGB_888);
-    if (res != 0) {
-        ALOGE("%s: Creating an temporary RGB IMX buffer failed.", __FUNCTION__);
-        return -ENODEV;
-    }
-
-    gcam::InterleavedWriteViewU8 dstRgbImage(rgbDstImxBuffer->getWidth(),
-            rgbDstImxBuffer->getHeight(), 3, rgbDstImxBuffer->getData(),
-            rgbDstImxBuffer->getStride() - rgbDstImxBuffer->getWidth() * 3);
-
-    // 2. Lanczos resampling
-    success = gcam::ResampleLanczos(srcRgbImage, &dstRgbImage);
-    if (!success) {
-        ALOGE("%s: ResampleLanczos failed.", __FUNCTION__);
-        return -ENODEV;
-    }
 
     int32_t format = dstBuffer->getFormat();
     gcam::YuvFormat gcamYuvFormat;
@@ -777,8 +728,8 @@ status_t HdrPlusProcessingBlock::resampleBuffer(const std::unique_ptr<gcam::YuvI
            dstBuffer->getStride(1), dstBuffer->getPlaneData(1),
            gcamYuvFormat);
 
-    // 3. Convert RGB to YUV.
-    success = gcam::RgbToYuv(dstRgbImage, &dstYuvImage);
+    bool success = gcam::ResampleIpu(croppedSrcYuvImage, &dstYuvImage, /*copy_to_device*/true);
+
     if (!success) {
         ALOGE("%s: Converting destination RGB image to YUV failed.", __FUNCTION__);
         res = -ENODEV;
@@ -822,6 +773,13 @@ status_t HdrPlusProcessingBlock::produceRequestOutputBuffers(
                 }
             }
         } else {
+            // Allocate the output buffer for resampling.
+            res = ((PipelineImxBuffer*)outputBuffer)->allocate(mImxMemoryAllocatorHandle);
+            if (res != 0) {
+                ALOGE("%s: Allocating buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+                return res;
+            }
+
             res = resampleBuffer(srcYuvImage, outputBuffer);
             if (res != 0) {
                 ALOGE("%s: Resampling buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
