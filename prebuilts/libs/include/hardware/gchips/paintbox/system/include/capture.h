@@ -69,6 +69,7 @@ enum class CaptureError {
   FS_ERROR,        // File system error.
   DATA_TYPE_NOT_FOUND,  // Data type not found.
   INVALID_BUFFER,       // Buffer is invalid.
+  CANCEL,               // Capture is cancelled by user.
   UNKNOWN,              // Unknown error.
 };
 
