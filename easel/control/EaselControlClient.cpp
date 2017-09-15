@@ -506,20 +506,20 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
-                    ret = sendDeactivateCommand();
-                    ret |= stopThermalMonitor();
-                    ret |= stopLogClient();
-                    ret |= teardownEaselConn();
-                    ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    ret |= stopKernelEventThread();
+                    sendDeactivateCommand();
+                    stopThermalMonitor();
+                    stopLogClient();
+                    teardownEaselConn();
+                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    stopKernelEventThread();
                     break;
                 case ControlState::RESUMED:
                 case ControlState::INIT:
-                    ret |= stopThermalMonitor();
-                    ret |= stopLogClient();
-                    ret |= teardownEaselConn();
-                    ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    ret |= stopKernelEventThread();
+                    stopThermalMonitor();
+                    stopLogClient();
+                    teardownEaselConn();
+                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    stopKernelEventThread();
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
