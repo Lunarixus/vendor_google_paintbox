@@ -11,11 +11,14 @@ fi
 RAMDISK_DIR="${ANDROID_PRODUCT_OUT}/obj/ETC/easel_ramdisk.img_intermediates/prebuilt/"
 ADDR2LINE="aarch64-linux-android-addr2line"
 
-pc_regex="EASEL.+#[0-9]+ pc ([0-9A-Fa-f]+)[ ]+([^ ]+)"
+pc_regex="(EASEL)?.+#[0-9]+\s+pc ([0-9A-Fa-f]+)[ ]+([^ ]+)"
+# Match group 1 example: EASEL
+# Match group 2 example: 0000000000014c84
+# Match group 3 example: /system/lib64/libutils.so
 
 while read line; do
 	if [[ $line =~ $pc_regex ]]; then
-		echo "$line <-- `$ADDR2LINE -e ${RAMDISK_DIR}/${BASH_REMATCH[2]} 0x${BASH_REMATCH[1]} -Cfp`"
+		echo "$line <-- `$ADDR2LINE -e ${RAMDISK_DIR}/${BASH_REMATCH[3]} 0x${BASH_REMATCH[2]} -Cfp`"
 	else
 		echo "$line"
 	fi
