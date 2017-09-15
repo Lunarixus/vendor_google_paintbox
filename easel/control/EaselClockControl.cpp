@@ -33,7 +33,7 @@
 
 #define LPDDR_MIN_FREQ 33
 
-static const int fspIndexToFrequency[] = {33, 400, 2400, 1600};
+static const int fspIndexToFrequency[] = {33, 400, 1600, 2400};
 static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
 
