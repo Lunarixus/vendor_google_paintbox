@@ -1277,8 +1277,33 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
 
 bool HdrPlusProcessingBlock::onGcamFileSaver(const void* data, size_t bytes,
         const std::string& filename) {
-    mMessengerToClient->notifyFileDump(filename, const_cast<void*>(data), /*dmaBufFd*/-1, bytes);
-    return true;
+    // We might have an Imx buffer, or we might not. If we fail to get an
+    // Imx buffer then we always fallback to using the pointer. If we do
+    // have an Imx buffer, then we have to handle the case where its
+    // backed by malloc.
+    ImxDeviceBufferHandle handle = nullptr;
+    int fd = -1;
+    uint64_t offset = 0;
+    ImxError err = ImxGetDeviceBufferFromAddress(data, &handle, &offset);
+    if (err == IMX_SUCCESS) {
+        ALOGI("%s: Received ion buffer.", __FUNCTION__);
+        ImxShareDeviceBuffer(handle, &fd);
+        void* dmaData = nullptr;
+        if (fd == -1) {
+            ALOGI("%s: Allocation made with IMX_MEMORY_ALLOCATOR_MALLOC",
+                  __FUNCTION__);
+            dmaData = const_cast<void*>(data);
+        }
+        ALOGI("%s: Got fd=%d for handle=%p addr=%p offset=%lu.",
+              __FUNCTION__, fd, handle, data, offset);
+        mMessengerToClient->notifyFileDump(filename, dmaData, fd, bytes);
+        return true;
+    } else {
+        ALOGI("%s: Received malloc buffer.", __FUNCTION__);
+        mMessengerToClient->notifyFileDump(
+            filename, const_cast<void*>(data), /*dmaBufFd=*/-1, bytes);
+        return true;
+    }
 }
 
 status_t HdrPlusProcessingBlock::initGcam() {
