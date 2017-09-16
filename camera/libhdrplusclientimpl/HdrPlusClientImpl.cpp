@@ -124,8 +124,8 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
     CameraMetadata staticMetadataSrc;
     staticMetadataSrc = &staticMetadata;
 
-    pbcamera::StaticMetadata staticMetadataDest;
-    status_t res = ApEaselMetadataManager::convertAndReturnStaticMetadata(&staticMetadataDest,
+    auto staticMetadataDest = std::make_unique<pbcamera::StaticMetadata>();
+    status_t res = ApEaselMetadataManager::convertAndReturnStaticMetadata(staticMetadataDest.get(),
             staticMetadataSrc);
     if (res != 0) {
         ALOGE("%s: Converting static metadata failed: %s (%d).", __FUNCTION__, strerror(-res), res);
@@ -144,24 +144,31 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
     }
 
     if (property_get_bool("persist.gcam.debug", false)) {
-        staticMetadataDest.debugParams |= (pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING |
+        staticMetadataDest->debugParams |= (pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING |
                                            pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD |
                                            pbcamera::DEBUG_PARAM_SAVE_GCAME_TEXT);
     }
 
     if (property_get_bool("persist.gcam.save_text", false)) {
-        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_TEXT;
+        staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_TEXT;
     }
 
     if (property_get_bool("persist.gcam.save_metering", false)) {
-        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING;
+        staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_METERING;
     }
 
     if (property_get_bool("persist.gcam.save_payload", false)) {
-        staticMetadataDest.debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD;
+        staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD;
     }
 
-    return mMessengerToService.setStaticMetadata(staticMetadataDest);
+    res = mMessengerToService.setStaticMetadata(*staticMetadataDest);
+    if (res == OK) {
+        mStaticMetadata = std::move(staticMetadataDest);
+    } else {
+        ALOGE("%s: Setting static metadata failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+    }
+
+    return res;
 }
 
 status_t HdrPlusClientImpl::configureStreams(const pbcamera::InputConfiguration &inputConfig,
@@ -175,7 +182,11 @@ status_t HdrPlusClientImpl::configureStreams(const pbcamera::InputConfiguration 
 
     status_t res = mMessengerToService.configureStreams(inputConfig, outputConfigs);
     if (res == OK) {
-        int64_t offset = inputConfig.isSensorInput ? inputConfig.sensorMode.timestampOffsetNs : 0;
+        int64_t offset = 0;
+        if (inputConfig.isSensorInput) {
+            offset = inputConfig.sensorMode.timestampOffsetNs +
+                     inputConfig.sensorMode.timestampCropOffsetNs;
+        }
         mApEaselMetadataManager.setApTimestampOffset(offset);
     }
 
@@ -257,6 +268,22 @@ void HdrPlusClientImpl::notifyInputBuffer(const pbcamera::StreamBuffer &inputBuf
     mMessengerToService.notifyInputBuffer(inputBuffer, timestampNs);
 }
 
+bool HdrPlusClientImpl::isValidFrameMetadata(
+        const std::shared_ptr<CameraMetadata> &frameMetadata) {
+    if (mStaticMetadata == nullptr) return false;
+
+    // Check lens shading map size is valid.
+    uint32_t expectedShadingMapSize = mStaticMetadata->shadingMapSize[0] *
+            mStaticMetadata->shadingMapSize[1] * 4;
+    camera_metadata_entry entry = frameMetadata->find(ANDROID_STATISTICS_LENS_SHADING_MAP);
+    if (entry.count != expectedShadingMapSize) {
+        return false;
+    }
+
+    return true;
+}
+
+
 void HdrPlusClientImpl::notifyFrameMetadata(uint32_t frameNumber,
         const camera_metadata_t &resultMetadata, bool lastMetadata) {
     ALOGV("%s", __FUNCTION__);
@@ -295,6 +322,11 @@ void HdrPlusClientImpl::notifyFrameMetadata(uint32_t frameNumber,
             cameraMetadata = std::make_shared<CameraMetadata>();
             *cameraMetadata.get() = &resultMetadata;
         }
+    }
+
+    if (!isValidFrameMetadata(cameraMetadata)) {
+        ALOGW("%s: Frame metadata is not valid.", __FUNCTION__);
+        return;
     }
 
     {

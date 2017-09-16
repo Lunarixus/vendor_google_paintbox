@@ -194,6 +194,9 @@ private:
     // Write data to a file.
     void writeData(const std::string& path, std::vector<char> &data);
 
+    // Return if the frame metadata is valid.
+    bool isValidFrameMetadata(const std::shared_ptr<CameraMetadata> &frameMetadata);
+
     // EaselMessenger to send messages to HDR+ service.
     pbcamera::MessengerToHdrPlusService mMessengerToService;
 
@@ -238,6 +241,9 @@ private:
 
     // If disconnecting from HDR+ service has started.
     std::atomic<bool> mDisconnecting;
+
+    // Static metadata of current camera.
+    std::unique_ptr<pbcamera::StaticMetadata> mStaticMetadata;
 };
 
 /**
