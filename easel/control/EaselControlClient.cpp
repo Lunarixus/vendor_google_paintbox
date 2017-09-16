@@ -87,7 +87,7 @@ static void reportError(enum EaselErrorReason reason) {
 
     enum EaselErrorSeverity severity = EaselErrorSeverity::FATAL;
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
+    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
         // LINK_FAIL is fatal in bypass mode, because MIPI configuration
         // will not continue.  Others are not fatal, because no further
         // communication needed in bypass mode.
@@ -357,7 +357,7 @@ void easelConnThread()
 
     easel_conn.startMessageHandlerThread(msgHandlerCallback);
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
+    if (!property_get_int32("persist.camera.hdrplus.enable", 0)) {
 
         ALOGD("%s: sending deactivate command in bypass mode", __FUNCTION__);
 
@@ -506,20 +506,20 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
-                    ret = sendDeactivateCommand();
-                    ret |= stopThermalMonitor();
-                    ret |= stopLogClient();
-                    ret |= teardownEaselConn();
-                    ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    ret |= stopKernelEventThread();
+                    sendDeactivateCommand();
+                    stopThermalMonitor();
+                    stopLogClient();
+                    teardownEaselConn();
+                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    stopKernelEventThread();
                     break;
                 case ControlState::RESUMED:
                 case ControlState::INIT:
-                    ret |= stopThermalMonitor();
-                    ret |= stopLogClient();
-                    ret |= teardownEaselConn();
-                    ret |= stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    ret |= stopKernelEventThread();
+                    stopThermalMonitor();
+                    stopLogClient();
+                    teardownEaselConn();
+                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
+                    stopKernelEventThread();
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
