@@ -8,6 +8,8 @@
 
 // #define DEBUG
 
+#define LOG_TAG "easelcomm_test"
+
 #include <inttypes.h>
 #include <log/log.h>
 #include <sys/types.h>
@@ -56,7 +58,7 @@ struct testxfer {
 //    "DISCARD DMA": receiver discards the DMA transfer
 //    "DYNAMIC DMA": sender generates DMA dynamically, not static from table
 
-#define NXFERS 7
+#define NXFERS 15
 testxfer testxfers[NXFERS] = {
     {
       (char*)"test transfer #1 message", 25, (char*)"and a DMA buffer", 17,
@@ -89,7 +91,39 @@ testxfer testxfers[NXFERS] = {
     },
 
     {
-      (char*)"#7 DYNAMIC DMA", 15, nullptr /*dynamic*/, 24*1024*1024 /*24MB*/,
+      (char*)"#7 DYNAMIC DMA", 15, nullptr /*dynamic*/, 1*1024 /*1KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#8 DYNAMIC DMA", 15, nullptr /*dynamic*/, 2*1024 /*2KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#9 DYNAMIC DMA", 15, nullptr /*dynamic*/, 3*1024 /*3KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#10 DYNAMIC DMA", 16, nullptr /*dynamic*/, 5*1024 /*5KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#11 DYNAMIC DMA", 16, nullptr /*dynamic*/, 7*1024 /*7KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#12 DYNAMIC DMA", 16, nullptr /*dynamic*/, 20*1024 /*20KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#13 DYNAMIC DMA", 16, nullptr /*dynamic*/, 30*1024 /*30KB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#14 DYNAMIC DMA", 16, nullptr /*dynamic*/, 1*1024*1024 /*1MB*/,
+      { nullptr, 0, nullptr, 0, 0}
+    },
+    {
+      (char*)"#15 DYNAMIC DMA", 16, nullptr /*dynamic*/, 24*1024*1024 /*24MB*/,
       { nullptr, 0, nullptr, 0, 0}
     },
 };
@@ -218,6 +252,17 @@ void receiverMsgHandler(EaselComm *receiver) {
         } else {
             req.dma_buf = malloc(req.dma_buf_size);
             ASSERT_NE(req.dma_buf, nullptr);
+
+            if (strstr(reinterpret_cast<char *>(testxfers[receiverXferIdx].msg),
+                       "DYNAMIC DMA") != nullptr) {
+                // Fill buffer with known pattern
+                uint32_t *p = reinterpret_cast<uint32_t *>(req.dma_buf);
+                for (uint32_t i = 0;
+                     i < testxfers[receiverXferIdx].dmalen / sizeof(uint32_t);
+                     i++) {
+                    *p++ = 0xF00BAAAA;
+                }
+            }
         }
         ret = receiver->receiveDMA(&req);
         ASSERT_EQ(ret, 0);
@@ -226,11 +271,33 @@ void receiverMsgHandler(EaselComm *receiver) {
             if (strstr(reinterpret_cast<char *>(testxfers[receiverXferIdx].msg),
                        "DYNAMIC DMA") != nullptr) {
                 uint32_t *p = reinterpret_cast<uint32_t *>(req.dma_buf);
+                bool comparingok = true;
+                int miscompares = 0;
+
                 for (uint32_t i = 0;
                      i < testxfers[receiverXferIdx].dmalen / sizeof(uint32_t);
                      i++) {
-                    ASSERT_EQ(*p++, i);
+                    if (*p != i) {
+                        miscompares++;
+
+                        if (comparingok) {
+                            ALOGE("dma data miscompare xfer size %zd addr %p off %zu word %u = 0x%x\n",
+                                  req.dma_buf_size, p,
+                                  (char *)p - (char *)req.dma_buf, i, *p);
+                        }
+
+                        comparingok = false;
+                    } else {
+                        if (!comparingok) {
+                            ALOGE("dma data compare ok off %zu word %u\n",
+                                  (char *)p - (char *)req.dma_buf, i);
+                            comparingok = true;
+                        }
+                    }
+                    p++;
                 }
+
+                EXPECT_EQ(miscompares, 0);
             } else {
                 EXPECT_STREQ((char *)req.dma_buf,
                              testxfers[receiverXferIdx].dma);
