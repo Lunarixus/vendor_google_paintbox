@@ -240,7 +240,7 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
 
     START_PROFILER_TIMER(pendingRequest.timer);
 
-    ATRACE_INT("PendingEaselCaptures", 1);
+    ATRACE_ASYNC_BEGIN("PendingEaselCaptures", request->id);
 
     // Send the request to HDR+ service.
     res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
@@ -681,7 +681,7 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
         }
 
         // All output buffers in this request are back, ready to send capture result.
-        ATRACE_INT("PendingEaselCaptures", 0);
+        ATRACE_ASYNC_END("PendingEaselCaptures", result->requestId);
         END_PROFILER_TIMER(pendingRequestIter->timer);
 
         // Get the result metadata using the AP timestamp.
@@ -720,6 +720,14 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
     // Release metadata
     if (resultMetadata != nullptr) {
         cameraMetadata->unlock(resultMetadata);
+    }
+}
+
+void HdrPlusClientImpl::notifyAtrace(const std::string &trace, int32_t cookie, int32_t begin) {
+    if (begin == 1) {
+        ATRACE_ASYNC_BEGIN(trace.c_str(), cookie);
+    } else if (begin == 0) {
+        ATRACE_ASYNC_END(trace.c_str(), cookie);
     }
 }
 

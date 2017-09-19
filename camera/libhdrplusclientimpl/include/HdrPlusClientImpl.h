@@ -154,6 +154,15 @@ public:
     void notifyFrameMetadata(uint32_t frameNumber, const camera_metadata_t &resultMetadata,
             bool lastMetadata=true);
 
+    /*
+     * Notify atrace / systrace about an event.
+     *
+     * trace the trace name.
+     * cookie the id of the event.
+     * begin whether it is the beginning of the event (1) or end (0)
+     */
+    void notifyAtrace(const std::string &trace, int32_t cookie, int32_t begin) override;
+
 private:
     static const size_t kMaxNumFrameHistory = 64;
 

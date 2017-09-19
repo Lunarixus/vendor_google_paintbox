@@ -78,6 +78,11 @@ public:
      */
     virtual void notifyNextCaptureReady(uint32_t requestId);
 
+    /*
+     * Invoked when HDR+ service reports a trace event.
+     */
+    virtual void notifyAtrace(const std::string &trace, int32_t cookie, int32_t begin) = 0;
+
 private:
     /*
      * Override EaselMessengerListener::onMessage
@@ -118,6 +123,7 @@ private:
     void deserializeNotifyDmaFileDump(Message *message, DmaBufferHandle handle,
             int dmaDataSize);
     void deserializeNotifyNextCaptureReady(Message *message);
+    void deserializeNotifyAtrace(Message *message);
 };
 
 } // namespace pbcamera
