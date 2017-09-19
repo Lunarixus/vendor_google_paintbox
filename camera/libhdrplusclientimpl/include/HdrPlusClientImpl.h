@@ -44,7 +44,9 @@ class NotifyFrameMetadataThread;
  */
 class HdrPlusClientImpl : public HdrPlusClient, public pbcamera::MessengerListenerFromHdrPlusService {
 public:
-    HdrPlusClientImpl();
+    // listener is the listener to receive callbacks from HDR+ client. listener must be valid
+    // during the life cycle of HdrPlusClient.
+    HdrPlusClientImpl(HdrPlusClientListener *listener);
     virtual ~HdrPlusClientImpl();
 
     /*
@@ -59,17 +61,12 @@ public:
      *
      * If EaselManagerClient is used to create the HdrPlusClientImpl, it is already connected.
      *
-     * listener is the listener to receive callbacks from HDR+ client.
-     *
      * Returns:
      *  0:          on success.
      *  -EEXIST:    if it's already connected.
      *  -ENODEV:    if connecting failed due to a serious error.
      */
-    status_t connect(HdrPlusClientListener *listener);
-
-    // Disconnect from HDR+ service.
-    void disconnect();
+    status_t connect();
 
     /*
      * Set the static metadata of current camera device.
@@ -174,6 +171,9 @@ private:
     void notifyNextCaptureReady(uint32_t requestId) override;
     // Callbacks from HDR+ service end here.
 
+    // Disconnect from HDR+ service.
+    void disconnect();
+
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.
     void failAllPendingRequestsLocked();
 
@@ -198,7 +198,6 @@ private:
     pbcamera::MessengerToHdrPlusService mMessengerToService;
 
     // Callbacks to invoke from HdrPlusClientImpl.
-    Mutex mClientListenerLock;
     HdrPlusClientListener *mClientListener;
 
     enum OutputBufferStatus {
@@ -236,6 +235,9 @@ private:
     // If HDR+ service is closed unexpectedly. Once mServiceClosed is true, it can no longer send
     // messages to HDR+ service.
     std::atomic<bool> mServiceFatalErrorState;
+
+    // If disconnecting from HDR+ service has started.
+    std::atomic<bool> mDisconnecting;
 };
 
 /**
