@@ -37,7 +37,8 @@
 using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 namespace android {
 
-HdrPlusClientImpl::HdrPlusClientImpl() : mClientListener(nullptr), mServiceFatalErrorState(false) {
+HdrPlusClientImpl::HdrPlusClientImpl(HdrPlusClientListener *listener) : HdrPlusClient(listener),
+        mClientListener(listener), mServiceFatalErrorState(false), mDisconnecting(false) {
     mNotifyFrameMetadataThread = new NotifyFrameMetadataThread(&mMessengerToService);
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
@@ -52,8 +53,13 @@ HdrPlusClientImpl::~HdrPlusClientImpl() {
     }
 }
 
-status_t HdrPlusClientImpl::connect(HdrPlusClientListener *listener) {
+status_t HdrPlusClientImpl::connect() {
     ALOGV("%s", __FUNCTION__);
+
+    if (mClientListener == nullptr) {
+        ALOGE("%s: Client listener is nullptr.", __FUNCTION__);
+        return NO_INIT;
+    }
 
     if (mServiceFatalErrorState) {
         ALOGE("%s: HDR+ service is in a fatal error state.", __FUNCTION__);
@@ -69,22 +75,28 @@ status_t HdrPlusClientImpl::connect(HdrPlusClientListener *listener) {
         return res;
     }
 
-    Mutex::Autolock l(mClientListenerLock);
-    mClientListener = listener;
-
     return OK;
 }
 
 void HdrPlusClientImpl:: failAllPendingRequestsLocked() {
     // Return all pending requests as failed results.
-    Mutex::Autolock requestLock(mPendingRequestsLock);
-    for (auto & pendingRequest : mPendingRequests) {
-        pbcamera::CaptureResult result = {};
-        result.requestId = pendingRequest.request.id;
-        result.outputBuffers = pendingRequest.request.outputBuffers;
+    pbcamera::CaptureResult result;
+    while (1) {
+        result = {};
+        {
+            Mutex::Autolock requestLock(mPendingRequestsLock);
+            if (mPendingRequests.size() == 0) {
+                return;
+            }
+
+            result.requestId = mPendingRequests[0].request.id;
+            result.outputBuffers = mPendingRequests[0].request.outputBuffers;
+
+            mPendingRequests.pop_front();
+        }
+
         mClientListener->onFailedCaptureResult(&result);
     }
-    mPendingRequests.clear();
 
     return;
 }
@@ -92,16 +104,12 @@ void HdrPlusClientImpl:: failAllPendingRequestsLocked() {
 void HdrPlusClientImpl::disconnect() {
     ALOGV("%s", __FUNCTION__);
 
+    mDisconnecting = true;
+
     // Return all pending results and clear the listener to make sure no more callbacks will be
     // invoked.
-    {
-        Mutex::Autolock listenerLock(mClientListenerLock);
-        if (mClientListener != nullptr) {
-            failAllPendingRequestsLocked();
-            mClientListener = nullptr;
-        }
-        mApEaselMetadataManager.clear();
-    }
+    failAllPendingRequestsLocked();
+    mApEaselMetadataManager.clear();
 
     // Disconnect from the service.
     mMessengerToService.disconnect();
@@ -351,10 +359,8 @@ void HdrPlusClientImpl::notifyFrameEaselTimestamp(int64_t easelTimestampNs) {
 
 void HdrPlusClientImpl::notifyServiceClosed() {
     // Return all pending requests.
-    Mutex::Autolock listenerLock(mClientListenerLock);
-
-    if (mClientListener != nullptr) {
-        // If client listener is still valid, service is not closed by client.
+    if (!mDisconnecting) {
+        // If client didn't disconnect HDR+ service, the service was closed unexpectedly.
         mServiceFatalErrorState = true;
         failAllPendingRequestsLocked();
         mClientListener->onFatalError();
@@ -397,7 +403,6 @@ void HdrPlusClientImpl::notifyDmaMakernote(pbcamera::DmaMakernote *dmaMakernote)
 
     ALOGV("%s: Received a makernote for request %d.", __FUNCTION__, dmaMakernote->requestId);
 
-    Mutex::Autolock clientLock(mClientListenerLock);
     Mutex::Autolock requestLock(mPendingRequestsLock);
 
     // Find the pending request.
@@ -435,13 +440,8 @@ void HdrPlusClientImpl::notifyDmaPostview(uint32_t requestId, void *dmaHandle, u
         return;
     }
 
-    {
-        Mutex::Autolock clientLock(mClientListenerLock);
-        if (mClientListener != nullptr) {
-            mClientListener->onPostview(requestId, std::move(postview), width, height, stride,
-                    format);
-        }
-    }
+    mClientListener->onPostview(requestId, std::move(postview), width, height, stride,
+            format);
 }
 
 status_t HdrPlusClientImpl::createFileDumpDirectory(const std::string &baseDir,
@@ -534,15 +534,12 @@ void HdrPlusClientImpl::notifyDmaFileDump(const std::string &filename, DmaBuffer
     std::vector<char> data(dmaDataSize);
     status_t res;
 
-    {
-        Mutex::Autolock clientLock(mClientListenerLock);
-        res = mMessengerToService.transferDmaBuffer(dmaHandle, /*dmaBufFd*/-1, &data[0],
-                data.size());
-        if (res != 0) {
-            ALOGE("%s: Transferring a file (%s) dump failed: %s (%d)", __FUNCTION__,
-                    filename.c_str(), strerror(-res), res);
-            return;
-        }
+    res = mMessengerToService.transferDmaBuffer(dmaHandle, /*dmaBufFd*/-1, &data[0],
+            data.size());
+    if (res != 0) {
+        ALOGE("%s: Transferring a file (%s) dump failed: %s (%d)", __FUNCTION__,
+                filename.c_str(), strerror(-res), res);
+        return;
     }
 
     // Split path.
@@ -578,109 +575,120 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
     ALOGV("%s: Received a buffer: request %d stream %d DMA data size %d", __FUNCTION__,
             result->requestId, result->buffer.streamId, result->buffer.dmaDataSize);
 
+    pbcamera::CaptureResult clientResult = {};
     bool successfulResult = true;
+    const camera_metadata_t *resultMetadata = nullptr;
+    std::shared_ptr<CameraMetadata> cameraMetadata;
 
-    Mutex::Autolock clientLock(mClientListenerLock);
-    Mutex::Autolock requestLock(mPendingRequestsLock);
+    {
+        Mutex::Autolock requestLock(mPendingRequestsLock);
 
-    // Find the output buffer from the pending requests.
-    for (uint32_t i = 0; i < mPendingRequests.size(); i++) {
-        if (mPendingRequests[i].request.id == result->requestId) {
-            for (uint32_t j = 0; j < mPendingRequests[i].request.outputBuffers.size(); j++) {
-                pbcamera::StreamBuffer *requestBuffer =
-                        &mPendingRequests[i].request.outputBuffers[j];
-                if (requestBuffer->streamId != result->buffer.streamId) continue;
-
-                // Found the output buffer. Now transfer the content of DMA buffer to this
-                // output buffer.
-                status_t res = mMessengerToService.transferDmaBuffer(result->buffer.dmaHandle,
-                        requestBuffer->dmaBufFd, requestBuffer->data, requestBuffer->dataSize);
-
-                if (res != 0) {
-                    ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
-                            strerror(-res), res);
-                    successfulResult = false;
-                }
-
-                std::unordered_map<uint32_t, OutputBufferStatus> *bufferStatuses =
-                        &mPendingRequests[i].outputBufferStatuses;
-
-                // Update output buffer status.
-                auto bufferStatus = bufferStatuses->find(requestBuffer->streamId);
-                if (bufferStatus != bufferStatuses->end()) {
-                    if (bufferStatus->second != OUTPUT_BUFFER_REQUESTED) {
-                        ALOGW("%s: Aleady received result for request %d stream %d",
-                                __FUNCTION__, result->requestId, result->buffer.streamId);
-                    }
-                    bufferStatus->second = successfulResult ?
-                            OUTPUT_BUFFER_CAPTURED : OUTPUT_BUFFER_FAILED;
-                } else {
-                    ALOGW("%s: Cannot find output buffer status for stream %d", __FUNCTION__,
-                            requestBuffer->streamId);
-                }
-
-                // Check if all results are back.
-                for (auto &status : *bufferStatuses) {
-                    if (status.second == OUTPUT_BUFFER_REQUESTED) {
-                        // Return if not all output buffers in this request are back.
-                        return;
-                    } else if (status.second == OUTPUT_BUFFER_FAILED) {
-                        successfulResult = false;
-                    }
-                }
-
-                // All output buffers in this request are back, ready to send capture result.
-                ATRACE_INT("PendingEaselCaptures", 0);
-                END_PROFILER_TIMER(mPendingRequests[i].timer);
-
-                // Get the result metadata using the AP timestamp.
-                const camera_metadata_t *resultMetadata = nullptr;
-                std::shared_ptr<CameraMetadata> cameraMetadata;
-                res = mApEaselMetadataManager.getCameraMetadata(&cameraMetadata,
-                        result->metadata.timestamp);
-                if (res != OK) {
-                    ALOGE("%s: Failed to get camera metadata for timestamp %" PRId64
-                            ": %s (%d)", __FUNCTION__, result->metadata.timestamp,
-                            strerror(-res), res);
-                    successfulResult = false;
-                } else {
-                    res = updateResultMetadata(&cameraMetadata, mPendingRequests[i].makernote);
-                    if (res != OK) {
-                        ALOGE("%s: Failed to update result metadata.", __FUNCTION__);
-                        successfulResult = false;
-                    } else {
-                        resultMetadata = cameraMetadata->getAndLock();
-                    }
-                }
-
-                pbcamera::CaptureResult clientResult = {};
-                clientResult.requestId = result->requestId;
-                clientResult.outputBuffers = mPendingRequests[i].request.outputBuffers;
-
-                if (successfulResult) {
-                    // Invoke client listener callback for the capture result.
-                    mClientListener->onCaptureResult(&clientResult, *resultMetadata);
-                } else {
-                    // Invoke client listener callback for the failed capture result.
-                    mClientListener->onFailedCaptureResult(&clientResult);
-                }
-
-                // Release metadata
-                if (resultMetadata != nullptr) {
-                    cameraMetadata->unlock(resultMetadata);
-                }
-
-                // Remove the pending request.
-                auto requestIter = mPendingRequests.begin() + i;
-                mPendingRequests.erase(requestIter);
-
-                return;
+        // Find the pending request.
+        auto pendingRequestIter = mPendingRequests.begin();
+        for (; pendingRequestIter != mPendingRequests.end(); pendingRequestIter++) {
+            if (pendingRequestIter->request.id == result->requestId) {
+                break;
             }
         }
+
+        if (pendingRequestIter == mPendingRequests.end()) {
+            ALOGE("%s: Cannot find a pending request id %d.", __FUNCTION__, result->requestId);
+            return;
+        }
+
+        // Find the output buffer in the pending request for this result.
+        auto requestedBufferIter = pendingRequestIter->request.outputBuffers.begin();
+        for (; requestedBufferIter != pendingRequestIter->request.outputBuffers.end();
+                requestedBufferIter++) {
+            if (requestedBufferIter->streamId == result->buffer.streamId) {
+                break;
+            }
+        }
+
+        if (requestedBufferIter == pendingRequestIter->request.outputBuffers.end()) {
+            ALOGE("%s: Cannot find a pending request id %d.", __FUNCTION__, result->requestId);
+            return;
+        }
+
+        // Found the output buffer. Now transfer the content of DMA buffer to this
+        // output buffer.
+        status_t res = mMessengerToService.transferDmaBuffer(result->buffer.dmaHandle,
+                requestedBufferIter->dmaBufFd, requestedBufferIter->data,
+                requestedBufferIter->dataSize);
+        if (res != 0) {
+            ALOGE("%s: Transferring DMA buffer failed: %s (%d).", __FUNCTION__,
+                    strerror(-res), res);
+            successfulResult = false;
+        }
+
+        std::unordered_map<uint32_t, OutputBufferStatus> *bufferStatuses =
+                &pendingRequestIter->outputBufferStatuses;
+
+        // Update output buffer status.
+        auto bufferStatus = bufferStatuses->find(requestedBufferIter->streamId);
+        if (bufferStatus != bufferStatuses->end()) {
+            if (bufferStatus->second != OUTPUT_BUFFER_REQUESTED) {
+                ALOGW("%s: Aleady received result for request %d stream %d",
+                        __FUNCTION__, result->requestId, result->buffer.streamId);
+            }
+            bufferStatus->second = successfulResult ?
+                    OUTPUT_BUFFER_CAPTURED : OUTPUT_BUFFER_FAILED;
+        } else {
+            ALOGW("%s: Cannot find output buffer status for stream %d", __FUNCTION__,
+                    requestedBufferIter->streamId);
+        }
+
+        // Check if all results are back.
+        for (auto &status : *bufferStatuses) {
+            if (status.second == OUTPUT_BUFFER_REQUESTED) {
+                // Return if not all output buffers in this request are back.
+                return;
+            } else if (status.second == OUTPUT_BUFFER_FAILED) {
+                successfulResult = false;
+            }
+        }
+
+        // All output buffers in this request are back, ready to send capture result.
+        ATRACE_INT("PendingEaselCaptures", 0);
+        END_PROFILER_TIMER(pendingRequestIter->timer);
+
+        // Get the result metadata using the AP timestamp.
+        res = mApEaselMetadataManager.getCameraMetadata(&cameraMetadata,
+                result->metadata.timestamp);
+        if (res != OK) {
+            ALOGE("%s: Failed to get camera metadata for timestamp %" PRId64
+                    ": %s (%d)", __FUNCTION__, result->metadata.timestamp,
+                    strerror(-res), res);
+            successfulResult = false;
+        } else {
+            res = updateResultMetadata(&cameraMetadata, pendingRequestIter->makernote);
+            if (res != OK) {
+                ALOGE("%s: Failed to update result metadata.", __FUNCTION__);
+                successfulResult = false;
+            } else {
+                resultMetadata = cameraMetadata->getAndLock();
+            }
+        }
+
+        clientResult.requestId = result->requestId;
+        clientResult.outputBuffers = pendingRequestIter->request.outputBuffers;
+
+        // Remove the pending request.
+        mPendingRequests.erase(pendingRequestIter);
     }
 
-    ALOGE("%s: Could not find a buffer for this result: request %d stream %d.", __FUNCTION__,
-            result->requestId, result->buffer.streamId);
+    if (successfulResult) {
+        // Invoke client listener callback for the capture result.
+        mClientListener->onCaptureResult(&clientResult, *resultMetadata);
+    } else {
+        // Invoke client listener callback for the failed capture result.
+        mClientListener->onFailedCaptureResult(&clientResult);
+    }
+
+    // Release metadata
+    if (resultMetadata != nullptr) {
+        cameraMetadata->unlock(resultMetadata);
+    }
 }
 
 NotifyFrameMetadataThread::NotifyFrameMetadataThread(

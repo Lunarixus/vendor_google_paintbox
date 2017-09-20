@@ -290,10 +290,10 @@ status_t EaselManagerClientImpl::openHdrPlusClientInternal(HdrPlusClientListener
             }
         } else {
             // Create a new HDR+ client.
-            newClient = std::make_unique<HdrPlusClientImpl>();
+            newClient = std::make_unique<HdrPlusClientImpl>(listener);
 
             // Connect to the messenger for sending messages to HDR+ service.
-            res = newClient->connect(listener);
+            res = newClient->connect();
             if (res != OK) {
                 ALOGE("%s: Connecting service messenger failed: %s (%d)", __FUNCTION__,
                         strerror(-res), res);
