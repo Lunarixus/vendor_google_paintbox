@@ -14,8 +14,8 @@ LOCAL_MODULE_STEM := ramdisk.img
 LOCAL_MODULE_OWNER := google
 LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 
-FW_VER := $(BUILD_NUMBER)
-FW_DATE := $(shell date +'%Y%m%d.')
+FW_VER := $(BUILD_NUMBER_FROM_FILE)
+FW_DATE := $$(date +'%Y%m%d.')
 
 # Set Easel firmware version number here (b/65286131)
 FW_MAJOR := '001'
