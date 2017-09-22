@@ -215,6 +215,11 @@ class SpatialGainMap {
   // std::vector and not an absl::Span.
   static SpatialGainMap CreateFromBuffer(const std::vector<uint8_t>& buffer);
 
+  // Reads a SpatialGainMap from the specified file.
+  // Returns SpatialGainMap() if the file cannot be read or cannot be
+  // interpreted as a SpatialGainMap.
+  static SpatialGainMap CreateFromFile(const std::string& file_path);
+
   inline bool has_extra_vignetting_applied() const {
     return has_extra_vignetting_applied_;
   }
