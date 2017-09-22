@@ -107,10 +107,12 @@ class CaptureFrameBuffer {
   // Returns the current status of the frame buffer.
   virtual CaptureStatus GetStatus() const = 0;
 
-  // Returns the start timestamp as easel boot time in ns.
+  // Returns the start timestamp as easel boot time in ns, 0 if frame is not
+  // valid.
   virtual int64_t GetTimestampStartNs() const = 0;
 
-  // Returns the end timestamp as easel boot time in ns.
+  // Returns the end timestamp as easel boot time in ns, 0 if frame is not
+  // valid.
   virtual int64_t GetTimestampEndNs() const = 0;
 
   // Returns the error code of capture.
