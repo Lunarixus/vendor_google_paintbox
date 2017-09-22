@@ -72,6 +72,30 @@ std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProces
     return block;
 }
 
+bool HdrPlusProcessingBlock::isReady() {
+    {
+        std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
+        if (mGcam == nullptr) {
+            ALOGW("GCAM is not initialized yet.");
+            return false;
+        }
+
+        if (mPendingShotCapture != nullptr) {
+            ALOGW("HDR+ shot pending");
+            return false;
+        }
+    }
+    {
+        std::unique_lock<std::mutex> lock(mQueueLock);
+        if (mInputQueue.size() < kGcamMinPayloadFrames) {
+            ALOGW("Not enough input buffers: %zu", mInputQueue.size());
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void HdrPlusProcessingBlock::returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline,
         Input *input) {
     if (pipeline == nullptr || input == nullptr) return;
