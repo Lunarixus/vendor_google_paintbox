@@ -72,6 +72,30 @@ std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProces
     return block;
 }
 
+bool HdrPlusProcessingBlock::isReady() {
+    {
+        std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
+        if (mGcam == nullptr) {
+            ALOGW("GCAM is not initialized yet.");
+            return false;
+        }
+
+        if (mPendingShotCapture != nullptr) {
+            ALOGW("HDR+ shot pending");
+            return false;
+        }
+    }
+    {
+        std::unique_lock<std::mutex> lock(mQueueLock);
+        if (mInputQueue.size() < kGcamMinPayloadFrames) {
+            ALOGW("Not enough input buffers: %zu", mInputQueue.size());
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void HdrPlusProcessingBlock::returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline,
         Input *input) {
     if (pipeline == nullptr || input == nullptr) return;
@@ -348,19 +372,48 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
         cropY1 = cropY0 + cropH;
     }
 
+    // Convert crop coordinates to be w.r.t. active array.
+    cropX0 += zoomCropX;
+    cropX1 += zoomCropX;
+    cropY0 += zoomCropY;
+    cropY1 += zoomCropY;
+
+    int32_t inputBufferW = inputs[0].buffers[0]->getWidth();
+    int32_t inputBufferH = inputs[0].buffers[0]->getHeight();
+
+    if (inputBufferW == mStaticMetadata->pixelArraySize[0] &&
+            inputBufferH == mStaticMetadata->pixelArraySize[1]) {
+        // If the input buffer resolution is the same as pixel array size, sensor crop is not
+        // applied. Normalize the crop region to active array.
+        cropX0 /= mStaticMetadata->activeArraySize[2];
+        cropX1 /= mStaticMetadata->activeArraySize[2];
+        cropY0 /= mStaticMetadata->activeArraySize[3];
+        cropY1 /= mStaticMetadata->activeArraySize[3];
+    } else {
+        // If the input buffer resolution is not the same as pixel array size, sensor crop is
+        // applied to the input buffer. Normalize the crop region to input buffer size.
+        float inputX0 = (mStaticMetadata->activeArraySize[2] - inputBufferW) / 2;
+        float inputY0 = (mStaticMetadata->activeArraySize[3] - inputBufferH) / 2;
+        cropX0 = (cropX0 - inputX0) / inputBufferW;
+        cropX1 = (cropX1 - inputX0) / inputBufferW;
+        cropY0 = (cropY0 - inputY0) / inputBufferH;
+        cropY1 = (cropY1 - inputY0) / inputBufferH;
+    }
+
+    cropX0 = std::max(cropX0, 0.0f);
+    cropX1 = std::min(cropX1, 1.0f);
+    cropY0 = std::max(cropY0, 0.0f);
+    cropY1 = std::min(cropY1, 1.0f);
+
     shotParams->Clear();
     shotParams->ae.target_width = maxTargetW;
     shotParams->ae.target_height = maxTargetH;
-    shotParams->ae.crop.x0 = static_cast<float>(cropX0 + zoomCropX) /
-                            mStaticMetadata->activeArraySize[2];
-    shotParams->ae.crop.x1 = static_cast<float>(cropX1 + zoomCropX) /
-                            mStaticMetadata->activeArraySize[2];
-    shotParams->ae.crop.y0 = static_cast<float>(cropY0 + zoomCropY) /
-                            mStaticMetadata->activeArraySize[3];
-    shotParams->ae.crop.y1 = static_cast<float>(cropY1 + zoomCropY) /
-                            mStaticMetadata->activeArraySize[3];
-    shotParams->ae.payload_frame_orig_width = mStaticMetadata->pixelArraySize[0];
-    shotParams->ae.payload_frame_orig_height = mStaticMetadata->pixelArraySize[1];
+    shotParams->ae.crop.x0 = cropX0;
+    shotParams->ae.crop.x1 = cropX1;
+    shotParams->ae.crop.y0 = cropY0;
+    shotParams->ae.crop.y1 = cropY1;
+    shotParams->ae.payload_frame_orig_width = inputs[0].buffers[0]->getWidth();
+    shotParams->ae.payload_frame_orig_height = inputs[0].buffers[0]->getHeight();
     shotParams->ae.process_bayer_for_payload = true;
     shotParams->zsl = true;
     // TODO(jdcollin): Add RAISR once that is supported on IPU.

@@ -41,6 +41,9 @@ public:
     bool doWorkLocked() override;
     status_t flushLocked() override;
 
+    // Return if HDR+ processing block is ready for requests.
+    bool isReady();
+
 protected:
     // Set static metadata.
     status_t setStaticMetadata(std::shared_ptr<StaticMetadata> metadata);
@@ -81,7 +84,7 @@ private:
     static constexpr float kMinFaceScore = 1.f;
 
     // The threshold to decide if an input is too old to be used for HDR+.
-    static const int64_t kOldInputTimeThresholdNs = 3000000000; // 3 seconds.
+    static const int64_t kOldInputTimeThresholdNs = 1000000000; // 1 seconds.
 
     // Callback invoked when Gcam releases an input image.
     class GcamInputImageReleaseCallback : public gcam::ImageReleaseCallback {
