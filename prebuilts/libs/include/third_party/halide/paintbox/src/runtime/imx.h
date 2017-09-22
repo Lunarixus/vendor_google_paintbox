@@ -1289,14 +1289,23 @@ ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
 ImxError ImxUntileBufferLayout(const ImxParameterType* buffer_type,
                                void *buffer_address);
 
-/* Allow profiler to show information about the execution phases
+/* Allows profiler to show information about the execution phases
  * All Profiler descriptions will be prefixed with the phase_name
  */
 ImxError ImxProfilerSetPhaseName(const char* phase_name);
 
-/* Enable profiling to the file path profiler_file
+/* Enables profiling to the file path profiler_file. If the IPU is under
+ * continuous use, then ImxDisableProfiling should be called to close
+ * and flush open files safely.
  */
 ImxError ImxEnableProfiling(const char *profiler_file);
+
+/* Disables profiling after flushing and closing any open profiler files.
+ *
+ * This call is only necessary if the IPU is being used continuously. It is
+ * safe to call ImxDisableProfiling multiple times if necessary.
+ */
+ImxError ImxDisableProfiling();
 
 /* Compares stripe configurations stored in two compiled graph. It will print
  * out different configurations.
