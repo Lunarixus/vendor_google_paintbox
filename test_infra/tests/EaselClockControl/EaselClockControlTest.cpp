@@ -98,17 +98,18 @@ TEST(EaselClockControlTest, LpddrApis) {
     freq = EaselClockControl::getFrequency(EaselClockControl::Subsystem::LPDDR);
     ASSERT_EQ(freq, 2400);
 
-    ret = EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 1200);
+    ret = EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 1600);
     ASSERT_EQ(ret, 0);
 
     freq = EaselClockControl::getFrequency(EaselClockControl::Subsystem::LPDDR);
-    ASSERT_EQ(freq, 1200);
+    ASSERT_EQ(freq, 1600);
 
-    ret = EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 400);
+    // Should return -EINVAL on setting invalid LPDDR freq
+    ret = EaselClockControl::setFrequency(EaselClockControl::Subsystem::LPDDR, 401);
     ASSERT_EQ(ret, -EINVAL);
 
     freq = EaselClockControl::getFrequency(EaselClockControl::Subsystem::LPDDR);
-    ASSERT_EQ(freq, 1200);
+    ASSERT_EQ(freq, 1600);
 }
 
 int main(int argc, char **argv)
