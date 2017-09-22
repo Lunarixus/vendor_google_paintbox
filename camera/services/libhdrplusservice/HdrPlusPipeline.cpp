@@ -366,7 +366,13 @@ status_t HdrPlusPipeline::submitCaptureRequest(const CaptureRequest &request,
 
     // Check if we got all output buffers.
     if (request.outputBuffers.size() != outputRequest.buffers.size()) {
-        ALOGE("%s: Failed to get all buffers for request.", __FUNCTION__);
+        ALOGE("%s: Failed to get all buffers for request %d", __FUNCTION__, request.id);
+        abortRequest(&outputRequest);
+        return -EINVAL;
+    }
+
+    if (!std::static_pointer_cast<HdrPlusProcessingBlock>(mHdrPlusProcessingBlock)->isReady()) {
+        ALOGE("%s: HDR+ processing block not ready for request %d", __FUNCTION__, request.id);
         abortRequest(&outputRequest);
         return -EINVAL;
     }
