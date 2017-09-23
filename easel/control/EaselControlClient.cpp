@@ -45,6 +45,8 @@ bool gHandshakeSuccessful;
 // Error callback registered by user
 easel_error_callback_t gErrorCallback;
 
+const int controlChannelReplyTimeoutMs = 2000;
+
 int defaultErrorCallback(enum EaselErrorReason r, enum EaselErrorSeverity s) {
     ALOGD("%s: Skip handling %s error (reason %d)",
           __FUNCTION__,
@@ -129,6 +131,7 @@ static int sendTimestamp(void) {
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
     msg.need_reply = true;
+    msg.timeout_ms = controlChannelReplyTimeoutMs;
 
     int replycode;
     EaselComm::EaselMessage reply;
@@ -246,6 +249,7 @@ int sendActivateCommand()
     msg.dma_buf = 0;
     msg.dma_buf_size = 0;
     msg.need_reply = true;
+    msg.timeout_ms = controlChannelReplyTimeoutMs;
 
     int replycode;
 
