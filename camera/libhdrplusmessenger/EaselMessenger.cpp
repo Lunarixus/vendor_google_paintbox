@@ -25,6 +25,8 @@
 
 namespace pbcamera {
 
+const int messageWaitReplyTimeoutMs = 5000;  // 5 seconds
+
 Message::Message() : mData(nullptr), mDataPos(0), mDataSize(0), mCapacity(0) {
 }
 
@@ -385,6 +387,7 @@ status_t EaselMessenger::sendMessageInternal(Message *message, void* dmaBufferSr
         res = mEaselComm->sendMessage(&easelMessage);
     } else {
         status_t replycode = 0;
+        easelMessage.timeout_ms = messageWaitReplyTimeoutMs;
         res = mEaselComm->sendMessageReceiveReply(&easelMessage, &replycode, nullptr);
         if (res == 0) {
             res = replycode;
