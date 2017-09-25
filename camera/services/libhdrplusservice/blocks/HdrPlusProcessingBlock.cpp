@@ -1243,7 +1243,7 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     // Convert face info.
     float arrayW = static_cast<float>(mStaticMetadata->activeArraySize[2]);
     float arrayH = static_cast<float>(mStaticMetadata->activeArraySize[3]);
-    for (uint32_t i = 0; i < metadata->faceIds.size(); i++) {
+    for (uint32_t i = 0; i < metadata->faceRectangles.size(); i++) {
         const std::array<int32_t, 4> &faceRect = metadata->faceRectangles[i];
         const uint8_t &faceScore = metadata->faceScores[i];
 
