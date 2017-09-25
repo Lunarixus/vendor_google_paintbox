@@ -756,7 +756,15 @@ status_t HdrPlusProcessingBlock::resampleBuffer(const std::unique_ptr<gcam::YuvI
             &cropX0, &cropY0, &cropX1, &cropY1);
 
     gcam::YuvReadView croppedSrcYuvImage(*srcYuvImage);
-    croppedSrcYuvImage.FastCrop(cropX0, cropY0, cropX1, cropY1);
+
+    // Snap the cropping to even number to avoid dimension overflow.
+    int cropX0Int, cropY0Int, cropX1Int, cropY1Int;
+    cropX0Int = static_cast<int>(cropX0) & ~1;
+    cropX1Int = static_cast<int>(std::ceil(cropX1) + 1) & ~1;
+    cropY0Int = static_cast<int>(cropY0) & ~1;
+    cropY1Int = static_cast<int>(std::ceil(cropY1) + 1) & ~1;
+
+    croppedSrcYuvImage.FastCrop(cropX0Int, cropY0Int, cropX1Int, cropY1Int);
 
     int32_t format = dstBuffer->getFormat();
     gcam::YuvFormat gcamYuvFormat;
