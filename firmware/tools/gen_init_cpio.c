@@ -410,7 +410,8 @@ static char *cpio_replace_env(char *new_location)
 static int cpio_mkfile_line(const char *line)
 {
 	char name[PATH_MAX + 1];
-	char *dname = NULL; /* malloc'ed buffer for hard links */
+	char *dname;
+	char *mname = NULL; /* malloc'ed buffer for hard links */
 	char location[PATH_MAX + 1];
 	unsigned int mode;
 	int uid;
@@ -429,12 +430,13 @@ static int cpio_mkfile_line(const char *line)
 		int len;
 		int nend;
 
-		dname = malloc(strlen(line));
-		if (!dname) {
+		mname = malloc(strlen(line));
+		if (!mname) {
 			fprintf (stderr, "out of memory (%d)\n", dname_len);
 			goto fail;
 		}
 
+		dname = mname;
 		dname_len = strlen(name) + 1;
 		memcpy(dname, name, dname_len);
 
@@ -455,7 +457,7 @@ static int cpio_mkfile_line(const char *line)
 	rc = cpio_mkfile(dname, cpio_replace_env(location),
 	                 mode, uid, gid, nlinks);
  fail:
-	if (dname_len) free(dname);
+	free(mname);
 	return rc;
 }
 
