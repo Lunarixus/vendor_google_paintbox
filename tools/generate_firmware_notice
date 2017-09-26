@@ -7,6 +7,7 @@ MODULE_PATH="
 	external/libunwind:libunwind.so \
 	external/lzma:liblzma.so \
 	external/mksh:sh \
+	external/protobuf:libprotobuf-cpp-lite.so \
 	external/toybox:toybox \
 	external/zlib:libz.so \
 	system/core:libbacktrace.so:libbase.so:libdl.so:libvndksupport.so:libsysutils.so:libprocinfo.so:logd.easel \
