@@ -372,6 +372,21 @@ typedef void (*ImxDumpCallback)(const char *);
 ImxError ImxDeviceSetDumpCallback(ImxDeviceHandle device,
                                   ImxDumpCallback dump_callback);
 
+typedef void (*ImxFatalErrorCallback)();
+
+/* Register a fatal error callback.
+ *
+ * A fatal error in the IPU will be reported through this callback.  This
+ * allows for a client to be notified of a fatal error in all circumstances.
+ * Note that fatal errors may also be reported through return codes in addition
+ * the fatal error callback.
+ *
+ * Fatal errors that can be reported through this callback include, but are not
+ * limted to, BIF errors, DMA VA errors, MMU errors.
+ */
+ImxError ImxDeviceSetFatalErrorCallback(ImxDeviceHandle device,
+                                        ImxFatalErrorCallback fatal_callback);
+
 /* Deletes the device, releasing all its resources. Note: Dereferencing
  * device_handle after deletion of device may result in unspecified behavior.
  */
@@ -1156,6 +1171,20 @@ ImxError ImxExecuteJob(
 ImxError ImxExecuteJobAsync(
     ImxJobHandle job /* modified */);
 
+/* Non-blocking call to execute the input job in a background thread.
+ * The background thread loads IPU device configuration, starts the
+ * execution and waits for completion of the job.
+ * All late-bound configuration information (such as DRAM buffers for DMA
+ * transfers) must already be provided before invoking this function.
+ *
+ * timeout_ns specifies the maximum elapsed time (in nano-seconds) to wait for
+ * this job to complete. The countdown begins once this job actually starts
+ * executing on the IPU (and not when it is enqueued for execution).
+ */
+ImxError ImxExecuteJobAsyncWithTimeout(
+    ImxJobHandle job, /* modified */
+    int64_t timeout_ns);
+
 /* Waits for the previous asynchronous execution of the job to complete.
  *
  * Note: ImxExecuteJobWait must be paired with an ImxExecuteJobAsync.
@@ -1175,6 +1204,8 @@ ImxError ImxFlushMipiInputJobWait(
  * deletion enqueued using ImxDeleteDeviceBufferAsync.
  * It is an error if input device_handle is invalid, or if no
  * job queue item has been enqueued.
+ * Returns the error code of completed item, or IMX_TIMEOUT if no item was
+ * completed within the (default) thread wait timeout.
  */
 ImxError ImxWaitForJobQueueOneItemCompletion(
     ImxDeviceHandle device_handle /* input */);
@@ -1182,17 +1213,27 @@ ImxError ImxWaitForJobQueueOneItemCompletion(
 /* Waits for completion of all items enqueued in the asynchronous job queue.
  * If there are no items, returns immediately with IMX_SUCCESS.
  * If any pending job item times out, returns immediately with IMX_TIMEOUT.
- * If pending job items fail, returns error code of the last failure.
+ * If any completed/pending job item fails, returns error code of the failure.
  * Returns IMX_SUCCESS otherwise.
+ * If this function returns failure, no further items will be executed.
+ * Please call ImxResetJobQueue and re-enqueue any further items.
  */
 ImxError ImxWaitForJobQueueEmpty(
+    ImxDeviceHandle device_handle /* input */);
+
+/* Waits for completion of current item in job queue and resets the queue.
+ * All pending and completed items will be discarded.
+ * Normally, this function should only be called if ImxWaitForJobQueueEmpty or
+ * ImxWaitForJobQueueOneItemCompletion was unsuccessful.
+ */
+ImxError ImxResetJobQueue(
     ImxDeviceHandle device_handle /* input */);
 
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
  * If job execution time exceeds timeout, the job is terminated and
  * IMX_TIMEOUT is returned.
  */
-ImxError ImxExecuteJobWithUserSpecifiedTimeout(
+ImxError ImxExecuteJobWithTimeout(
     ImxJobHandle job,  /* modified */
     int64_t timeout_ns);
 
@@ -1274,7 +1315,7 @@ ImxError ImxWaitForCompletion(
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
  */
-ImxError ImxWaitForCompletionWithUserSpecifiedTimeout(
+ImxError ImxWaitForCompletionWithTimeout(
     ImxJobHandle job,  /* modified */
     int64_t timeout_ns);
 
