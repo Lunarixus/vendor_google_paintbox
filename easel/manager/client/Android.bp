@@ -1,0 +1,78 @@
+cc_library_shared {
+    name: "libeaselmanager_aidl",
+
+    aidl: {
+        export_aidl_headers: true,
+        local_include_dirs: ["aidl"],
+    },
+
+    srcs: [
+        "aidl/android/EaselManager/IAppStatusCallback.aidl",
+        "aidl/android/EaselManager/IManagerService.aidl",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+    ],
+
+}
+
+cc_binary {
+    name: "easelmanagerd",
+
+    local_include_dirs: ["include"],
+
+    srcs: [
+        "ManagerServer.cpp",
+        "easelmanagerd.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libeaselmanager_aidl",
+        "liblog",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+    ],
+}
+
+cc_test {
+    name: "easelmanager_client_example",
+
+    local_include_dirs: ["include"],
+
+    gtest: false,
+
+    srcs: [
+        "ManagerClient.cpp",
+        "ManagerClientImpl.cpp",
+        "ManagerClientExample.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libeaselmanager_aidl",
+        "liblog",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+    ],
+}

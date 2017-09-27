@@ -1,4 +1,5 @@
 subdirs = [
     "comm",
     "kernel-headers",
+    "manager",
 ]
