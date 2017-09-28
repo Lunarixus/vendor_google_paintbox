@@ -2,6 +2,7 @@
 #define GOOGLEX_GCAM_CREATIVE_CAMERA_PORTRAIT_MODE_PORTRAIT_REQUEST_H_
 
 #include "googlex/gcam/base/pixel_rect.h"
+#include "googlex/gcam/image/pixel_format.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/image_rotation.h"
 #include "googlex/gcam/image_metadata/static_metadata.h"
@@ -28,6 +29,10 @@ struct GoudaRequest {
   // to this resolution. 'output_width' and 'output_height' must positive.
   int output_width = 0;
   int output_height = 0;
+
+  // The desired output format for primary image (RGB and NV12 are supported).
+  // This field is not serialized.
+  gcam::GcamPixelFormat output_format_primary;
 
   // Amount to sharpen images after resampling to the requested resolution.
   float post_resample_sharpening = 0.0f;
