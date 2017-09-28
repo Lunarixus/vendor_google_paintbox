@@ -251,6 +251,9 @@ private:
 
     // IMX memory allocate handle to allocate IMX buffers.
     ImxMemoryAllocatorHandle mImxMemoryAllocatorHandle;
+
+    // Whether or not profiling is enabled.
+    bool mProfilingEnabled;
 };
 
 } // namespace pbcamera

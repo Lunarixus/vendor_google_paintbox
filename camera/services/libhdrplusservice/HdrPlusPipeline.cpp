@@ -3,12 +3,40 @@
 #include <log/log.h>
 
 #include <inttypes.h>
+#include <fstream>
+#include <sstream>
 #include <system/graphics.h>
 
 #include "blocks/HdrPlusProcessingBlock.h"
 #include "blocks/SourceCaptureBlock.h"
 #include "blocks/CaptureResultBlock.h"
 #include "HdrPlusPipeline.h"
+
+#include "third_party/halide/paintbox/src/runtime/imx.h"
+
+namespace {
+void readFile(const char* filename, std::vector<char>* out) {
+    std::ifstream input(filename, std::ios::in | std::ios::binary);
+    if (input) {
+        *out = std::vector<char>(std::istreambuf_iterator<char>(input), {});
+    } else {
+        ALOGE("%s: Could not read file %s.", __FUNCTION__, filename);
+    }
+}
+std::string getDumpProfileFileName() {
+    int64_t now = 0;
+    pbcamera::status_t res =
+        EaselControlServer::getApSynchronizedClockBoottime(&now);
+    if (res != 0) {
+        ALOGE("%s: Couldn't read timestamp.", __FUNCTION__);
+    }
+    std::stringstream path;
+    path << "timing_" << now << ".prof";
+    return path.str();
+}
+
+const char* kProfileFile = "/tmp/profiler.timing";
+}  // namespace
 
 namespace pbcamera {
 
@@ -20,11 +48,24 @@ std::shared_ptr<HdrPlusPipeline> HdrPlusPipeline::newPipeline(
 HdrPlusPipeline::HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messengerToClient) :
         mMessengerToClient(messengerToClient),
         mState(STATE_UNCONFIGURED),
-        mImxMemoryAllocatorHandle(nullptr) {
+        mImxMemoryAllocatorHandle(nullptr),
+        mProfilingEnabled(false) {
 }
 
 HdrPlusPipeline::~HdrPlusPipeline() {
     std::unique_lock<std::mutex> lock(mApiLock);
+
+    // This is safe because mMessengerToClient is passed into HdrPlusPipeline's
+    // constructor and thus is guranteed to outlive the HdrPlusPipeline.
+    if (mProfilingEnabled) {
+        ImxDisableProfiling();
+        std::vector<char> data;
+        readFile(kProfileFile, &data);
+        mMessengerToClient->notifyFileDump(
+            getDumpProfileFileName(),
+            const_cast<void*>(static_cast<const void*>(&data[0])),
+            /*dmaBufFd=*/-1, data.size());
+    }
     destroyLocked();
 }
 
@@ -39,6 +80,14 @@ status_t HdrPlusPipeline::setStaticMetadata(const StaticMetadata& metadata) {
         std::string s;
         metadata.appendToString(&s);
         ALOGV("%s: static metadata: %s.", __FUNCTION__, s.data());
+    }
+
+    if (metadata.debugParams | DEBUG_PARAM_SAVE_PROFILE) {
+        if (ImxEnableProfiling(kProfileFile) != IMX_SUCCESS) {
+            ALOGE("%s: Failed to start profiling on easel.", __FUNCTION__);
+        } else {
+            mProfilingEnabled = true;
+        }
     }
 
     mStaticMetadata = std::make_shared<StaticMetadata>();
