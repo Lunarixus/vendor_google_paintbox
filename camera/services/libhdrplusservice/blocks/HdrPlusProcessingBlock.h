@@ -301,11 +301,14 @@ private:
     // Return if gcam YUV format is the same as HAL format.
     bool isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat);
 
-    // Notify AP about a shutter. Must be called when mShuttersLock is locked.
-    void notifyShutterLocked(const Shutter &shutter);
+    // Notify AP about shutters and postviews that are ready.
+    void notifyShuttersAndPostviews();
 
-    // Notify AP about a postview. Must be called when mPostviewsLock is locked.
-    void notifyPostviewLocked(const Postview &postview);
+    // Notify AP about a shutter.
+    void notifyShutter(const Shutter &shutter);
+
+    // Notify AP about a postview.
+    void notifyPostview(const Postview &postview);
 
     // Helper functions for managing buffer references.
     void addInputReference(int64_t bufferId, Input input);

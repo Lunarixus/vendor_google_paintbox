@@ -86,12 +86,12 @@ bool HdrPlusProcessingBlock::isReady() {
     {
         std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
         if (mGcam == nullptr) {
-            ALOGW("GCAM is not initialized yet.");
+            ALOGW("%s: GCAM is not initialized yet.", __FUNCTION__);
             return false;
         }
 
         if (mPendingShotCapture != nullptr) {
-            ALOGW("HDR+ shot pending");
+            ALOGW("%s: HDR+ shot pending", __FUNCTION__);
             return false;
         }
     }
@@ -114,7 +114,10 @@ bool HdrPlusProcessingBlock::isReady() {
         checkOldInputsLocked(pipeline, /*returnOldInputs*/true);
 
         if (mInputQueue.size() < kGcamMinPayloadFrames) {
-            ALOGW("Not enough input buffers: %zu", mInputQueue.size());
+            ALOGW("%s: Not enough input buffers: %zu", __FUNCTION__, mInputQueue.size());
+            return false;
+        } else if (mOutputRequestQueue.size() > 0) {
+            ALOGW("%s: There is a pending output request.", __FUNCTION__);
             return false;
         }
     }
@@ -173,6 +176,9 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     std::vector<Input> inputs;
     OutputRequest outputRequest = {};
 
+    // Notify shutters and postviews that are ready.
+    notifyShuttersAndPostviews();
+
     std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
 
     // Initialize Gcam if not yet.
@@ -182,26 +188,6 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
             ALOGE("%s: Initializing Gcam failed: %s (%d).", __FUNCTION__, strerror(-res), res);
             return false;
         }
-    }
-
-    // Notify shutters that are ready.
-    {
-        std::unique_lock<std::mutex> shuttersLock(mShuttersLock);
-        for (auto &shutter : mShutters) {
-            notifyShutterLocked(shutter);
-        }
-
-        mShutters.clear();
-    }
-
-    // Notify postviews
-    {
-        std::unique_lock<std::mutex> postviewsLock(mPostviewsLock);
-        for (auto &postview : mPostviews) {
-            notifyPostviewLocked(postview);
-        }
-
-        mPostviews.clear();
     }
 
     // Check if there is a pending Gcam shot capture.
@@ -701,35 +687,74 @@ status_t HdrPlusProcessingBlock::addPayloadFrame(std::shared_ptr<PayloadFrame> f
     return 0;
 }
 
-void HdrPlusProcessingBlock::notifyShutterLocked(const Shutter &shutter) {
-    if (mPendingShotCapture == nullptr) {
-        ALOGE("%s: There is no pending shot for shot id %d. Dropping a base frame index %d.",
-                __FUNCTION__, shutter.shotId, shutter.baseFrameIndex);
-        return;
+void HdrPlusProcessingBlock::notifyShuttersAndPostviews() {
+    while (1) {
+        Shutter shutter = {};
+        {
+            std::unique_lock<std::mutex> lock(mShuttersLock);
+            if (mShutters.size() == 0) {
+                break;
+            }
+            shutter = mShutters[0];
+            mShutters.pop_front();
+        }
+
+        notifyShutter(shutter);
     }
 
-    if (shutter.shotId != mPendingShotCapture->shotId) {
-        ALOGE("%s: Expecting a base frame index for shot %d but got a final image for shot %d.",
-                __FUNCTION__, mPendingShotCapture->shotId, shutter.shotId);
-        return;
+    while (1) {
+        Postview postview = {};
+        {
+            std::unique_lock<std::mutex> lock(mPostviewsLock);
+            if (mPostviews.size() == 0) {
+                break;
+            }
+            postview = std::move(mPostviews[0]);
+            mPostviews.pop_front();
+        }
+        notifyPostview(postview);
+    }
+}
+
+void HdrPlusProcessingBlock::notifyShutter(const Shutter &shutter) {
+    uint32_t requestId = 0;
+    int64_t apSensorTimestampNs = 0;
+
+    {
+        std::unique_lock<std::mutex> lock(mHdrPlusProcessingLock);
+
+        if (mPendingShotCapture == nullptr) {
+            ALOGE("%s: There is no pending shot for shot id %d. Dropping a base frame index %d.",
+                    __FUNCTION__, shutter.shotId, shutter.baseFrameIndex);
+            return;
+        }
+
+        if (shutter.shotId != mPendingShotCapture->shotId) {
+            ALOGE("%s: Expecting a base frame index for shot %d but got a final image for shot %d.",
+                    __FUNCTION__, mPendingShotCapture->shotId, shutter.shotId);
+            return;
+        }
+
+        if (shutter.baseFrameIndex >= static_cast<int>(mPendingShotCapture->frames.size())) {
+            ALOGE("%s: baseFrameIndex is %d but there are only %zu frames", __FUNCTION__,
+                    shutter.baseFrameIndex, mPendingShotCapture->frames.size());
+            return;
+        }
+
+        if (mPendingShotCapture->baseFrameIndex != kInvalidBaseFrameIndex) {
+            ALOGE("%s: baseFrameIndex is already selected for shot %d", __FUNCTION__, shutter.shotId);
+            return;
+        }
+
+        mPendingShotCapture->baseFrameIndex = shutter.baseFrameIndex;
+
+        requestId = mPendingShotCapture->outputRequest.metadata.requestId;
+        apSensorTimestampNs = mPendingShotCapture->frames[shutter.baseFrameIndex]->
+                input.metadata.frameMetadata->timestamp;
+
     }
 
-    if (shutter.baseFrameIndex >= static_cast<int>(mPendingShotCapture->frames.size())) {
-        ALOGE("%s: baseFrameIndex is %d but there are only %zu frames", __FUNCTION__,
-                shutter.baseFrameIndex, mPendingShotCapture->frames.size());
-        return;
-    }
-
-    if (mPendingShotCapture->baseFrameIndex != kInvalidBaseFrameIndex) {
-        ALOGE("%s: baseFrameIndex is already selected for shot %d", __FUNCTION__, shutter.shotId);
-        return;
-    }
-
-    mPendingShotCapture->baseFrameIndex = shutter.baseFrameIndex;
-
-    mMessengerToClient->notifyShutterAsync(mPendingShotCapture->outputRequest.metadata.requestId,
-            mPendingShotCapture->frames[shutter.baseFrameIndex]->
-                    input.metadata.frameMetadata->timestamp);
+    mMessengerToClient->notifyShutterAsync(requestId, apSensorTimestampNs);
 }
 
 bool HdrPlusProcessingBlock::isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat) {
@@ -927,7 +952,7 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
     notifyWorkerThreadEvent();
 }
 
-void HdrPlusProcessingBlock::notifyPostviewLocked(const Postview &postview) {
+void HdrPlusProcessingBlock::notifyPostview(const Postview &postview) {
     if (mPendingShotCapture == nullptr) {
         ALOGE("%s: There is no pending shot for shot id %d. Dropping a postview.",
                 __FUNCTION__, postview.shotId);
