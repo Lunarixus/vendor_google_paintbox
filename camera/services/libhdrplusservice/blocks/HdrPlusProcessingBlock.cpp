@@ -405,6 +405,11 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
     cropY0 = std::max(cropY0, 0.0f);
     cropY1 = std::min(cropY1, 1.0f);
 
+    // Clamp AE compensation within a valid range.
+    int32_t expCompensation = outputRequest.metadata.requestMetadata->aeExposureCompensation;
+    expCompensation = std::max(mStaticMetadata->aeCompensationRange[0], expCompensation);
+    expCompensation = std::min(mStaticMetadata->aeCompensationRange[1], expCompensation);
+
     shotParams->Clear();
     shotParams->ae.target_width = maxTargetW;
     shotParams->ae.target_height = maxTargetH;
@@ -415,6 +420,7 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
     shotParams->ae.payload_frame_orig_width = inputs[0].buffers[0]->getWidth();
     shotParams->ae.payload_frame_orig_height = inputs[0].buffers[0]->getHeight();
     shotParams->ae.process_bayer_for_payload = true;
+    shotParams->ae.exposure_compensation = mStaticMetadata->aeCompensationStep * expCompensation;
     shotParams->zsl = true;
     // TODO(jdcollin): Add RAISR once that is supported on IPU.
     shotParams->resampling_method_override = gcam::ResamplingMethod::kLanczos;
@@ -1289,6 +1295,22 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
                 frame->gcamSpatialGainMap->WriteRggb(x, y, c, metadata->lensShadingMap[index]);
             }
         }
+    }
+
+    gcamMetadata->ae.mode = metadata->aeMode;
+    gcamMetadata->ae.lock = metadata->aeLock == ANDROID_CONTROL_AE_LOCK_ON;
+    gcamMetadata->ae.state = metadata->aeState;
+    gcamMetadata->ae.precapture_trigger = metadata->aePrecaptureTrigger;
+
+    for (auto & aeRegion : metadata->aeRegions) {
+        gcam::WeightedPixelRect rect = {};
+        rect.rect.x0 = aeRegion[0];
+        rect.rect.y0 = aeRegion[1];
+        rect.rect.x1 = aeRegion[2];
+        rect.rect.y1 = aeRegion[3];
+        rect.weight = aeRegion[4];
+
+        gcamMetadata->ae.metering_rectangles.push_back(rect);
     }
 
     return 0;

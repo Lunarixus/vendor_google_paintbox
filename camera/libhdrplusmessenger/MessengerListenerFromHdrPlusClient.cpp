@@ -27,7 +27,8 @@ namespace pbcamera {
     do { \
         status_t res = (_expr); \
         if (res != 0) { \
-            ALOGE("%s: reading message failed: %s (%d)", __FUNCTION__, strerror(-res), res); \
+            ALOGE("%s: %d: reading message failed: %s (%d)", __FUNCTION__, __LINE__, \
+                    strerror(-res), res); \
             return; \
         } \
     } while(0)
@@ -141,6 +142,8 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSetStaticMetadata(Messag
     RETURN_ERROR_ON_READ_ERROR(message->readFloatVector(&metadata.availableFocalLengths));
     RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.shadingMapSize));
     RETURN_ERROR_ON_READ_ERROR(message->readByte(&metadata.focusDistanceCalibration));
+    RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.aeCompensationRange));
+    RETURN_ERROR_ON_READ_ERROR(message->readFloat(&metadata.aeCompensationStep));
     RETURN_ERROR_ON_READ_ERROR(message->readUint32(&metadata.debugParams));
 
     return setStaticMetadata(metadata);
@@ -237,6 +240,7 @@ status_t MessengerListenerFromHdrPlusClient::deserializeSubmitCaptureRequest(Mes
     uint32_t postviewEnable = 0;
     // Deserialize RequestMetadata.
     RETURN_ERROR_ON_READ_ERROR(message->readInt32Array(&metadata.cropRegion));
+    RETURN_ERROR_ON_READ_ERROR(message->readInt32(&metadata.aeExposureCompensation));
     RETURN_ERROR_ON_READ_ERROR(message->readUint32(&postviewEnable));
 
     metadata.postviewEnable = (postviewEnable != 0);
@@ -304,6 +308,17 @@ void MessengerListenerFromHdrPlusClient::deserializeNotifyFrameMetadata(Message 
     RETURN_ON_READ_ERROR(message->readFloatArray(&metadata.dynamicBlackLevel));
     RETURN_ON_READ_ERROR(message->readFloatVector(&metadata.lensShadingMap));
     RETURN_ON_READ_ERROR(message->readFloat(&metadata.focusDistance));
+    RETURN_ON_READ_ERROR(message->readInt32(&metadata.aeExposureCompensation));
+    RETURN_ON_READ_ERROR(message->readByte(&metadata.aeMode));
+    RETURN_ON_READ_ERROR(message->readByte(&metadata.aeLock));
+    RETURN_ON_READ_ERROR(message->readByte(&metadata.aeState));
+    RETURN_ON_READ_ERROR(message->readByte(&metadata.aePrecaptureTrigger));
+
+    RETURN_ON_READ_ERROR(message->readUint32(&vectorSize));
+    metadata.aeRegions.resize(vectorSize);
+    for (size_t i = 0; i < metadata.aeRegions.size(); i++) {
+        RETURN_ON_READ_ERROR(message->readInt32Array(&metadata.aeRegions[i]));
+    }
 
     notifyFrameMetadata(metadata);
 }
