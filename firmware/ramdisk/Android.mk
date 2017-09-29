@@ -33,6 +33,7 @@ PREBUILT_BIN_MODULES := \
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
+	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver

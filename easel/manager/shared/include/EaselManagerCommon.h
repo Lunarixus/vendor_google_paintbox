@@ -1,0 +1,10 @@
+#ifndef PAINTBOX_EASEL_MANAGER_COMM_H
+#define PAINTBOX_EASEL_MANAGER_COMM_H
+
+enum Channel {
+  START_APP = 1,
+  STOP_APP = 2,
+  APP_STATUS = 3,
+};
+
+#endif
