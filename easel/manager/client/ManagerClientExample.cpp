@@ -39,11 +39,11 @@ class AppStatusCallback : public BnAppStatusCallback {
   void wait() {
     {
       std::unique_lock<std::mutex> startLock(mAppStartLock);
-      mAppStartCond.wait(startLock, [&] {return mAppStart;});
+      mAppStartCond.wait(startLock, [&] { return mAppStart; });
     }
     {
       std::unique_lock<std::mutex> stopLock(mAppStopLock);
-      mAppStopCond.wait(stopLock, [&] {return mAppStop;});
+      mAppStopCond.wait(stopLock, [&] { return mAppStop; });
     }
   }
 
@@ -60,15 +60,26 @@ class AppStatusCallback : public BnAppStatusCallback {
 }  // namespace EaselManager
 }  // namespace android
 
+using android::EaselManager::AppStatusCallback;
+using android::EaselManager::ManagerClient;
+using android::sp;
+
 int main() {
-  std::unique_ptr<android::EaselManager::ManagerClient> client =
-      android::EaselManager::ManagerClient::create();
-  auto app = android::EaselManager::PBSERVER;
-  android::EaselManager::AppStatusCallback callback(app);
-
+  std::unique_ptr<ManagerClient> client = ManagerClient::create();
   CHECK(client->initialize() == android::EaselManager::SUCCESS);
-  CHECK(client->startApp(app, &callback) == android::EaselManager::SUCCESS);
-  CHECK(client->stopApp(app) == android::EaselManager::SUCCESS);
 
-  callback.wait();
+  auto dummy_app = android::EaselManager::DUMMY_APP;
+  sp<AppStatusCallback> dummy_callback(new AppStatusCallback(dummy_app));
+  CHECK(client->startApp(dummy_app, dummy_callback) ==
+        android::EaselManager::SUCCESS);
+  CHECK(client->stopApp(dummy_app) == android::EaselManager::SUCCESS);
+  // Wait for app to be stopped
+  dummy_callback->wait();
+
+  auto crash_app = android::EaselManager::CRASH_APP;
+  sp<AppStatusCallback> crash_callback(new AppStatusCallback(crash_app));
+  CHECK(client->startApp(crash_app, crash_callback) ==
+        android::EaselManager::SUCCESS);
+  // Wait for app crash.
+  crash_callback->wait();
 }
