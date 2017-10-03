@@ -170,6 +170,8 @@ status_t MessengerToHdrPlusService::setStaticMetadata(const StaticMetadata& meta
     RETURN_ERROR_ON_WRITE_ERROR(message->writeFloatVector(metadata.availableFocalLengths));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.shadingMapSize));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeByte(metadata.focusDistanceCalibration));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.aeCompensationRange));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeFloat(metadata.aeCompensationStep));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(metadata.debugParams));
 
     // Send to service.
@@ -287,6 +289,7 @@ status_t MessengerToHdrPlusService::submitCaptureRequest(CaptureRequest *request
 
     // Serialize request metadata.
     RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32Array(metadata.cropRegion));
+    RETURN_ERROR_ON_WRITE_ERROR(message->writeInt32(metadata.aeExposureCompensation));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(metadata.postviewEnable));
     RETURN_ERROR_ON_WRITE_ERROR(message->writeUint32(metadata.continuousCapturing));
 
@@ -374,6 +377,16 @@ void MessengerToHdrPlusService::notifyFrameMetadataAsync(const FrameMetadata &me
     RETURN_ON_WRITE_ERROR(message->writeFloatArray(metadata.dynamicBlackLevel));
     RETURN_ON_WRITE_ERROR(message->writeFloatVector(metadata.lensShadingMap));
     RETURN_ON_WRITE_ERROR(message->writeFloat(metadata.focusDistance));
+    RETURN_ON_WRITE_ERROR(message->writeInt32(metadata.aeExposureCompensation));
+    RETURN_ON_WRITE_ERROR(message->writeByte(metadata.aeMode));
+    RETURN_ON_WRITE_ERROR(message->writeByte(metadata.aeLock));
+    RETURN_ON_WRITE_ERROR(message->writeByte(metadata.aeState));
+    RETURN_ON_WRITE_ERROR(message->writeByte(metadata.aePrecaptureTrigger));
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(metadata.aeRegions.size()));
+    for (size_t i = 0; i < metadata.aeRegions.size(); i++) {
+        RETURN_ON_WRITE_ERROR(message->writeInt32Array(metadata.aeRegions[i]));
+    }
 
     res = sendMessage(message, /*async*/true);
     if (res != 0) {
