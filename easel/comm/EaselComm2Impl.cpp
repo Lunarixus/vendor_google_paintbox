@@ -1,4 +1,8 @@
+#define LOG_TAG "EaselComm2"
+
 #include "EaselComm2Impl.h"
+
+#include "android-base/logging.h"
 
 namespace EaselComm2 {
 
@@ -15,6 +19,8 @@ void ConvertMessageToEaselMessage(const Message& message,
                                    ? EASELCOMM_DMA_BUFFER_DMA_BUF
                                    : EASELCOMM_DMA_BUFFER_USER;
 }
+
+const int kMsToUs = 1000;
 }  // namespace
 
 CommImpl::CommImpl(Mode mode) {
@@ -33,6 +39,31 @@ int CommImpl::open(EaselService service_id, long timeout_ms) {
 
 int CommImpl::open(EaselService service_id) {
   return open(service_id, DEFAULT_OPEN_TIMEOUT_MS);
+}
+
+void CommImpl::openPersistent(EaselService service_id, int retryMs,
+                              bool logging) {
+  while (true) {
+    // open the channel with infinite timeout.
+    int res = open(service_id, -1);
+    if (logging) {
+      LOG(INFO) << __FUNCTION__ << " open channel " << service_id << ", error "
+                << res;
+    }
+    if (res == 0) {
+      startReceiving();
+      joinReceiving();
+    }
+    close();
+    if (logging) {
+      LOG(WARNING) << __FUNCTION__ << " channel " << service_id
+                   << " down, reopening...";
+    };
+
+    if (res != 0) {
+      usleep(retryMs * kMsToUs);
+    }
+  }
 }
 
 void CommImpl::close() { mComm->close(); }
