@@ -269,4 +269,30 @@ void MessengerToHdrPlusClient::notifyPostview(uint32_t requestId, uint8_t *data,
     }
 }
 
+void MessengerToHdrPlusClient::notifyAtraceAsync(const std::string &trace, int32_t cookie, int32_t begin) {
+    if (!mConnected) {
+        ALOGE("%s: Messenger not connected.", __FUNCTION__);
+        return;
+    }
+
+    // Prepare the message.
+    Message *message = nullptr;
+    status_t res = getEmptyMessage(&message);
+    if (res != 0) {
+        ALOGE("%s: Getting empty message failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return;
+    }
+
+    RETURN_ON_WRITE_ERROR(message->writeUint32(MESSAGE_NOTIFY_ATRACE_ASYNC));
+    RETURN_ON_WRITE_ERROR(message->writeString(trace));
+    RETURN_ON_WRITE_ERROR(message->writeInt32(cookie));
+    RETURN_ON_WRITE_ERROR(message->writeInt32(begin));
+
+    // Send to client.
+    res = sendMessage(message, /*async*/true);
+    if (res != 0) {
+        ALOGE("%s: Sending message failed: %s (%d).", __FUNCTION__, strerror(-res), res);;
+    }
+}
+
 } // namespace pbcamera

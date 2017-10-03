@@ -22,7 +22,17 @@
 
 namespace pbcamera {
 
+namespace {
+// Atrace event starting from HDR+ beginning to base frame available
+const char* kBaseFrame = "HDR+ baseframe";
+// Atrace event starting from base frame available to final image (yuv) finishes
+const char* kFinalImage = "HDR+ finalimage";
+// Atrace event for the final multiple output resample.
+const char* kResample = "HDR+ resample";
+
 std::once_flag loadPcgOnce;
+}  // namespace
+
 
 HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
         bool skipTimestampCheck, int32_t cameraId,
@@ -552,6 +562,7 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
     }
 
     shotCapture->shotId = shot->shot_id();
+    mMessengerToClient->notifyAtraceAsync(kBaseFrame, shotCapture->shotId, kAtraceBegin);
 
     // Begin payload frame with an empty burst spec for ZSL.
     gcam::BurstSpec burstSpec;
@@ -574,12 +585,14 @@ status_t HdrPlusProcessingBlock::IssueShotCapture(std::shared_ptr<ShotCapture> s
             /*general_warnings*/nullptr, /*general_errors*/nullptr)) {
         ALOGE("%s: Failed to end payload frames.", __FUNCTION__);
         mGcam->AbortShotCapture(shot);
+        mMessengerToClient->notifyAtraceAsync(kBaseFrame, shotCapture->shotId, kAtraceEnd);
         return -ENODEV;
     }
 
     // End shot capture.
     if (!mGcam->EndShotCapture(shot)) {
         ALOGE("%s: Failed to end a shot capture.", __FUNCTION__);
+        mMessengerToClient->notifyAtraceAsync(kBaseFrame, shotCapture->shotId, kAtraceEnd);
         return -ENODEV;
     }
 
@@ -864,6 +877,8 @@ status_t HdrPlusProcessingBlock::produceRequestOutputBuffers(
 void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIndex, int64_t baseFrameTimestampNs) {
     ALOGD("%s: Gcam selected a base frame index %d for shot %d.", __FUNCTION__, baseFrameIndex,
         shotId);
+    mMessengerToClient->notifyAtraceAsync(kBaseFrame, shotId, kAtraceEnd);
+
     {
         std::unique_lock<std::mutex> lock(mShuttersLock);
         Shutter shutter = {};
@@ -872,6 +887,8 @@ void HdrPlusProcessingBlock::onGcamBaseFrameCallback(int shotId, int baseFrameIn
         shutter.baseFrameTimestampNs = baseFrameTimestampNs;
         mShutters.push_back(shutter);
     }
+
+    mMessengerToClient->notifyAtraceAsync(kFinalImage, shotId, kAtraceBegin);
 
     // Notify worker thread.
     notifyWorkerThreadEvent();
@@ -942,6 +959,7 @@ void HdrPlusProcessingBlock::onGcamInputImageReleased(const int64_t imageId) {
 void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, std::unique_ptr<gcam::YuvImage> yuvResult,
         gcam::GcamPixelFormat pixelFormat, const gcam::ExifMetadata& exifMetadata) {
     ALOGD("%s: Got a final image (format %d) for request %d.", __FUNCTION__, pixelFormat, shotId);
+    mMessengerToClient->notifyAtraceAsync(kFinalImage, shotId, kAtraceEnd);
 
     if (yuvResult == nullptr) {
         ALOGE("%s: Expecting a YUV final image but yuvResult is nullptr.", __FUNCTION__);
@@ -968,14 +986,17 @@ void HdrPlusProcessingBlock::onGcamFinalImage(int shotId, std::unique_ptr<gcam::
         mPendingShotCapture = nullptr;
     }
 
-    END_PROFILER_TIMER(finishingShot->timer);
-
     OutputResult outputResult = finishingShot->outputRequest;
 
     // Notify AP that it's ready to take another capture request.
     mMessengerToClient->notifyNextCaptureReadyAsync(outputResult.metadata.requestId);
 
+    mMessengerToClient->notifyAtraceAsync(kResample, shotId, kAtraceBegin);
     status_t res = produceRequestOutputBuffers(std::move(yuvResult), &outputResult.buffers);
+    mMessengerToClient->notifyAtraceAsync(kResample, shotId, kAtraceEnd);
+
+    END_PROFILER_TIMER(finishingShot->timer);
+
     if (res != 0) {
         ALOGE("%s: Producing request output buffers failed: %s (%d).", __FUNCTION__, strerror(-res),
                 res);

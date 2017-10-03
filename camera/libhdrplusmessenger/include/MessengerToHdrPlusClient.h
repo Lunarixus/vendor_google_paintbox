@@ -23,6 +23,9 @@
 
 namespace pbcamera {
 
+const int32_t kAtraceBegin = 1;
+const int32_t kAtraceEnd = 0;
+
 /*
  * MessengerToHdrPlusClient
  *
@@ -95,6 +98,15 @@ public:
      * requestId is current request ID that Eaesl HDR+ is processing.
      */
     void notifyNextCaptureReadyAsync(uint32_t requestId);
+
+    /*
+     * Invoked when pbserver want to send an atrace event to client
+     *
+     * trace is the name of the event
+     * cookie is the id of the event
+     * begin whether it is the beginning of the event (1) or end (0)
+     */
+    void notifyAtraceAsync(const std::string &trace, int32_t cookie, int32_t begin);
 
 private:
 
