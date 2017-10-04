@@ -6,58 +6,23 @@ option optimize_for = LITE_RUNTIME;
 package paintbox_nn;
 
 enum OperandType {
-  FLOAT16                   = 0;
-  FLOAT32                   = 1;
-  INT8                      = 2;
-  UINT8                     = 3;
-  INT16                     = 4;
-  UINT16                    = 5;
-  INT32                     = 6;
-  UINT32                    = 7;
-  TENSOR_FLOAT16            = 8;
-  TENSOR_FLOAT32            = 9;
-  TENSOR_QUANT8_ASYMM       = 10;
+  FLOAT32 = 0;
+  INT32 = 1;
+  UINT32 = 2;
+  TENSOR_FLOAT32 = 3;
+  TENSOR_INT32 = 4;
+  TENSOR_QUANT8_ASYMM = 5;
+  OEM = 10000;
+  TENSOR_OEM_BYTE = 10001;
 }
 
-enum OperationType {
-  AVERAGE_POOL                 = 0;
-  CONCATENATION                = 1;
-  CONV                         = 2;
-  DEPTHWISE_CONV               = 3;
-  MAX_POOL                     = 4;
-  L2_POOL                      = 5;
-  DEPTH_TO_SPACE               = 6;
-  SPACE_TO_DEPTH               = 7;
-  LOCAL_RESPONSE_NORMALIZATION = 8;
-  SOFTMAX                      = 9;
-  RESHAPE                      = 10;
-  SPLIT                        = 11;
-  FAKE_QUANT                   = 12;
-  ADD                          = 13;
-  FULLY_CONNECTED              = 14;
-  CAST                         = 15;
-  MUL                          = 16;
-  L2_NORMALIZATION             = 17;
-  LOGISTIC                     = 18;
-  RELU                         = 19;
-  RELU6                        = 20;
-  RELU1                        = 21;
-  TANH                         = 22;
-  DEQUANTIZE                   = 23;
-  FLOOR                        = 24;
-  GATHER                       = 25;
-  RESIZE_BILINEAR              = 26;
-  LSH_PROJECTION               = 27;
-  LSTM                         = 28;
-  SVDF                         = 29;
-  RNN                          = 30;
-  N_GRAM                       = 31;
-  LOOKUP                       = 32;
-}
-
-message OperationTuple {
-  optional OperationType operationType = 1;
-  optional OperandType operandType = 2;
+enum OperandLifeTime {
+  TEMPORARY_VARIABLE = 1;
+  MODEL_INPUT = 2;
+  MODEL_OUTPUT = 3;
+  CONSTANT_COPY = 4;
+  CONSTANT_REFERENCE = 5;
+  NO_VALUE = 6;
 }
 
 message DataLocation {
@@ -72,18 +37,14 @@ message Operand {
   optional uint32 numberOfConsumers = 3;
   optional float scale = 4;
   optional int32 zeroPoint = 5;
-  optional DataLocation location = 6;
+  optional OperandLifeTime lifetime = 6;
+  optional DataLocation location = 7;
 }
 
+// OperationType is removed as only OEM_OPERATION is supported
 message Operation {
-  optional OperationTuple opTuple = 1;
   repeated uint32 inputs = 2;
   repeated uint32 outputs = 3;
-}
-
-message InputOutputInfo {
-  optional DataLocation location = 1;
-  repeated uint32 dimensions = 2;
 }
 
 message Model {
@@ -92,14 +53,31 @@ message Model {
   repeated uint32 inputIndexes = 3;
   repeated uint32 outputIndexes = 4;
   optional bytes operandValues = 5;
+  repeated uint64 poolSizes = 6;
+}
+
+message RequestArgument {
+  optional bool hasNoValue = 1;
+  optional DataLocation location = 2;
+  repeated uint32 dimensions = 3;
 }
 
 message Request {
-  repeated InputOutputInfo inputs = 1;
-  repeated InputOutputInfo outputs = 2;
+  repeated RequestArgument inputs = 1;
+  repeated RequestArgument outputs = 2;
   repeated uint64 poolSizes = 3;
+  repeated int32 inputPools = 4;
+  repeated int32 outputPools = 5;
+}
+
+enum ErrorStatus {
+  NONE = 0;
+  DEVICE_UNAVAILABLE = 1;
+  GENERAL_FAILURE = 2;
+  OUTPUT_INSUFFICIENT_SIZE = 3;
+  INVALID_ARGUMENT = 4;
 }
 
 message Response {
-  optional int32 result = 1;
+  optional ErrorStatus result = 1;
 }
