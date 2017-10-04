@@ -54,6 +54,8 @@ status_t SourceCaptureBlock::createCaptureServiceLocked() {
         return -ENODEV;
     }
 
+    mCaptureServicePaused = false;
+
     int32_t frameCounterId = kInvalidFrameCounterId;
     {
         std::unique_lock<std::mutex> lock(mFrameCounterLock);
@@ -225,6 +227,10 @@ void SourceCaptureBlock::pauseCaptureServiceLocked() {
 }
 
 void SourceCaptureBlock::resumeCaptureServiceLocked(bool startFrameCounter, int32_t frameCountId) {
+    if (mDequeueRequestThread == nullptr) {
+        return;
+    }
+
     if (startFrameCounter) {
          mDequeueRequestThread->requestFrameCounterNotification(kStableFrameCount, frameCountId);
     }
