@@ -327,6 +327,10 @@ status_t ApEaselMetadataManager::convertAndReturnStaticMetadata(
             ANDROID_LENS_INFO_SHADING_MAP_SIZE));
     RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.focusDistanceCalibration, staticMetadataSrc,
             ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION));
+    RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.aeCompensationRange, staticMetadataSrc,
+            ANDROID_CONTROL_AE_COMPENSATION_RANGE));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeCompensationStep, staticMetadataSrc,
+            ANDROID_CONTROL_AE_COMPENSATION_STEP));
 
     *staticMetadataDest = dest;
     return OK;
@@ -348,6 +352,8 @@ status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
     RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.continuousCapturing, requestMetadataSrc,
             static_cast<camera_metadata_tag>(
             qcamera::NEXUS_EXPERIMENTAL_2017_CONTINUOUS_ZSL_CAPTURE)));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeExposureCompensation, requestMetadataSrc,
+            ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION));
 
     *requestMetadataDest = dest;
     return OK;
@@ -400,6 +406,16 @@ status_t ApEaselMetadataManager::convertAndReturnPbFrameMetadata(
             ANDROID_STATISTICS_LENS_SHADING_MAP));
     RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.focusDistance, cameraMetadata,
             ANDROID_LENS_FOCUS_DISTANCE));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeExposureCompensation, cameraMetadata,
+            ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeMode, cameraMetadata, ANDROID_CONTROL_AE_MODE));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeLock, cameraMetadata, ANDROID_CONTROL_AE_LOCK));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeState, cameraMetadata,
+            ANDROID_CONTROL_AE_STATE));
+    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aePrecaptureTrigger, cameraMetadata,
+            ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER));
+    RETURN_ERROR_ON_ERROR(fillMetadataVectorArray(&dest.aeRegions, cameraMetadata,
+            ANDROID_CONTROL_AE_REGIONS));
 
     *frameMetadata = dest;
     return OK;
