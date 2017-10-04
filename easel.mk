@@ -41,16 +41,9 @@ PRODUCT_PACKAGES += \
     easel_boot_test \
     ezlsh \
     ezlspi \
-    libeaselsystem \
-    libeaselcontrolservice \
-    libgcam \
-    libhdrplusservice \
-    libimageprocessor \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \
-    logd.easel \
-    pbserver \
     pbticlient \
     pbtiserver \
     hdrplus_client_tests
