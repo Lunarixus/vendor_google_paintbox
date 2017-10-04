@@ -121,18 +121,11 @@ int main() {
 
   server = EaselComm2::Comm::create(EaselComm2::Comm::Mode::SERVER);
 
-  // Repeatedly receives test requests.
-  while (true) {
-    CHECK_EQ(server->open(EASEL_SERVICE_TEST), android::NO_ERROR);
+  server->registerHandler(kIonBufferChannel, handleIonBufferMessage);
+  server->registerHandler(kMallocBufferChannel, handleMallocBufferMessage);
+  server->registerHandler(kProtoChannel, handleProtoMessage);
+  server->registerHandler(kStructChannel, handleStructMessage);
+  server->registerHandler(kStringChannel, handleStringMessage);
 
-    server->registerHandler(kIonBufferChannel, handleIonBufferMessage);
-    server->registerHandler(kMallocBufferChannel, handleMallocBufferMessage);
-    server->registerHandler(kProtoChannel, handleProtoMessage);
-    server->registerHandler(kStructChannel, handleStructMessage);
-    server->registerHandler(kStringChannel, handleStringMessage);
-
-    CHECK_EQ(server->startReceiving(), android::NO_ERROR);
-    server->joinReceiving();
-    server->close();
-  }
+  server->openPersistent(EASEL_SERVICE_TEST);
 }
