@@ -14,54 +14,39 @@
  * limitations under the License.
  */
 
-cc_library_shared {
-    name: "android.hardware.neuralnetworks@1.0-impl-paintbox",
-    owner: "google",
-    defaults: ["hidl_defaults"],
+cc_defaults {
+    name: "NeuralNetworksPaintboxDriver_defaults",
+    defaults: ["neuralnetworks_defaults"],
     relative_install_path: "hw",
     proprietary: true,
     srcs: [
-        "Conversion.cpp",
-        "Device.cpp",
         "PaintboxDriver.cpp",
-     ],
-    static_libs: [
-        "libneuralnetworks_common",
-        "paintbox_nn_shared",
     ],
     header_libs: [
         "libneuralnetworks_headers",
     ],
     shared_libs: [
         "libbase",
-        "libeaselcomm",
+        "libdl",
+        "libhardware",
         "libhidlbase",
-        "libhidltransport",
         "libhidlmemory",
+        "libhidltransport",
+        "libtextclassifier_hash",
         "liblog",
-        "libprotobuf-cpp-lite",
         "libutils",
         "android.hardware.neuralnetworks@1.0",
         "android.hidl.allocator@1.0",
         "android.hidl.memory@1.0",
     ],
+    static_libs: [
+        "libneuralnetworks_common",
+    ],
 }
 
 cc_binary {
     name: "android.hardware.neuralnetworks@1.0-service-paintbox",
-    owner: "google",
-    relative_install_path: "hw",
-    proprietary: true,
-    init_rc: ["android.hardware.neuralnetworks@1.0-service-paintbox.rc"],
-    srcs: ["service.cpp"],
-    shared_libs: [
-        "libbase",
-        "libdl",
-        "libhardware",
-        "libhidlbase",
-        "libhidltransport",
-        "liblog",
-        "libutils",
-        "android.hardware.neuralnetworks@1.0",
-    ],
+    defaults: ["NeuralNetworksPaintboxDriver_defaults"],
+    init_rc: ["PaintboxDriver.rc"],
+    srcs: ["PaintboxDriverOem.cpp"],
 }
