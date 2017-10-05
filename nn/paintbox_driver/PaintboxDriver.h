@@ -17,7 +17,7 @@
 #ifndef PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
 #define PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
 
-#include "CpuExecutor.h"
+#include "EaselExecutorClient.h"
 #include "HalInterfaces.h"
 #include "NeuralNetworks.h"
 
@@ -41,14 +41,15 @@ public:
     int run();
 protected:
     std::string mName;
+    EaselExecutorClient mClient;
 };
 
 class PaintboxPreparedModel : public IPreparedModel {
 public:
-    PaintboxPreparedModel(const Model& model)
+    PaintboxPreparedModel(const Model& model, EaselExecutorClient* client)
           : // Make a copy of the model, as we need to preserve it.
-            mModel(model) {}
-    ~PaintboxPreparedModel() override {}
+            mModel(model), mClient(client) {}
+    ~PaintboxPreparedModel() override;
     bool initialize();
     Return<ErrorStatus> execute(const Request& request,
                                 const sp<IExecutionCallback>& callback) override;
@@ -57,7 +58,7 @@ private:
     void asyncExecute(const Request& request, const sp<IExecutionCallback>& callback);
 
     Model mModel;
-    std::vector<RunTimePoolInfo> mPoolInfos;
+    EaselExecutorClient* mClient;
 };
 
 } // namespace paintbox_driver

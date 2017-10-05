@@ -18,6 +18,7 @@
 
 #include "PaintboxDriver.h"
 
+#include "Conversion.h"
 #include "CpuExecutor.h"
 #include "HalInterfaces.h"
 
@@ -44,13 +45,15 @@ Return<ErrorStatus> PaintboxDriver::prepareModel(const Model& model,
         return ErrorStatus::INVALID_ARGUMENT;
     }
 
-    // TODO: make asynchronous later
-    sp<PaintboxPreparedModel> preparedModel = new PaintboxPreparedModel(model);
-    if (!preparedModel->initialize()) {
-       callback->notify(ErrorStatus::INVALID_ARGUMENT, nullptr);
-       return ErrorStatus::INVALID_ARGUMENT;
-    }
-    callback->notify(ErrorStatus::NONE, preparedModel);
+    CHECK_EQ(mClient.initialize(), 0);
+
+    sp<PaintboxPreparedModel> preparedModel = new PaintboxPreparedModel(model, &mClient);
+    mClient.prepareModel(model, [callback, preparedModel] (
+            const paintbox_nn::PrepareModelResponse& response) {
+        callback->notify(
+                paintbox_util::convertProtoError(response.error()), preparedModel);
+    });
+
     return ErrorStatus::NONE;
 }
 
@@ -60,7 +63,7 @@ Return<DeviceStatus> PaintboxDriver::getStatus() {
 }
 
 int PaintboxDriver::run() {
-    android::hardware::configureRpcThreadpool(4, true);
+    android::hardware::configureRpcThreadpool(1, true);
     if (registerAsService(mName) != android::OK) {
         LOG(ERROR) << "Could not register service";
         return 1;
@@ -70,28 +73,27 @@ int PaintboxDriver::run() {
     return 1;
 }
 
-bool PaintboxPreparedModel::initialize() {
-    return setRunTimePoolInfosFromHidlMemories(&mPoolInfos, mModel.pools);
+PaintboxPreparedModel::~PaintboxPreparedModel() {
+    std::mutex destroyLock;
+    std::condition_variable destroyComplete;
+    mClient->destroyModel(mModel, [&](const paintbox_nn::TearDownModelResponse&){
+        destroyComplete.notify_one();
+    });
+
+    std::unique_lock<std::mutex> lock;
+    destroyComplete.wait(lock);
 }
 
 void PaintboxPreparedModel::asyncExecute(const Request& request,
                                        const sp<IExecutionCallback>& callback) {
-    std::vector<RunTimePoolInfo> requestPoolInfos;
-    if (!setRunTimePoolInfosFromHidlMemories(&requestPoolInfos, request.pools)) {
-        callback->notify(ErrorStatus::GENERAL_FAILURE);
-        return;
-    }
-
-    // TODO(cjluo): Replace with EaselExecutor.
-    CpuExecutor executor;
-    int n = executor.run(mModel, request, mPoolInfos, requestPoolInfos);
-    VLOG(DRIVER) << "executor.run returned " << n;
-    ErrorStatus executionStatus =
-            n == ANEURALNETWORKS_NO_ERROR ? ErrorStatus::NONE : ErrorStatus::GENERAL_FAILURE;
-    Return<void> returned = callback->notify(executionStatus);
-    if (!returned.isOk()) {
-        LOG(ERROR) << " hidl callback failed to return properly: " << returned.description();
-    }
+    mClient->execute(request, [callback] (
+            const paintbox_nn::RequestResponse& response) {
+        ErrorStatus executionStatus = paintbox_util::convertProtoError(response.error());
+        Return<void> returned = callback->notify(executionStatus);
+        if (!returned.isOk()) {
+            LOG(ERROR) << " hidl callback failed to return properly: " << returned.description();
+        }
+    });
 }
 
 Return<ErrorStatus> PaintboxPreparedModel::execute(const Request& request,
@@ -106,9 +108,7 @@ Return<ErrorStatus> PaintboxPreparedModel::execute(const Request& request,
         return ErrorStatus::INVALID_ARGUMENT;
     }
 
-    // This thread is intentionally detached because the sample driver service
-    // is expected to live forever.
-    std::thread([this, request, callback]{ asyncExecute(request, callback); }).detach();
+    asyncExecute(request, callback);
 
     return ErrorStatus::NONE;
 }
