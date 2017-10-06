@@ -1,7 +1,8 @@
 #include "ManagerClientImpl.h"
 #include "ManagerShared.h"
 
-#include "binder/IServiceManager.h"
+#include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
 
 namespace android {
 namespace EaselManager {
@@ -13,6 +14,8 @@ Error ManagerClientImpl::initialize() {
   if (binder == nullptr) return BINDER_ERROR;
   mService = interface_cast<IManagerService>(binder);
   if (mService == nullptr) return MANAGER_SERVICE_ERROR;
+  // Start the binder thread pool for callbacks.
+  ProcessState::self()->startThreadPool();
   return SUCCESS;
 }
 

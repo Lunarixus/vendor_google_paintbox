@@ -8,7 +8,7 @@ namespace EaselManager {
 
 // Supported apps on Easel.
 enum App {
-  PBSERVER = 0,
+  PBSERVER = 1,
 };
 
 // Error codes

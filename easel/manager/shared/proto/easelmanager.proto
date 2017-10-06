@@ -1,0 +1,32 @@
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package EaselManagerService;
+
+enum App {
+  PBSERVER = 1;
+}
+
+enum Status {
+  LIVE = 1;
+  EXIT = 2;
+  UNKNOWN = 99;
+}
+
+enum Error {
+  SUCCESS = 1;
+}
+
+message StartAppRequest {
+  optional App app = 1;
+}
+
+message StopAppRequest {
+  optional App app = 1;
+}
+
+message AppStatusResponse {
+  optional App app = 1;
+  optional Error error = 2;
+  optional Status status = 3;
+}

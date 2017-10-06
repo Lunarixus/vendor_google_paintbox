@@ -34,11 +34,17 @@ cc_binary {
         "easelmanagerd.cpp",
     ],
 
+    static_libs: [
+        "easelmanager_shared",
+    ],
+
     shared_libs: [
         "libbase",
         "libbinder",
+        "libeaselcomm",
         "libeaselmanager_aidl",
         "liblog",
+        "libprotobuf-cpp-lite",
         "libutils",
     ],
 
