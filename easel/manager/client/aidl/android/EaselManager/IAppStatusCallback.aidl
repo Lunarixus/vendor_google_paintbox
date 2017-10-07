@@ -3,7 +3,9 @@ package android.EaselManager;
 /** Callback to handle app status change. */
 interface IAppStatusCallback {
   /** Handles app starts event. */
-  void onAppStart();
+  oneway void onAppStart();
   /** Handles app ends event. */
-  void onAppEnd();
+  oneway void onAppEnd();
+  /** Handles app error event. */
+  oneway void onAppError(int error);
 }

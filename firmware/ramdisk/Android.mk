@@ -33,6 +33,7 @@ PREBUILT_BIN_MODULES := \
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
+	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
 	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
@@ -70,6 +71,11 @@ LIB_MODULES := \
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 	LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
+endif
+
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+	INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
 endif
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
@@ -124,6 +130,7 @@ $(LOCAL_BUILT_MODULE): PRIVATE_PREBUILT_BIN_MODULES := $(PREBUILT_BIN_MODULES)
 $(LOCAL_BUILT_MODULE): PRIVATE_BIN_MODULES := $(BIN_MODULES)
 $(LOCAL_BUILT_MODULE): PRIVATE_LIB_MODULES := $(LIB_MODULES)
 $(LOCAL_BUILT_MODULE): PRIVATE_PCG_MODULE := $(PCG_MODULE)
+$(LOCAL_BUILT_MODULE): PRIVATE_INIT_MODULE := $(INIT_MODULE)
 
 $(LOCAL_BUILT_MODULE): EASEL_PREBUILT := prebuilt/
 $(LOCAL_BUILT_MODULE): EASEL_BIN := prebuilt/system/bin/
@@ -145,7 +152,7 @@ $(LOCAL_BUILT_MODULE): \
 	$(PCG_MODULE) \
 	$(GEN_CPIO) $(GEN_INITRAMFS_LIST) $(MKIMAGE) \
 	$(EASEL_RAMDISK_SRC_DIR)/files.txt \
-	$(EASEL_RAMDISK_SRC_DIR)/init
+	$(INIT_MODULE)
 
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
@@ -165,7 +172,7 @@ $(LOCAL_BUILT_MODULE): \
 
 	# init
 	@mkdir -p $(dir $@)/$(EASEL_PREBUILT)
-	@cp -f $(PRIVATE_EASEL_RAMDISK_SRC_DIR)/init $(dir $@)/$(EASEL_PREBUILT)
+	@cp -f $(PRIVATE_INIT_MODULE) $(dir $@)/$(EASEL_PREBUILT)/init
 
 	# Binary
 	@mkdir -p $(dir $@)/$(EASEL_BIN)

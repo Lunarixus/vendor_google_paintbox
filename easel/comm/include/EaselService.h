@@ -20,6 +20,8 @@ enum EaselService {
   EASEL_SERVICE_LOG,
   // NN service
   EASEL_SERVICE_NN,
+  // EaselManager service
+  EASEL_SERVICE_MANAGER,
   // Max service ID
   EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
 };
