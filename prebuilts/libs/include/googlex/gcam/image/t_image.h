@@ -273,7 +273,7 @@ class ReadOnlyTImageView {
   //
   // Note that the iterator has methods for querying the x, y and c coordinates
   // of the sample that the iterator currently points to.  This is useful for
-  // writing loops like the following, wich implements a 2x2 pixel box blur:
+  // writing loops like the following, which implements a 2x2 pixel box blur:
   //
   //  ReadOnlyTImageView<...> big(...);
   //  TImage<...> small(big.width() / 2, big.height() / 2, big.num_channels());
