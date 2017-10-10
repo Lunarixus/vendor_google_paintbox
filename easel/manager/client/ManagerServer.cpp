@@ -85,8 +85,10 @@ void ManagerServer::initialize() {
   });
 
   // Constantly try to connect to the easelmanagerserver on Easel side.
+  // Exit when easel could not be opened.
   mCommOpenThread = std::thread([&] {
-    mComm->openPersistent(EASEL_SERVICE_MANAGER);
+    int res = mComm->openPersistent(EASEL_SERVICE_MANAGER);
+    if (res != 0) exit(res);
   });
 }
 

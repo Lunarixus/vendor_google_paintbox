@@ -19,8 +19,6 @@ void ConvertMessageToEaselMessage(const Message& message,
                                    ? EASELCOMM_DMA_BUFFER_DMA_BUF
                                    : EASELCOMM_DMA_BUFFER_USER;
 }
-
-const int kMsToUs = 1000;
 }  // namespace
 
 CommImpl::CommImpl(Mode mode) {
@@ -41,28 +39,25 @@ int CommImpl::open(EaselService service_id) {
   return open(service_id, DEFAULT_OPEN_TIMEOUT_MS);
 }
 
-void CommImpl::openPersistent(EaselService service_id, int retryMs,
-                              bool logging) {
+int CommImpl::openPersistent(EaselService service_id, bool logging) {
   while (true) {
-    // open the channel with infinite timeout.
-    int res = open(service_id, -1);
-    if (logging) {
-      LOG(INFO) << __FUNCTION__ << " open channel " << service_id << ", error "
-                << res;
-    }
+    // Open the channel without timeout to avoid busy polling.
+    int res = open(service_id, 0);
     if (res == 0) {
       startReceiving();
       joinReceiving();
+    } else {
+      if (logging) {
+        LOG(ERROR) << __FUNCTION__ << " open channel " << service_id << ", error "
+                   << res;
+      }
+      return res;
     }
     close();
     if (logging) {
       LOG(WARNING) << __FUNCTION__ << " channel " << service_id
                    << " down, reopening...";
     };
-
-    if (res != 0) {
-      usleep(retryMs * kMsToUs);
-    }
   }
 }
 

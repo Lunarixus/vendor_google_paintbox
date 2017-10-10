@@ -39,7 +39,10 @@ BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-	BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh
+	BIN_MODULES += \
+		$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
+		$(call intermediates-dir-for,EXECUTABLES,easeldummyapp)/easeldummyapp \
+		$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
 endif
 
 LIB_MODULES := \

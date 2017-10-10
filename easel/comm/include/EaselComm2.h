@@ -37,13 +37,12 @@ class Comm {
 
   // Opens communications for the specified service.
   // When the link is down, close the link and reopen again.
+  // If reopen fails, the function will return the error code.
   // This function will also start and join handler thread.
-  // This function will block forever and never return.
-  // retryMS specifies the waittime before every open retry after failure.
+  // This function will block forever and never return unless open fails.
   // logging specifies if the open / close logging is turned on.
-  virtual void openPersistent(EaselService service_id,
-                              int retryMs = 1000,
-                              bool logging = true) = 0;
+  virtual int openPersistent(EaselService service_id,
+                             bool logging = true) = 0;
 
   // Closes down communication via this object.
   virtual void close() = 0;
