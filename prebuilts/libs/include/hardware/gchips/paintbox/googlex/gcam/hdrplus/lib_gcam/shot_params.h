@@ -23,9 +23,6 @@ extern const char* const kShotParamsFilename;
 static const int kDefaultFullMeteringSweepFrameCount = 6;
 static const int kDebugFullMeteringSweepFrameCount = 9;
 
-// TODO(murthykk): Move this parameter to StaticMetadata.
-static const float kDefaultFrameReadoutTimeMs = 33.33f;
-
 // Parameters for each 'shot' (from the user's point of view).
 // On construction, this contains a good set of defaults you can use.
 //
@@ -75,11 +72,6 @@ struct ShotParams {
   //   that are far away from the viewfinder TET.  In this case, we use
   //   just 3 metering frames.
   bool cull_metering_frames_using_previous_viewfinder;
-
-  // Longest exposure time *preferred* for metering.
-  // You probably want to set this to 33.3333 ms if capturing metering frames
-  //   at 30 Hz, or to 16.6667 ms if capturing metering frames at 60 Hz.
-  float metering_preferred_max_exposure_time_ms;
 
   // Extra gain factor for metering.  Normally 1, but if your metering
   // frames are 2x or 4x as bright as the equivalent payload frames

@@ -66,6 +66,9 @@ const int kInvalidShotId = -1;
 // image can be null.).
 const int64_t kInvalidImageId = -1;
 
+// Constants to represent an image crop  which should not be overridden.
+const double kInvalidCropCoord = -1.0;
+
 // For every N images we get, throw out a blurry image (the next-blurriest in
 // the whole burst).
 // TODO(geiss): Study what % of shots are blurry from hand shake,
