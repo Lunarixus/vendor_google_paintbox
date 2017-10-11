@@ -59,6 +59,17 @@ RawImage ReadDng(
     TImageSampleAllocator* custom_allocator = TImageDefaultSampleAllocator(),
     const Context* context = nullptr);
 
+// Reads a DNG file from memory into an RawImage. Populates the ExifMetadata
+// struct with the resulting metadata.  Returns a null image on failure.
+//
+// DNG files in their full generality are not handled. For example, we hardcode
+// assumptions about the number of Bayer channels and the number of color planes
+// (4 and 3, respectively), and do not currently handle bit packing.
+RawImage ReadDngFromMemory(
+    uint8_t* buffer, uint32_t buffer_size_bytes, ExifMetadata* exif_metadata,
+    TImageSampleAllocator* custom_allocator = TImageDefaultSampleAllocator(),
+    const Context* context = nullptr);
+
 }  // namespace gcam
 
 #endif  // GOOGLEX_GCAM_IMAGE_IO_DNG_HELPER_H_
