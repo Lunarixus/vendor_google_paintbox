@@ -48,10 +48,10 @@ struct ExifMetadata {
   FrameMetadata frame_metadata;     // Metadata for the frame.
   ClientExifMetadata client_exif;   // EXIF metadata directly from the client.
 
-  // Crop rectangle describing what part of the raw image corresponds to Gcam's
-  // final result, relative to the active area. If the crop is empty, the final
-  // result is assumed to cover the entire raw image; this handles the case
-  // where the raw image was pre-cropped before saving it to DNG.
+  // Crop rectangle describing what part of the raw image to show by default,
+  // relative to the active area. If the crop is empty, the whole raw image is
+  // shown; for example, this handles the case where the raw image was
+  // pre-cropped before saving it to DNG.
   PixelRect dng_crop;
 
   // Amount of dynamic range compression suitable for the scene, given as a

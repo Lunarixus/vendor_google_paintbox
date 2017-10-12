@@ -604,15 +604,16 @@ ImxError ImxDeleteCompiledGraph(ImxCompiledGraphHandle compiled_graph_handle);
  * used in conjunction with ImxLoadMatchingPrecompiledGraph()
  *
  * Currently, multiple files are saved: the precompiled graph configuration
- * (save_dir_path/file_name) and binary pISA files (*.bpisa in save_dir_path)
+ * (pcg_dir_path/file_name) and binary pISA files (*.bpisa in bpisa_dir_path)
  * for the stencil-processor program kernels.
  */
 /* TODO(ahalambi): Change this API (or provide a new one) that returns a
  * binary blob containing all saved state. Application can decide how to use it.
  */
 ImxError ImxSaveCompiledGraph(
-    const char *save_dir_path,
+    const char *pcg_dir_path,
     const char *file_name,
+    const char *bpisa_dir_path,
     ImxCompiledGraphHandle compiled_graph  /* const */);
 
 /* Saves the given compiled_graph into a unique sub-directory within
@@ -620,6 +621,7 @@ ImxError ImxSaveCompiledGraph(
  * Note: This API function is typically used in conjunction with
  * ImxLoadMatchingPrecompiledGraph
  */
+/* DEPRECATED; use ImxSaveCompiledGraph instead */
 ImxError ImxSaveAsUniqueCompiledGraph(
     const char *save_dir_base_path,
     const char *file_name,
@@ -633,8 +635,9 @@ ImxError ImxSaveAsUniqueCompiledGraph(
  * call to ImxSaveCompiledGraph API).
  */
 ImxError ImxLoadPrecompiledGraph(
-    const char *load_dir_path,
+    const char *pcg_dir_path,
     const char *file_name,
+    const char *bpisa_dir_path,
     ImxNodeHandle *transfer_nodes,  /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
     const char **transfer_node_names,
@@ -652,8 +655,9 @@ ImxError ImxLoadPrecompiledGraph(
  * ImxSaveCompiledGraph() or ImxSaveAsUniqueCompiledGraph()
  */
 ImxError ImxLoadMatchingPrecompiledGraph(
-    const char *load_dir_base_path,
+    const char *pcg_dir_base_path,
     const char *file_name,
+    const char *bpisa_dir_path,
     ImxNodeHandle *nodes,  /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
     const char **node_names,
@@ -680,8 +684,9 @@ typedef enum {
  * Sets the result of PCG (precompiled graph) comparison in find_pcg_result.
  */
 ImxError ImxFindMatchingPrecompiledGraph(
-    const char *load_dir_base_path,
+    const char *pcg_dir_base_path,
     const char *file_name,
+    const char *bpisa_dir_path,
     ImxNodeHandle *nodes,  /* Input - Array of nodes */
     /* Input - Parameter name for each xfer node */
     const char **node_names,
@@ -702,11 +707,20 @@ ImxError ImxFindMatchingPrecompiledGraph(
  *      |             |
  * <file name>   <file name>
  *
+ *          <bpisa dir>
+ *          /         \
+ * <some1.bipsa> ... <some2.bpisa>
+ *
+ * If bpisa_dir_path is NULL, it defaults to the case where bpisas are stored
+ * along with the corresponding pcgs (i.e. in separate directories and not under
+ * a single unified directory).
+ *
  * Returns IMX_SUCCESS if no errors occured.
  */
 ImxError ImxPreloadPrecompiledGraphs(
-    const char *load_dir_root_path,  /* in */
+    const char *pcg_dir_root_path,  /* in */
     const char *file_name,  /* in */
+    const char *bpisa_dir_path,  /* in */
     ImxPrecompiledGraphsHandle *precompiled_graphs_handle_ptr  /* out */);
 
 /* Finds the precompiled graph by base name and creates a compiled graph from it

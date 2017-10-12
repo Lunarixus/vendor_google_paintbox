@@ -14,6 +14,9 @@ static const uint32_t GCAM_SAVE_NONE                    = 0u;
 static const uint32_t GCAM_SAVE_INPUT_METERING          = (1u << 18);
 static const uint32_t GCAM_SAVE_INPUT_PAYLOAD           = (1u << 19);
 static const uint32_t GCAM_SAVE_TEXT                    = (1u << 29);
+// Add IPU watermark to finished images, only if "use_ipu" flag is set for gcam;
+// otherwise this flag has no effect
+static const uint32_t GCAM_SAVE_IPU_WATERMARK           = (1u << 30);
 
 // Debugging options, including what debugging information gets saved to disk.
 // These parameters are configured at Gcam startup, and are normally fixed.
