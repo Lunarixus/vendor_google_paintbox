@@ -43,9 +43,19 @@ HdrPlusClientImpl::HdrPlusClientImpl(HdrPlusClientListener *listener) : HdrPlusC
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
     }
+
+    mTimerCallbackThread = new TimerCallbackThread(
+            [this](uint32_t id) { handleRequestTimeout(id); });
+    if (mTimerCallbackThread != nullptr) {
+        mTimerCallbackThread->run("TimerCallbackThread");
+    }
 }
 
 HdrPlusClientImpl::~HdrPlusClientImpl() {
+    if (mTimerCallbackThread != nullptr) {
+        mTimerCallbackThread->requestExit();
+        mTimerCallbackThread->join();
+    }
     disconnect();
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->requestExit();
@@ -228,30 +238,38 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
         return res;
     }
 
-    // Lock here to prevent the case where the result comes back very quickly and couldn't
-    // find the request in mPendingRequests.
-    Mutex::Autolock l(mPendingRequestsLock);
+    {
+        // Lock here to prevent the case where the result comes back very quickly and couldn't
+        // find the request in mPendingRequests.
+        Mutex::Autolock l(mPendingRequestsLock);
 
-    PendingRequest pendingRequest;
-    pendingRequest.request = *request;
-    for (auto &outputBuffer : request->outputBuffers) {
-        pendingRequest.outputBufferStatuses.emplace(outputBuffer.streamId, OUTPUT_BUFFER_REQUESTED);
+        PendingRequest pendingRequest;
+        pendingRequest.request = *request;
+        for (auto &outputBuffer : request->outputBuffers) {
+            pendingRequest.outputBufferStatuses.emplace(outputBuffer.streamId,
+                    OUTPUT_BUFFER_REQUESTED);
+        }
+
+        START_PROFILER_TIMER(pendingRequest.timer);
+
+        ATRACE_INT("PendingEaselCaptures", 1);
+
+        // Send the request to HDR+ service.
+        res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
+        if (res != 0) {
+            ALOGE("%s: Sending capture request to service failed: %s (%d).", __FUNCTION__,
+                    strerror(-res), res);
+            return res;
+        }
+
+        // Push the request to pending request queue to look up when HDR+ service returns the
+        // result.
+        mPendingRequests.push_back(std::move(pendingRequest));
     }
 
-    START_PROFILER_TIMER(pendingRequest.timer);
-
-    ATRACE_INT("PendingEaselCaptures", 1);
-
-    // Send the request to HDR+ service.
-    res = mMessengerToService.submitCaptureRequest(request, requestMetadataDest);
-    if (res != 0) {
-        ALOGE("%s: Sending capture request to service failed: %s (%d).", __FUNCTION__,
-                strerror(-res), res);
-        return res;
+    if (mTimerCallbackThread != nullptr) {
+        mTimerCallbackThread->addTimer(request->id, kDefaultRequestTimerMs);
     }
-
-    // Push the request to pending request queue to look up when HDR+ service returns the result.
-    mPendingRequests.push_back(std::move(pendingRequest));
 
     return 0;
 }
@@ -596,6 +614,29 @@ void HdrPlusClientImpl::notifyDmaFileDump(const std::string &filename, DmaBuffer
     ALOGD("%s: Dump data to file: %s", __FUNCTION__, finalPath.c_str());
 }
 
+void HdrPlusClientImpl::handleRequestTimeout(uint32_t id) {
+    ALOGE("%s: Request %d timed out.", __FUNCTION__, id);
+    {
+        Mutex::Autolock requestLock(mPendingRequestsLock);
+        // Find the pending request.
+        auto pendingRequestIter = mPendingRequests.begin();
+        for (; pendingRequestIter != mPendingRequests.end(); pendingRequestIter++) {
+            if (pendingRequestIter->request.id == id) {
+                break;
+            }
+        }
+
+        // It's possible that the request has just completed.
+        if (pendingRequestIter == mPendingRequests.end()) {
+            ALOGW("%s: Cannot find a pending request id %d.", __FUNCTION__, id);
+            return;
+        }
+    }
+
+    // When a request timed out, service may have become irresponsive.
+    notifyServiceClosed();
+}
+
 void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *result) {
     if (result == nullptr) return;
 
@@ -709,6 +750,8 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
         mPendingRequests.erase(pendingRequestIter);
     }
 
+    mTimerCallbackThread->cancelTimer(clientResult.requestId);
+
     if (successfulResult) {
         // Invoke client listener callback for the capture result.
         mClientListener->onCaptureResult(&clientResult, *resultMetadata);
@@ -772,6 +815,117 @@ bool NotifyFrameMetadataThread::threadLoop() {
     }
 
     mMessenger->notifyFrameMetadataAsync(*frameMetadata.get());
+
+    return true;
+}
+
+TimerCallbackThread::TimerCallbackThread(std::function<void(uint32_t)> callback) :
+        mCallback(callback), mExitRequested(false) {
+}
+
+TimerCallbackThread::~TimerCallbackThread() {
+    requestExit();
+}
+
+void TimerCallbackThread::requestExit() {
+    std::unique_lock<std::mutex> lock(mTimerLock);
+    mExitRequested = true;
+    mTimerCond.notify_one();
+}
+
+int64_t TimerCallbackThread::getCurrentTimeMs() {
+    struct timespec now;
+    if (clock_gettime(CLOCK_BOOTTIME, &now) != 0) {
+        ALOGE("%s: clock_gettime failed.", __FUNCTION__);
+        return 0;
+    }
+
+    static const int64_t kMsPerSec = 1000;
+    static const int64_t kNsPerMs = 1000000;
+
+    return static_cast<int64_t>(now.tv_sec) * kMsPerSec + now.tv_nsec / kNsPerMs;
+}
+
+status_t TimerCallbackThread::addTimer(uint32_t id, uint64_t durationMs) {
+    int64_t expirationTimeMs = getCurrentTimeMs() + durationMs;
+
+    {
+        std::unique_lock<std::mutex> lock(mTimerLock);
+
+        // Make sure the ID is unique.
+        if (mTimers.find(id) != mTimers.end()) {
+            return ALREADY_EXISTS;
+        }
+
+        mTimers.emplace(id, expirationTimeMs);
+        mTimerCond.notify_one();
+    }
+
+    return OK;
+}
+
+void TimerCallbackThread::cancelTimer(uint32_t id) {
+    std::unique_lock<std::mutex> lock(mTimerLock);
+    mTimers.erase(id);
+    mTimerCond.notify_one();
+}
+
+int64_t TimerCallbackThread::getWaitTimeMsLocked() {
+    if (mExitRequested) {
+        return 0;
+    } else if (mTimers.empty()) {
+        return kEmptyTimerWaitTimeMs;
+    }
+
+    // Find the smallest wait time.
+    int64_t minExpirationTimeMs = mTimers.begin()->second;
+    for (auto &timer : mTimers) {
+        if (minExpirationTimeMs > timer.second) {
+            minExpirationTimeMs = timer.second;
+        }
+    }
+
+    return minExpirationTimeMs - getCurrentTimeMs();
+}
+
+bool TimerCallbackThread::threadLoop() {
+    std::vector<int32_t> timedOutIds;
+
+    {
+        std::unique_lock<std::mutex> lock(mTimerLock);
+        int64_t waitTimeMs = getWaitTimeMsLocked();
+
+        if (waitTimeMs > 0) {
+            ALOGV("%s: waiting for %" PRId64 " ms", __FUNCTION__, waitTimeMs);
+            mTimerCond.wait_for(lock, std::chrono::milliseconds(waitTimeMs));
+        }
+
+        if (mExitRequested) {
+            ALOGV("%s: thread exiting.", __FUNCTION__);
+            return false;
+        }
+
+        if (mTimers.empty()) {
+            // If there is no timer, calling thread loop again.
+            return true;
+        }
+
+        // Check if there is any timer expired.
+        int64_t nowMs = getCurrentTimeMs();
+        auto timer = mTimers.begin();
+        while (timer != mTimers.end()) {
+            if (timer->second <= nowMs) {
+                timedOutIds.push_back(timer->first);
+                timer = mTimers.erase(timer);
+            } else {
+                timer++;
+            }
+        }
+    }
+
+    for (auto id : timedOutIds) {
+        mCallback(id);
+    }
 
     return true;
 }
