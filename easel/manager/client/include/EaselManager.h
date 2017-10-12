@@ -9,6 +9,10 @@ namespace EaselManager {
 // Supported apps on Easel.
 enum App {
   PBSERVER = 1,
+
+  // Test apps starts from here.
+  DUMMY_APP = 10000,
+  CRASH_APP = 10001,
 };
 
 // Error codes
@@ -17,7 +21,10 @@ enum Error {
   ANDROID_SERVICE_MANAGER_ERROR = 1,  // Could not get IServiceManager.
   BINDER_ERROR = 2,                   // Binder transaction error.
   MANAGER_SERVICE_ERROR = 3,          // Could not get EaselManagerServer.
-  APP_NOT_STARTED = 4,                // Could not started the app.
+  APP_ALREADY_STARTED = 4,            // App already started.
+  APP_NOT_FOUND = 5,                  // Easel could not find app.
+  APP_PROCESS_FAILURE = 6,            // Could not start app process.
+  APP_NOT_STARTED = 7,                // Could not started the app.
 };
 
 // EaselManager client.

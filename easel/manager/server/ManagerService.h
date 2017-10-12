@@ -2,6 +2,8 @@
 #define PAINTBOX_MANAGER_SERVICE_H
 
 #include <functional>
+#include <mutex>
+#include <unordered_map>
 
 #include "vendor/google_paintbox/easel/manager/shared/proto/easelmanager.pb.h"
 
@@ -18,8 +20,11 @@ class ManagerService {
   void stopApp(const StopAppRequest& request);
 
  private:
+  std::mutex mServiceLock;
   // Pre-registered App status update callback function.
-  std::function<void(const AppStatusResponse&)> mStatusCallback;
+  std::function<void(const AppStatusResponse&)>
+      mStatusCallback;                     // Guarded by mServiceLock
+  std::unordered_map<App, pid_t> mPidMap;  // Guarded by mServiceLock
 };
 
 }  // namespace EaselManagerService
