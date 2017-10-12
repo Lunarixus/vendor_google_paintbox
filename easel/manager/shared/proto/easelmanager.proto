@@ -35,4 +35,6 @@ message AppStatusResponse {
   optional App app = 1;
   optional Error error = 2;
   optional Status status = 3;
+  // exit value of the app, default 0.
+  optional int32 exit = 4;
 }

@@ -4,8 +4,12 @@ package android.EaselManager;
 interface IAppStatusCallback {
   /** Handles app starts event. */
   oneway void onAppStart();
-  /** Handles app ends event. */
-  oneway void onAppEnd();
+  /**
+   * Handles app ends event.
+   *
+   * exit the exit code of the app.
+   */
+  oneway void onAppEnd(int exit);
   /** Handles app error event. */
   oneway void onAppError(int error);
 }
