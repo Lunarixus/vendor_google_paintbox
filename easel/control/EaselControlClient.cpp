@@ -60,8 +60,10 @@ std::mutex state_mutex;
 enum ControlState {
     INIT,        // Unknown initial state
     SUSPENDED,   // Suspended
-    RESUMED,     // Powered, but no EaselCommClient channel
-    ACTIVATED,   // Powered, EaselCommClient channel is active
+    RESUMED,     // Powered, support Bypass
+    PARTIAL,     // Powered, but boot failed and can only support Bypass
+    ACTIVATED,   // Powered, ready for HDR+
+    FAILED,      // Fatal error, wait for device close
 } state = INIT;
 
 // EaselThermalMonitor instance
@@ -76,29 +78,40 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
 /*
  * Determine severity
  *
- * | Reason              | Bypass    | HDR+  |
- * |---------------------|-----------|-------|
- * | LINK_FAIL           | FATAL     | FATAL |
- * | BOOTSTRAP_FAIL      | NON_FATAL | FATAL |
- * | OPEN_SYSCTRL_FAIL   | NON_FATAL | FATAL |
- * | HANDSHAKE_FAIL      | NON_FATAL | FATAL |
- * | IPU_RESET_REQ       | NON_FATAL | FATAL |
+ * | Reason              |  RESUMED  | ACTIVATED |
+ * |---------------------|-----------|-----------|
+ * | LINK_FAIL           |   FATAL   |   FATAL   |
+ * | BOOTSTRAP_FAIL      | NON_FATAL |   FATAL   |
+ * | OPEN_SYSCTRL_FAIL   | NON_FATAL |   FATAL   |
+ * | HANDSHAKE_FAIL      | NON_FATAL |   FATAL   |
+ * | IPU_RESET_REQ       | NON_FATAL |   FATAL   |
  */
 
 static void reportError(enum EaselErrorReason reason) {
 
-    enum EaselErrorSeverity severity = EaselErrorSeverity::FATAL;
+    enum EaselErrorSeverity severity;
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
-        // LINK_FAIL is fatal in bypass mode, because MIPI configuration
-        // will not continue.  Others are not fatal, because no further
-        // communication needed in bypass mode.
-        if (reason != EaselErrorReason::LINK_FAIL) {
-            severity = EaselErrorSeverity::NON_FATAL;
+    // Acquire state lock while handling error
+    {
+        std::unique_lock<std::mutex> state_lock(state_mutex);
+
+        if (state == RESUMED) {
+            // LINK_FAIL is fatal in bypass mode, because MIPI configuration
+            // will not continue.  Others are not fatal, because no further
+            // communication needed in bypass mode.
+            if (reason != EaselErrorReason::LINK_FAIL) {
+                severity = EaselErrorSeverity::NON_FATAL;
+                state = ControlState::PARTIAL;
+            } else {
+                severity = EaselErrorSeverity::FATAL;
+                state = ControlState::FAILED;
+            }
+
+        } else {
+            // All errors are fatal in HDR+ mode
+            severity = EaselErrorSeverity::FATAL;
+            state = ControlState::FAILED;
         }
-    } else {
-        // All errors are fatal in HDR+ mode
-        severity = EaselErrorSeverity::FATAL;
     }
 
     int ret = gErrorCallback(reason, severity);
@@ -517,6 +530,8 @@ int switchState(enum ControlState nextState)
                     stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     stopKernelEventThread();
                     break;
+                case ControlState::PARTIAL:
+                case ControlState::FAILED:
                 case ControlState::RESUMED:
                 case ControlState::INIT:
                     stopThermalMonitor();
@@ -591,6 +606,12 @@ int switchState(enum ControlState nextState)
                     if (!ret) {
                         ret = sendActivateCommand();
                     }
+                    break;
+                case ControlState::PARTIAL:
+                    // If Easel did not boot correctly, we cannot transition
+                    // into the ACTIVATED state. Let the upper layer decide how
+                    // to handle this use case.
+                    ret = -EIO;
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,

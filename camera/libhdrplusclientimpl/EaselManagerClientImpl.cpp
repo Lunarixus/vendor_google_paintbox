@@ -48,6 +48,7 @@ status_t EaselManagerClientImpl::open() {
             this, std::placeholders::_1, std::placeholders::_2));
     mEaselControlOpened = true;
     mEaselResumed = false;
+    mEaselActivated = false;
     return res;
 }
 
@@ -138,6 +139,7 @@ status_t EaselManagerClientImpl::suspendLocked() {
     status_t res = mEaselControl.suspend();
 
     mEaselResumed = false;
+    mEaselActivated = false;
     return res;
 }
 
@@ -363,7 +365,7 @@ status_t EaselManagerClientImpl::activateLocked() {
     // Activate Easel.
     status_t res = mEaselControl.activate();
     if (res != OK) {
-        ALOGE("%s: Failed to activate Easel: %s (%d).", __FUNCTION__, strerror(errno), -errno);
+        ALOGE("%s: Failed to activate Easel: %s (%d).", __FUNCTION__, strerror(res), -res);
         return NO_INIT;
     }
     mEaselActivated = true;
@@ -376,7 +378,7 @@ status_t EaselManagerClientImpl::deactivateLocked() {
     SCOPE_PROFILER_TIMER("Deactivate Easel");
     status_t res = mEaselControl.deactivate();
     if (res != OK) {
-        ALOGE("%s: Failed to activate Easel: %s (%d).", __FUNCTION__, strerror(errno), -errno);
+        ALOGE("%s: Failed to deactivate Easel: %s (%d).", __FUNCTION__, strerror(res), -res);
         return res;
     }
     mEaselActivated = false;
