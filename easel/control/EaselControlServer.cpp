@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <thread>
 #include <time.h>
 #include <unistd.h>
 #include <unordered_map>
@@ -45,6 +46,21 @@ EaselCommServer easel_conn;
 std::mutex gServerLock;
 // true if easel_conn is opened
 bool gServerInitialized;
+
+// Thread to periodically send a heartbeat message to the client
+std::thread heartbeatThread;
+
+// Lock used for synchronizing the heartbeat thread with the application thread.
+std::mutex heartbeatMutex;
+
+// Condition used to notify heartbeat thread.
+std::condition_variable heartbeatCondition;
+
+// Flag for coordinating with the heartbeat thread, protected by heartbeatMutex
+bool heartbeatStop;
+
+// Latency between heartbeat messages
+const std::chrono::duration<int> kHeartbeatPeriod = std::chrono::seconds(1);
 
 /*
  * The AP boottime clock value we received at the last SET_TIME command,
@@ -109,6 +125,64 @@ static int sendResetReqCommand()
     return ret;
 }
 
+static int sendHeartbeatCommand()
+{
+    EaselControlImpl::MsgHeader heartbeatMsg = { .command = EaselControlImpl::CMD_HEARTBEAT };
+    EaselComm::EaselMessage msg;
+
+    msg.message_buf = &heartbeatMsg;
+    msg.message_buf_size = sizeof(heartbeatMsg);
+
+    int ret = easel_conn.sendMessage(&msg);
+    if (ret) {
+        ALOGE("%s: failed to send heartbeat to Easel (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
+static void heartbeat()
+{
+    std::unique_lock<std::mutex> heartbeatLock(heartbeatMutex);
+    while (!heartbeatStop) {
+        heartbeatCondition.wait_for(heartbeatLock, kHeartbeatPeriod);
+
+        if (!heartbeatStop) {
+            sendHeartbeatCommand();
+        }
+    }
+}
+
+static int startHeartbeatThread()
+{
+    if (heartbeatThread.joinable()) {
+        ALOGE("%s: heartbeat is already running", __FUNCTION__);
+        return -EBUSY;
+    }
+
+    heartbeatStop = false;
+    heartbeatThread = std::thread(heartbeat);
+
+    return 0;
+}
+
+static int stopHeartbeatThread()
+{
+    if (!heartbeatThread.joinable()) {
+        ALOGE("%s: heartbeat is already stopped", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    {
+        std::unique_lock<std::mutex> heartbeatLock(heartbeatMutex);
+        heartbeatStop = true;
+    }
+    heartbeatCondition.notify_all();
+    heartbeatThread.join();
+
+    return 0;
+}
+
 // Handle incoming messages from EaselControlClient.
 void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
@@ -127,9 +201,14 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
         // receiving this reply.
         easel_conn.sendReply(msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
 
+        ret = startHeartbeatThread();
+        if (ret) {
+            ALOGE("%s: failed to start heartbeat thread (%d)", __FUNCTION__, ret);
+        }
+
         ret = thermalMonitor.start();
         if (ret) {
-            ALOGE("failed to start EaselThermalMonitor (%d)", ret);
+            ALOGE("%s: failed to start EaselThermalMonitor (%d)", __FUNCTION__, ret);
         }
 
         break;
@@ -143,6 +222,12 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
         if (ret) {
             ALOGE("%s: failed to stop EaselThermalMonitor (%d)", __FUNCTION__, ret);
         }
+
+        ret = stopHeartbeatThread();
+        if (ret) {
+            ALOGE("%s: failed to stop heartbeat thread (%d)", __FUNCTION__, ret);
+        }
+
 
         EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
         break;

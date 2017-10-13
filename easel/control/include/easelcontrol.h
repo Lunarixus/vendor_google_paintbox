@@ -42,6 +42,7 @@ enum class EaselErrorReason {
     OPEN_SYSCTRL_FAIL,  // AP failed to open SYSCTRL service
     HANDSHAKE_FAIL,     // Handshake failed
     IPU_RESET_REQ,      // Easel requested AP to reset it
+    WATCHDOG,           // AP didn't receive periodic heartbeat from Easel
     REASON_COUNT,
 };
 
