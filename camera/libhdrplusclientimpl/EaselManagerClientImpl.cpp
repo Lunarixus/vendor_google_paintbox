@@ -82,6 +82,9 @@ int EaselManagerClientImpl::onEaselError(enum EaselErrorReason r, enum EaselErro
         case EaselErrorReason::IPU_RESET_REQ:
             errMsg.append("Easel requested AP to reset it.");
             break;
+        case EaselErrorReason::WATCHDOG:
+            errMsg.append("Watchdog bite.");
+            break;
         default:
             errMsg.append("Unknown error.");
             break;

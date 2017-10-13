@@ -2,6 +2,7 @@
 
 #include "EaselStateManager.h"
 #include "EaselThermalMonitor.h"
+#include "EaselWatchdog.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "easelcomm.h"
@@ -73,6 +74,10 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"bd_therm",    1000, {45000, 50000, 55000}}, /* for taimen */
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
 };
+
+EaselWatchdog watchdog;
+const std::chrono::duration<int> watchdogTimeout = std::chrono::seconds(2);
+
 } // anonymous namespace
 
 /*
@@ -85,6 +90,7 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
  * | OPEN_SYSCTRL_FAIL   | NON_FATAL |   FATAL   |
  * | HANDSHAKE_FAIL      | NON_FATAL |   FATAL   |
  * | IPU_RESET_REQ       | NON_FATAL |   FATAL   |
+ * | WATCHDOG            | NON_FATAL |   FATAL   |
  */
 
 static void reportError(enum EaselErrorReason reason) {
@@ -311,12 +317,18 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
         (EaselControlImpl::MsgHeader *)msg->message_buf;
 
-    ALOGI("Received command %d", h->command);
+    ALOGD("Received command %d", h->command);
 
     switch(h->command) {
     case EaselControlImpl::CMD_RESET_REQ: {
         ALOGW("Server requested a chip reset");
         reportError(EaselErrorReason::IPU_RESET_REQ);
+        break;
+    }
+
+    case EaselControlImpl::CMD_HEARTBEAT: {
+        ALOGD("%s: server sent heartbeat", __FUNCTION__);
+        watchdog.pet();
         break;
     }
 
@@ -507,6 +519,26 @@ int stopKernelEventThread()
     return 0;
 }
 
+int startWatchdog()
+{
+    int ret = watchdog.start(watchdogTimeout);
+    if (ret) {
+        ALOGE("%s: failed to start EaselWatchdog (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
+int stopWatchdog()
+{
+    int ret = watchdog.stop();
+    if (ret) {
+        ALOGE("%s: failed to stop EaselWatchdog (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
 int switchState(enum ControlState nextState)
 {
     int ret = 0;
@@ -523,6 +555,7 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
+                    stopWatchdog();
                     sendDeactivateCommand();
                     stopThermalMonitor();
                     stopLogClient();
@@ -567,7 +600,10 @@ int switchState(enum ControlState nextState)
                     }
                     break;
                 case ControlState::ACTIVATED:
-                    ret = sendDeactivateCommand();
+                    ret = stopWatchdog();
+                    if (!ret) {
+                        ret = sendDeactivateCommand();
+                    }
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
@@ -599,12 +635,18 @@ int switchState(enum ControlState nextState)
                         if (!ret) {
                             ret = sendActivateCommand();
                         }
+                        if (!ret) {
+                            ret = startWatchdog();
+                        }
                     }
                     break;
                 case ControlState::RESUMED:
                     ret = waitForEaselConn();
                     if (!ret) {
                         ret = sendActivateCommand();
+                    }
+                    if (!ret) {
+                        ret = startWatchdog();
                     }
                     break;
                 case ControlState::PARTIAL:
@@ -765,6 +807,8 @@ int EaselControlClient::open() {
 
     // Register default implemetation of error callback
     registerErrorCallback(defaultErrorCallback);
+
+    watchdog.setBiteCallback([]() { reportError(EaselErrorReason::WATCHDOG); });
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {
