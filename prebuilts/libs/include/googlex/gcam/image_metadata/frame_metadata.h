@@ -83,9 +83,9 @@ struct DngNoiseModel {
   bool Equals(const DngNoiseModel& other) const;
 };
 
-// Metadata for auto-exposure (AE).  This struct is optional and solely used to
-// log debugging data. See //googlex/gcam/hdrplus/lib_gcam/shot_params.h
-// for how to give vendor-provided AE results to gcam.
+// Metadata for auto-exposure (AE). This struct is mainly used to log debugging
+// for each frame. See //googlex/gcam/hdrplus/lib_gcam/shot_params.h for how to
+// give vendor-provided AE results to gcam for a given shot.
 // TODO(hasinoff): Create enums mirroring allowable Camera2 values.
 struct AeMetadata {
   // The desired mode for the camera device's auto-exposure routine.
@@ -95,6 +95,15 @@ struct AeMetadata {
   // Whether AE is currently locked to its latest calculated values.
   // https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AE_LOCK
   bool lock = false;
+
+  // Exposure compensation, above or below auto-exposure, measured in stops.
+  //    0 = no bias;
+  //   +1 = capture twice as much light as normal;
+  //   -1 = capture half as much light as normal;
+  //   etc.
+  // https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AE_EXPOSURE_COMPENSATION
+  // https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics.html#CONTROL_AE_COMPENSATION_STEP
+  float exposure_compensation = 0.0f;
 
   // Current state of the AE algorithm.
   // https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AE_STATE

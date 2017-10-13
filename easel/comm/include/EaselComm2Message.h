@@ -24,6 +24,15 @@ struct HardwareBuffer {
 
   // Returns true if HardwareBuffer is ion based, otherwise false.
   bool isIonBuffer();
+
+  // Loads file into HardwareBuffer
+  // Returns buffer vaddr if successful, otherwise nullptr.
+  // User needs to free the returned buffer after use.
+  void* loadFile(const std::string& filePath);
+
+  // Saves buffer into a file.
+  // Returns 0 if successful, otherwise error code.
+  int saveFile(const std::string& filePath);
 };
 
 // EaselComm2::Message that supports conversion from the following types:
@@ -43,9 +52,9 @@ class Message {
 
   // Message header.
   struct Header {
-    int channelId;    // Message channel ID.
-    Type type;        // Message type.
-    int payloadId;    // Payload ID to note buffer sequence.
+    int channelId;  // Message channel ID.
+    Type type;      // Message type.
+    int payloadId;  // Payload ID to note buffer sequence.
   };
 
   Message(int channelId, const std::string& s,

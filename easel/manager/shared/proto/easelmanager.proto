@@ -5,16 +5,22 @@ package EaselManagerService;
 
 enum App {
   PBSERVER = 1;
+  DUMMY_APP = 10000;
+  CRASH_APP = 10001;
 }
 
 enum Status {
+  UNKNOWN = 0;
   LIVE = 1;
   EXIT = 2;
-  UNKNOWN = 99;
 }
 
 enum Error {
   SUCCESS = 1;
+  APP_ALREADY_STARTED = 2;
+  APP_NOT_FOUND = 3;
+  APP_PROCESS_FAILURE = 4;
+  APP_NOT_STARTED = 5;
 }
 
 message StartAppRequest {

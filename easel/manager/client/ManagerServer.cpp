@@ -19,6 +19,10 @@ EaselManagerService::App convertApp(int32_t app) {
   switch (appEnum) {
     case PBSERVER:
       return EaselManagerService::PBSERVER;
+    case DUMMY_APP:
+      return EaselManagerService::DUMMY_APP;
+    case CRASH_APP:
+      return EaselManagerService::CRASH_APP;
     default:
       LOG(FATAL) << "App " << app << " not defined";
   }
@@ -28,6 +32,10 @@ App convertApp(EaselManagerService::App app) {
   switch (app) {
     case EaselManagerService::PBSERVER:
       return PBSERVER;
+    case EaselManagerService::DUMMY_APP:
+      return DUMMY_APP;
+    case EaselManagerService::CRASH_APP:
+      return CRASH_APP;
     default:
       LOG(FATAL) << "App " << app << " not defined";
   }
@@ -37,6 +45,14 @@ Error convertError(EaselManagerService::Error error) {
   switch (error) {
     case EaselManagerService::SUCCESS:
       return SUCCESS;
+    case EaselManagerService::APP_ALREADY_STARTED:
+      return APP_ALREADY_STARTED;
+    case EaselManagerService::APP_NOT_FOUND:
+      return APP_NOT_FOUND;
+    case EaselManagerService::APP_PROCESS_FAILURE:
+      return APP_PROCESS_FAILURE;
+    case EaselManagerService::APP_NOT_STARTED:
+      return APP_NOT_STARTED;
     default:
       LOG(FATAL) << "Error " << error << " not defined";
   }
@@ -73,14 +89,21 @@ void ManagerServer::initialize() {
 
     if (response.error() != EaselManagerService::SUCCESS) {
       iter->second->onAppError(convertError(response.error()));
+      // Immediately clears the callback if happen occurs.
+      // Client will not get any new updates about this app
+      // Until new callback registers with startApp call.
+      mAppCallbackMap.erase(iter);
       return;
-    };
+    }
 
     if (response.status() == EaselManagerService::LIVE) {
       iter->second->onAppStart();
     } else if (response.status() == EaselManagerService::EXIT) {
       iter->second->onAppEnd();
       mAppCallbackMap.erase(iter);
+    } else {
+      LOG(FATAL) << "App " << response.app()
+                 << " unknown but no error reported";
     }
   });
 
@@ -98,6 +121,13 @@ binder::Status ManagerServer::startApp(int32_t app,
   LOG(INFO) << __FUNCTION__ << ": App " << app;
 
   std::lock_guard<std::mutex> lock(mMapLock);
+
+  auto iter = mAppCallbackMap.find(app);
+  if (iter != mAppCallbackMap.end()) {
+    *_aidl_return = static_cast<int32_t>(APP_ALREADY_STARTED);
+    return binder::Status::ok();
+  }
+
   mAppCallbackMap[app] = callback;
 
   EaselManagerService::StartAppRequest request;
