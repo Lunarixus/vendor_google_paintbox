@@ -23,8 +23,8 @@ class AppStatusCallback : public BnAppStatusCallback {
     return binder::Status::ok();
   }
 
-  binder::Status onAppEnd() override {
-    LOG(INFO) << __FUNCTION__ << ": App " << mApp << " stopped";
+  binder::Status onAppEnd(int exit) override {
+    LOG(INFO) << __FUNCTION__ << ": App " << mApp << " stopped, exit " << exit;
     std::unique_lock<std::mutex> stopLock(mAppStopLock);
     mAppStop = true;
     mAppStopCond.notify_one();
