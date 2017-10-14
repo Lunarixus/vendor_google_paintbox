@@ -99,7 +99,7 @@ void ManagerServer::initialize() {
     if (response.status() == EaselManagerService::LIVE) {
       iter->second->onAppStart();
     } else if (response.status() == EaselManagerService::EXIT) {
-      iter->second->onAppEnd();
+      iter->second->onAppEnd(response.exit());
       mAppCallbackMap.erase(iter);
     } else {
       LOG(FATAL) << "App " << response.app()

@@ -24,6 +24,15 @@ std::string getAppPath(App app) {
   }
 }
 
+AppStatusResponse getResponse(App app, Error error, Status status, int exit) {
+  AppStatusResponse response;
+  response.set_app(app);
+  response.set_error(error);
+  response.set_status(status);
+  response.set_exit(exit);
+  return response;
+}
+
 bool fileExist(const char* path) {
   std::ifstream f(path);
   return f.good();
@@ -40,21 +49,13 @@ void ManagerService::startApp(const StartAppRequest& request) {
   {
     std::lock_guard<std::mutex> lock(mServiceLock);
     if (mPidMap.find(app) != mPidMap.end()) {
-      AppStatusResponse response;
-      response.set_app(app);
-      response.set_error(APP_ALREADY_STARTED);
-      response.set_status(UNKNOWN);
-      mStatusCallback(response);
+      mStatusCallback(getResponse(app, APP_ALREADY_STARTED, UNKNOWN, 0));
       return;
     }
 
     std::string appPath = getAppPath(app);
     if (appPath.empty() || !fileExist(appPath.c_str())) {
-      AppStatusResponse response;
-      response.set_app(app);
-      response.set_error(APP_NOT_FOUND);
-      response.set_status(UNKNOWN);
-      mStatusCallback(response);
+      mStatusCallback(getResponse(app, APP_NOT_FOUND, UNKNOWN, 0));
       return;
     }
   }
@@ -67,16 +68,12 @@ void ManagerService::startApp(const StartAppRequest& request) {
     // Child process
     char* argv[] = {const_cast<char*>(getAppPath(app).c_str()), nullptr};
     int ret = execv(argv[0], argv);
-    exit(ret);
+    _exit(ret);
   } else if (pid > 0) {
     // Parent process
     std::lock_guard<std::mutex> lock(mServiceLock);
     mPidMap[app] = pid;
-    AppStatusResponse response;
-    response.set_app(app);
-    response.set_error(SUCCESS);
-    response.set_status(LIVE);
-    mStatusCallback(response);
+    mStatusCallback(getResponse(app, SUCCESS, LIVE, 0));
 
     // Create a new thread monitoring process state.
     std::thread([&, app, pid] {
@@ -87,22 +84,13 @@ void ManagerService::startApp(const StartAppRequest& request) {
                 << exit;
       std::lock_guard<std::mutex> lock(mServiceLock);
       mPidMap.erase(app);
-      AppStatusResponse response;
-      response.set_app(app);
-      response.set_error(SUCCESS);
-      response.set_status(EXIT);
-      mStatusCallback(response);
+      mStatusCallback(getResponse(app, SUCCESS, EXIT, exit));
     })
         .detach();
 
     return;
   } else {
-    std::lock_guard<std::mutex> lock(mServiceLock);
-    AppStatusResponse response;
-    response.set_app(app);
-    response.set_error(APP_PROCESS_FAILURE);
-    response.set_status(UNKNOWN);
-    mStatusCallback(response);
+    mStatusCallback(getResponse(app, APP_PROCESS_FAILURE, UNKNOWN, 0));
     return;
   }
 }
@@ -114,15 +102,12 @@ void ManagerService::stopApp(const StopAppRequest& request) {
 
   auto iter = mPidMap.find(app);
   if (iter == mPidMap.end()) {
-    AppStatusResponse response;
-    response.set_app(app);
-    response.set_error(APP_NOT_STARTED);
-    response.set_status(UNKNOWN);
-    mStatusCallback(response);
+    mStatusCallback(getResponse(app, APP_NOT_STARTED, UNKNOWN, 0));
     return;
   } else {
     LOG(INFO) << "Stopping APP " << app;
     kill(iter->second, SIGTERM);
+    // Callback will be sent at waitpid thread after termination.
   }
 }
 
