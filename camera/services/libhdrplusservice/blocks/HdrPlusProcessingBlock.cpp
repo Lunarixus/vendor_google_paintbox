@@ -1431,6 +1431,9 @@ status_t HdrPlusProcessingBlock::initGcam() {
     if (mStaticMetadata->debugParams & DEBUG_PARAM_SAVE_GCAME_TEXT) {
         debugParams.save_bitmask |= gcam::GCAM_SAVE_TEXT;
     }
+    if (mStaticMetadata->debugParams & DEBUG_PARAM_SAVE_GCAME_IPU_WATERMARK) {
+        debugParams.save_bitmask |= gcam::GCAM_SAVE_IPU_WATERMARK;
+    }
 
     // Create a gcam instance.
     mGcam = std::unique_ptr<gcam::Gcam>(gcam::Gcam::Create(
