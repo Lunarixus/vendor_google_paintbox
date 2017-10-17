@@ -182,7 +182,7 @@ public:
     typedef void* DmaBufferHandle;
 
     /*
-     * Invoked when a message is received. message is owned by by EaselMessengerListener and should
+     * Invoked when a message is received. message is owned by EaselMessengerListener and should
      * not be deleted by the callback function.
      *
      * message is the received message.

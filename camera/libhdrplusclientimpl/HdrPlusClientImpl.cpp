@@ -161,6 +161,10 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD;
     }
 
+    if (property_get_bool("persist.gcam.save_watermark", false)) {
+        staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_IPU_WATERMARK;
+    }
+
     if (property_get_bool("persist.gcam.hdrplus.profile", false)) {
         staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_PROFILE;
     }

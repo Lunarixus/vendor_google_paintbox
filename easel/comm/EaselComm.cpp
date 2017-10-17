@@ -168,7 +168,7 @@ static int sendAMessage(int fd, struct easelcomm_kmsg_desc *kmsg_desc,
      * If the message includes a DMA transfer then send the source DMA buffer
      * descriptor.  This initiates the DMA transfer once the remote side is
      * also ready with its destination DMA buffer descriptor (or the remote
-     * may discard the DMA transfer, in which case the transfer dos not occur).
+     * may discard the DMA transfer, in which case the transfer does not occur).
      * A successful call returns once the DMA transfer is completed.
      */
     if (msg && msg->dma_buf_size) {
