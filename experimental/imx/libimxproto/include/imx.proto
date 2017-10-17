@@ -1,0 +1,295 @@
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package imx;
+
+enum ImxError {
+  IMX_SUCCESS = 0;
+  IMX_FAILURE = 1; /* Generic failure */
+  IMX_INVALID = 2; /* Invalid request (e.g. internally inconsistent) */
+  IMX_NODEV = 3;   /* Device allocation failed */
+  IMX_NOMEM = 4;   /* Memory allocation failed */
+  IMX_TIMEOUT = 5; /* Request timed out (e.g. while waiting for interrupt) */
+  IMX_NOT_FOUND = 6; /* Resource not found */
+  IMX_TYPE_MISMATCH = 7; /* Type doesn't match */
+  IMX_OVERFLOW = 8;  /* Data transfer/stream overflow; typically with MIPI Input */
+  IMX_CANCEL = 9;  /* Job ended early due to a cancel request */
+}
+
+enum ParameterUse {
+  MEMORY_READ = 0;
+  MEMORY_WRITE = 1;
+  MIPI_READ = 2;
+  MIPI_WRITE = 3;
+  MIPI_READ_MEMORY_WRITE = 4;
+}
+
+enum NumericType {
+  INT8 = 0;
+  UINT8 = 1;
+  INT16 = 2;
+  UINT16 = 3;
+  INT32 = 4;
+  UINT32 = 5;
+  FLOAT16 = 6;
+  FLOAT32 = 7;
+  UINT10 = 8;
+  UINT12 = 9;
+  PACKED_UINT_6_5_6 = 10;
+  PACKED_UINT_5_5_5_1 = 11;
+  PACKED_UINT_1_5_5_5 = 12;
+  PACKED_UINT_2_10_10_10 = 13;
+  PACKED_UINT_10_10_10_2 = 14;
+}
+
+enum SizeKind {
+  ACTUAL_SIZE = 0;
+  MAX_SIZE = 1;
+  UNKNOWN_SIZE = 2;
+}
+
+message Shape {
+  message Dim {
+    optional SizeKind kind = 1;
+    optional uint64 extent = 2;
+    optional int64 min = 3;
+  }
+  optional uint32 dimensions = 1;
+  repeated Dim dim = 2;
+}
+
+message ParameterType {
+  optional Shape shape = 1;
+  optional NumericType element_type = 2;
+}
+
+enum Layout {
+  LINEAR = 0;
+  PLANAR = 1;
+  LINEAR_PLANAR = 2;
+  RASTER_RAW10 = 3;
+  LINEAR_TILED_4X4 = 4;
+  PLANAR_TILED_4X4 = 5;
+}
+
+message Storage {
+  optional NumericType element_type = 1;
+  optional Layout layout = 2;
+}
+
+enum BorderMode {
+  ZERO = 0;
+  CONSTANT = 1;
+  REPEAT_EDGE = 2;
+  REPEAT_WIDE_EDGE = 3;
+}
+
+message Border {
+  optional BorderMode mode = 1;
+  optional int32 border_value = 2;
+  optional int32 edge_width = 3;
+}
+
+message MipiStreamIdentifier {
+  optional int32 interface_id = 1;
+  optional int32 virtual_channel_id = 2;
+  optional int32 data_type = 3;
+}
+
+message TransferNodeOverrides {
+  optional int32 skip_configure_linebuffer = 1;
+  optional int32 skip_configure_dma = 2;
+  optional int32 override_linebuffer_num_consumers = 3;
+  optional int32 linebuffer_num_consumers = 4;
+}
+
+enum Conversion {
+  NONE = 0;
+  LOWBITS = 1;
+}
+
+message CreateTransferNodeInfo {
+  optional ParameterUse use = 1;
+  optional ParameterType parameter_type = 2;
+  optional Storage storage = 3;
+  optional Conversion conversion = 4;
+  optional Border border = 5;
+  optional MipiStreamIdentifier mipi_stream_id = 6;
+  optional int32 stripe_width = 7;
+  optional TransferNodeOverrides transfer_node_overrides = 8;
+}
+
+message ParameterSetting {
+  optional int64 node = 1;
+  optional string parameter_name = 2;
+  optional ParameterType type = 3;
+  optional bytes value = 4;
+}
+
+enum CompileGraphOption {
+  OPTION_SIMULATOR_DUMP_PATH = 0;
+  OPTION_SIMULATOR_DUMP_IMAGE = 1;
+  OPTION_SIMULATOR_ENABLE_JIT = 2;
+  OPTION_SIMULATOR_ENABLE_BINARY_PISA = 3;
+  OPTION_SIMULATOR_HW_CONFIG_FILE = 4; // not used for graph compile
+  OPTION_HISA = 5;
+  OPTION_ENABLE_STRIPING = 6;
+}
+
+enum OptionValueType {
+  OPTION_VALUE_TYPE_INT64 = 0;
+  OPTION_VALUE_TYPE_POINTER = 1;
+  OPTION_VALUE_TYPE_NONE = 2;
+}
+
+message OptionValue {
+  optional OptionValueType type = 1;
+  optional int64 value = 2;
+}
+
+message CompileGraphOptionSetting {
+  optional CompileGraphOption option = 1;
+  optional OptionValue value = 2;
+}
+
+message CompileGraphInfo {
+  optional int64 device = 1;
+  repeated ParameterSetting params = 2;
+  repeated CompileGraphOptionSetting options = 3;
+}
+
+enum BufferType {
+  DEVICE_BUFFER = 0;
+  MIPI_BUFFER = 1;
+}
+
+message LateBufferConfig {
+  message Plane {
+    optional uint64 offset = 1;
+    repeated uint64 strides = 2;
+  }
+  optional BufferType buffer_type = 1;
+  optional int64 buffer_handle = 2;
+  repeated Plane planes = 3;
+}
+
+message FinalizeBufferInfo {
+  optional int64 node_handle = 1;
+  optional LateBufferConfig config = 2;
+}
+
+// ImxGetDefaultDevice
+message GetDefaultDeviceRequest {}
+message GetDefaultDeviceResponse {
+  optional ImxError status = 1;
+  optional int64 device_handle = 2;
+}
+
+// ImxDefaultCreateTransferNodeInfo
+message DefaultCreateTransferNodeInfoRequest {}
+message DefaultCreateTransferNodeInfoResponse {
+  optional ImxError status = 1;
+  optional CreateTransferNodeInfo create_transfer_node_info = 2;
+}
+
+// ImxCreateTransferNode
+message CreateTransferNodeRequest {
+  optional CreateTransferNodeInfo create_transfer_node_info = 1;
+}
+message CreateTransferNodeResponse {
+  optional ImxError status = 1;
+  optional int64 node_handle = 2;
+}
+
+// ImxCreateGraph
+message CreateGraphRequest {
+  message Node {
+    optional int64 handle = 1;
+    optional string name = 2;
+  }
+  optional string graph_name = 1;
+  optional string visa_string = 2;
+  repeated Node nodes = 3;
+}
+message CreateGraphResponse {
+  optional ImxError status = 1;
+  optional int64 graph_handle = 2;
+}
+
+// ImxCompileGraph
+message CompileGraphRequest {
+  optional int64 graph = 1;
+  optional CompileGraphInfo info = 2;
+}
+message CompileGraphResponse {
+  optional ImxError status = 1;
+  optional int64 compiled_handle = 2;
+}
+
+// ImxDeleteGraph
+message DeleteGraphRequest {
+  optional int64 graph_handle = 1;
+}
+message DeleteGraphResponse {
+  optional ImxError status = 1;
+}
+
+// ImxCreateJob
+message CreateJobRequest {
+  optional int64 compiled_graph_handle = 1;
+}
+message CreateJobResponse {
+  optional ImxError status = 1;
+  optional int64 job_handle = 2;
+}
+
+// ImxCreateDeviceBufferSimple
+message CreateDeviceBufferSimpleRequest {
+  optional uint64 size_bytes = 1;
+  optional int64 flags = 2;
+}
+message CreateDeviceBufferSimpleResponse {
+  optional ImxError status = 1;
+  optional int64 buffer_handle = 2;
+}
+
+// ImxDeleteDevice
+message DeleteDeviceRequest {
+  optional int64 device_handle = 1;
+}
+message DeleteDeviceResponse {
+  optional ImxError status = 1;
+}
+
+// ImxFinalizeBuffers
+message FinalizeBuffersRequest {
+  optional int64 job_handle = 1;
+  repeated FinalizeBufferInfo infos = 2;
+}
+message FinalizeBuffersResponse {
+  optional ImxError status = 1;
+}
+
+// ImxLockDeviceBuffer
+message LockDeviceBufferRequest {
+  optional int64 buffer_handle = 1;
+}
+message LockDeviceBufferResponse {
+  optional ImxError status = 1;
+}
+
+// ImxUnlockDeviceBuffer
+message UnlockDeviceBufferRequest {
+  optional int64 buffer_handle = 1;
+}
+message UnlockDeviceBufferResponse {
+  optional ImxError status = 1;
+}
+
+// ImxExecuteJob
+message ExecuteJobRequest {
+  optional int64 job_handle = 1;
+}
+message ExecuteJobResponse {
+  optional ImxError status = 1;
+}
