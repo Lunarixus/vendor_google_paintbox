@@ -60,6 +60,11 @@ inline PixelRect Intersect(const PixelRect& a, const PixelRect& b) {
 }
 
 struct NormalizedRect {
+  // Even though this has initial values for its members, clang needs a default
+  // constructor to make a const instance.
+  // https://stackoverflow.com/questions/21900237
+  NormalizedRect(){}
+
   // [0,0] = Upper-left corner of image.
   // [1,1] = Lower-right corner of image.
   float x0 = 0;  // Range: [0 .. x1).
