@@ -43,6 +43,21 @@ enum class LensState {
 const char* ToText(LensState lens_state);
 LensState TextToLensState(const char* text);
 
+// Current state of the auto-exposure (AE) algorithm.
+// https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AE_STATE
+enum class AeState {
+  kUnknown = -1,
+  kInactive = 0,
+  kSearching = 1,
+  kConverged = 2,
+  kLocked = 3,
+  kFlashRequired = 4,
+  kPrecapture = 5,
+};
+
+const char* ToText(AeState ae_state);
+AeState TextToAeState(const char* text);
+
 // Current state of the auto-focus (AF) algorithm.
 // https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AF_STATE
 enum class AfState {
@@ -106,8 +121,7 @@ struct AeMetadata {
   float exposure_compensation = 0.0f;
 
   // Current state of the AE algorithm.
-  // https://developer.android.com/reference/android/hardware/camera2/CaptureResult.html#CONTROL_AE_STATE
-  int state = -1;
+  AeState state = AeState::kUnknown;
 
   // Whether the camera device will trigger a precapture metering sequence when
   // it processes this request.
