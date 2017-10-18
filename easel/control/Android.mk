@@ -19,7 +19,7 @@ LOCAL_SRC_FILES := \
     EaselControlServer.cpp \
     EaselStateManager.cpp \
     EaselThermalMonitor.cpp \
-    EaselWatchdog.cpp \
+    EaselTimer.cpp \
     ThermalZone.cpp
 LOCAL_STATIC_LIBRARIES := logdclient
 LOCAL_SHARED_LIBRARIES := libcutils liblog libeaselcomm
@@ -38,6 +38,7 @@ LOCAL_SRC_FILES := \
     EaselClockControl.cpp \
     EaselControlServer.cpp \
     EaselThermalMonitor.cpp \
+    EaselTimer.cpp \
     ThermalZone.cpp
 LOCAL_SHARED_LIBRARIES := liblog libeaselcomm
 LOCAL_PROPRIETARY_MODULE := true
