@@ -155,6 +155,12 @@ public:
     void notifyFrameMetadata(uint32_t frameNumber, const camera_metadata_t &resultMetadata,
             bool lastMetadata=true);
 
+    /*
+     * Notify Easel has encountered a fatal error and HDR+ client should stop sending messages
+     * to Easel.
+     */
+    void nofityEaselFatalError() override;
+
 private:
     static const size_t kMaxNumFrameHistory = 64;
 

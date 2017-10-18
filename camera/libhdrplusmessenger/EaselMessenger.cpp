@@ -282,7 +282,7 @@ status_t EaselMessenger::connect(EaselMessengerListener &listener, int maxMessag
     return 0;
 }
 
-void EaselMessenger::disconnect() {
+void EaselMessenger::disconnect(bool) {
     {
         std::lock_guard<std::mutex> lock(mListenerLock);
 
