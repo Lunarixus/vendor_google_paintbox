@@ -47,7 +47,7 @@ class Message {
     RAW = 0,
     STRING = 1,
     PROTO = 2,
-    BUFFER = 3,
+    PING = 3,
   };
 
   // Message header.
@@ -66,7 +66,7 @@ class Message {
   Message(int channelId, const void* body, size_t size,
           const HardwareBuffer* payload = nullptr);
 
-  Message(int channelId, const HardwareBuffer& payload);
+  Message(int channelId, const HardwareBuffer* payload = nullptr);
 
   Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
           uint64_t messageId);
