@@ -3,16 +3,19 @@
 usage() {
 cat << EOF
   Usage:
-  $0 [--loop {loop}] [--shot {shot}] [--interval {interval}]
+  $0 [--loop {loop}] [--shot {shot}] [--interval {interval}] [--eng]
     --loop      {loop}      How many loops to test
     --shot      {shot}      Shots per loop
     --interval  {interval}  intervals between shot in second
+    --eng                   Use Eng build Google Camera App
 EOF
 }
 
 loop="1"
-shot="1"
-interval="1"
+shot="5"
+interval="4"
+package_name="com.google.android.GoogleCamera"
+
 while [ $# -gt 0 ]; do
   arg="$1"
   shift
@@ -35,6 +38,9 @@ while [ $# -gt 0 ]; do
       arg="$1"
       shift
       interval="$arg"
+      ;;
+    "--eng")
+      package_name="com.google.android.GoogleCameraEng"
       ;;
     *)
       usage
@@ -59,6 +65,14 @@ sleep 1
 echo "Unlock lock screen"
 adb shell input keyevent 82
 sleep 1
+
+# Check if package exists
+list_package="$(adb shell pm list packages ${package_name})"
+if [[ $list_package == "" ]]
+  then
+  echo "No such application: ${package_name}"
+  exit
+fi
 
 echo "Disable accelerometer auto rotation"
 adb shell settings put system accelerometer_rotation 0
@@ -89,7 +103,9 @@ fi
 
 # launch GoogleCamera app:
 echo "open camera..."
-adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.google.android.GoogleCamera/com.android.camera.CameraLauncher
+adb shell am start -a android.intent.action.MAIN \
+                   -c android.intent.category.LAUNCHER \
+                   -n ${package_name}/com.android.camera.CameraLauncher
 sleep 2
 
 #take a picture
@@ -136,7 +152,7 @@ sleep 2
 
 # exit GoogleCamera app
 echo "close camera..."
-adb shell input keyevent 4
+adb shell am force-stop ${package_name}
 sleep 1
 
 ((c++))

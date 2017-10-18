@@ -21,7 +21,7 @@ namespace pbcamera {
  * source buffer for the pipeline, HdrPlusProcessingBlock for HDR+ processing, CaptureResultBlock
  * for sending capture results to HDR+ client.
  *
- * An HdrPlusPipeline can be configured for 1 input steram and 1 or more output streams. Each stream
+ * An HdrPlusPipeline can be configured for 1 input stream and 1 or more output streams. Each stream
  * will contain a number of buffers. When configure() is called, HdrPlusPipeline will create
  * streams, stream buffers, and routes for all streams. For example, the route of the input stream
  * may be: SourceCaptureBlock -> HdrPlusProcessingBlock, which means HdrPlusPipeline initially will
