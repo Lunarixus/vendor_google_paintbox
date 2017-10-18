@@ -122,7 +122,7 @@ void HdrPlusClientImpl::disconnect() {
     mApEaselMetadataManager.clear();
 
     // Disconnect from the service.
-    mMessengerToService.disconnect();
+    mMessengerToService.disconnect(mServiceFatalErrorState);
 }
 
 status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMetadata) {
@@ -396,6 +396,10 @@ void HdrPlusClientImpl::notifyFrameMetadata(uint32_t frameNumber,
 
         mNotifyFrameMetadataThread->queueFrameMetadata(frameMetadata);
     }
+}
+
+void HdrPlusClientImpl::nofityEaselFatalError() {
+    mServiceFatalErrorState = true;
 }
 
 // Callbacks from HDR+ service.
