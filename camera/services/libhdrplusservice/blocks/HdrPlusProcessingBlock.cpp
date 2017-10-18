@@ -85,6 +85,13 @@ bool HdrPlusProcessingBlock::isReady() {
             return false;
         }
     }
+
+    if (EaselControlServer::getThermalCondition() >=
+        EaselControlServer::ThermalCondition::Critical) {
+        ALOGW("Easel too hot");
+        return false;
+    }
+
     {
         std::unique_lock<std::mutex> lock(mQueueLock);
         if (mInputQueue.size() < kGcamMinPayloadFrames) {
