@@ -39,6 +39,9 @@ EaselStateManager stateMgr;
 
 std::thread conn_thread;
 
+// Indicate an activate commmand is pending
+std::atomic_flag isActivatePending = ATOMIC_FLAG_INIT;  // initializes to false
+
 EaselLog::LogClient gLogClient;
 
 bool gHandshakeSuccessful;
@@ -268,6 +271,18 @@ void EventReportingThread(int pipeReadFd)
     ::close(fd);
 }
 
+void setActivatePending()
+{
+    ALOGV("%s", __FUNCTION__);
+    isActivatePending.test_and_set();
+}
+
+void clearActivatePending()
+{
+    ALOGV("%s", __FUNCTION__);
+    isActivatePending.clear();
+}
+
 int sendActivateCommand()
 {
     EaselControlImpl::ActivateMsg ctrl_msg;
@@ -412,24 +427,12 @@ void easelConnThread()
 
     easel_conn.startMessageHandlerThread(msgHandlerCallback);
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
-
-        ALOGD("%s: sending deactivate command in bypass mode", __FUNCTION__);
-
-        EaselControlImpl::DeactivateMsg ctrl_msg;
-
-        ctrl_msg.h.command = EaselControlImpl::CMD_DEACTIVATE;
-
-        EaselComm::EaselMessage msg;
-        msg.message_buf = &ctrl_msg;
-        msg.message_buf_size = sizeof(ctrl_msg);
-        msg.dma_buf = 0;
-        msg.dma_buf_size = 0;
-        ret = easel_conn.sendMessage(&msg);
-        if (ret) {
-            ALOGE("%s: failed to send deactivate command to Easel (%d)\n", __FUNCTION__, ret);
-            // No need to report this error in bypass mode
-        }
+    ALOGV("%s: check isActivatePending", __FUNCTION__);
+    if (!isActivatePending.test_and_set()) {
+        // No activate pending, go to bypass mode first; return value can be ignored.
+        ALOGD("%s: sending deactivate command", __FUNCTION__);
+        sendDeactivateCommand();
+        isActivatePending.clear();  // Clear isActivatePending flag
     }
 }
 
@@ -580,6 +583,7 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
+                    clearActivatePending();
                     stopWatchdog();
                     sendDeactivateCommand();
                     stopThermalMonitor();
@@ -592,6 +596,7 @@ int switchState(enum ControlState nextState)
                 case ControlState::FAILED:
                 case ControlState::RESUMED:
                 case ControlState::INIT:
+                    clearActivatePending();
                     stopWatchdog();
                     stopThermalMonitor();
                     stopLogClient();
@@ -656,10 +661,13 @@ int switchState(enum ControlState nextState)
                             ret = startThermalMonitor();
                         }
                         if (!ret) {
+                            // Mark the flag so deactivate is not sent by easelconn thread
+                            setActivatePending();
                             ret = waitForEaselConn();
                         }
                         if (!ret) {
                             ret = sendActivateCommand();
+                            clearActivatePending();
                         }
                         if (!ret) {
                             ret = startWatchdog();
@@ -667,9 +675,12 @@ int switchState(enum ControlState nextState)
                     }
                     break;
                 case ControlState::RESUMED:
+                    // Mark the flag so deactivate is not sent by easelconn thread
+                    setActivatePending();
                     ret = waitForEaselConn();
                     if (!ret) {
                         ret = sendActivateCommand();
+                        clearActivatePending();
                     }
                     if (!ret) {
                         ret = startWatchdog();
