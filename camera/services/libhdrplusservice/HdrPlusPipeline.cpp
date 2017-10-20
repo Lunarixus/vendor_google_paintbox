@@ -150,8 +150,25 @@ status_t HdrPlusPipeline::stopPipelineLocked() {
     mState = STATE_STOPPING;
     bool failed = false;
 
-    // Wait until all blocks are stopped.
+    // Re-order blocks so that HDR+ processing block will be stopped first because capture service
+    // cannot be destroyed before HDR+ processing completes.
+    std::deque<std::shared_ptr<PipelineBlock>> blocks;
     for (auto block : mBlocks) {
+        if (block == mHdrPlusProcessingBlock) {
+            blocks.push_front(block);
+        } else {
+            blocks.push_back(block);
+        }
+    }
+
+    if (mSourceCaptureBlock != nullptr) {
+        // Pause source capture first so make sure it won't run out of buffers while waiting for
+        // HDR+ processing block to stop.
+        std::static_pointer_cast<SourceCaptureBlock>(mSourceCaptureBlock)->pauseCapture();
+    }
+
+    // Wait until all blocks are stopped.
+    for (auto block : blocks) {
         ALOGV("%s: Stopping %s.", __FUNCTION__, block->getName());
         status_t res = block->stopAndFlush(kStopBlockTimeoutMs);
         if (res != 0) {

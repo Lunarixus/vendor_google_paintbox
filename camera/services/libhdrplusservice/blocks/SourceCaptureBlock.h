@@ -75,6 +75,9 @@ public:
     // Notify IPU processing is done.
     void notifyIpuProcessingDone();
 
+    // Pause capturing.
+    void pauseCapture();
+
 private:
     // Timeout duration for waiting for events.
     static const int32_t BLOCK_EVENT_TIMEOUT_MS = 500;
