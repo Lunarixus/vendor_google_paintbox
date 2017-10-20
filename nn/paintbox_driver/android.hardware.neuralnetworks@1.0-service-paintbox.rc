@@ -1,6 +1,0 @@
-# NN HAL paintbox server, currently need to use root permission to open easel file.
-# TODO(cjluo): reset the user and group to be system once we resolved the easel file ownership.
-service neuralnetworks_hal_service_paintbox /vendor/bin/hw/android.hardware.neuralnetworks@1.0-service-paintbox
-    class hal
-    user root
-    group root

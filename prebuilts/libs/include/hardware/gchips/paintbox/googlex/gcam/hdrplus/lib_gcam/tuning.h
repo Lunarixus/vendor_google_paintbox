@@ -105,68 +105,6 @@ inline RawVignetteParams LerpTuning<RawVignetteParams>(
   return Lerp(a, b, t);
 }
 
-// TODO(yuntatsai): Reorganize noise model code.
-// Description of the noise found in a particular raw/linear image. This model
-// describes noise variance as a linear function of the ideal signal level,
-// given as digital values of the input image after black level subtraction,
-// in the range [0, white_level - black_level]. The model assumes the noise is
-// spatially independent (white noise).
-//
-// Apart from the different units for signal, this model is identical to
-// DngNoiseModel, which corresponds to the DNG specification for the
-// 'NoiseProfile' tag.
-struct RawNoiseModel {
-  // The noise variance for a given signal level x is modeled as:
-  //
-  //   Var[x] = scale*x + offset
-  //
-  // where x is the noise-free signal level, expressed in digital values after
-  // black level subtraction, in the range [0, white_level - black_level].
-  float scale = 0.0f;
-  float offset = 0.0f;
-
-  // Produce a raw noise model from a DNG noise model and the white/black
-  // levels.
-  static RawNoiseModel FromDngNoiseModel(const DngNoiseModel &dng,
-                                         float black_level, float white_level) {
-    float normalize_factor = white_level - black_level;
-    RawNoiseModel raw;
-    raw.scale = dng.scale * normalize_factor;
-    raw.offset = dng.offset * normalize_factor * normalize_factor;
-    return raw;
-  }
-};
-
-// The DNG noise model is specified independently for each Bayer channel, in
-// terms of normalized signal levels. This function converts a 4-channel DNG
-// noise model to black-subtracted raw noise models.
-void RawNoiseModelFromDngNoiseModel(
-    const DngNoiseModel dng_noise_model_bayer[4],
-    const float black_levels_bayer[4], float white_level,
-    RawNoiseModel* raw_noise_model);
-
-// Noise model from PD is specified based on the noise model for the green
-// channel. This function is only guaranteed to work with the 2017 phones.
-// 'pd_noise_model' contains the noise model for the left and right PD pixels
-// in that order.
-void PdNoiseModelFromRawNoiseModel(
-    const RawNoiseModel raw_noise_model[4],
-    BayerPattern bayer_pattern,
-    std::array<RawNoiseModel, 2>* pd_noise_model);
-
-// Compute the average SNR for a given raw frame, by evaluating the given noise
-// model at the mean signal level, approximated using a single green channel.
-// Only a single value is used for black level.
-float AverageSnrFromFrame(const RawReadView& raw,
-                          BayerPattern bayer_pattern,
-                          float noise_model_black_level,
-                          float white_level,
-                          const RawNoiseModel& noise_model,
-                          const Context& context);
-
-// Estimate the SNR for a frame using only its metadata.
-float EstimateSnrFromFrameMetadata(const FrameMetadata& metadata);
-
 // Description of the noise found in raw/linear images captured by a
 // particular sensor as a function of an analog gain stage followed by a readout
 // stage, followed by digital gain. This model assumes the noise is spatially

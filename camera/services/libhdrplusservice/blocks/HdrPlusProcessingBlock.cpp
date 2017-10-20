@@ -1320,7 +1320,7 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
 
     gcamMetadata->ae.mode = metadata->aeMode;
     gcamMetadata->ae.lock = metadata->aeLock == ANDROID_CONTROL_AE_LOCK_ON;
-    gcamMetadata->ae.state = metadata->aeState;
+    gcamMetadata->ae.state = static_cast<gcam::AeState>(metadata->aeState);
     gcamMetadata->ae.precapture_trigger = metadata->aePrecaptureTrigger;
     gcamMetadata->ae.exposure_compensation = metadata->aeExposureCompensation *
         mStaticMetadata->aeCompensationStep;

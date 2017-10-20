@@ -18,12 +18,10 @@
 #define PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
 
 #include "CpuExecutor.h"
-#include "EaselComm2.h"
 #include "HalInterfaces.h"
 #include "NeuralNetworks.h"
 
-#include <condition_variable>
-#include <mutex>
+#include <string>
 
 namespace android {
 namespace nn {
@@ -31,37 +29,39 @@ namespace paintbox_driver {
 
 // Paintbox NN API driver implementation.
 class PaintboxDriver : public IDevice {
- public:
-  virtual ~PaintboxDriver() {}
-  virtual Return<void> initialize(initialize_cb _hidl_cb);
-  virtual Return<void> getSupportedSubgraph(const Model& model,
-                                            getSupportedSubgraph_cb _hidl_cb);
-  virtual Return<sp<IPreparedModel>> prepareModel(const Model& model);
-  virtual Return<DeviceStatus> getStatus();
+public:
+    PaintboxDriver() : mName("paintbox") {}
+    ~PaintboxDriver() override {}
+    Return<ErrorStatus> prepareModel(const Model& model,
+                                     const sp<IPreparedModelCallback>& callback) override;
+    Return<DeviceStatus> getStatus() override;
 
- private:
-  std::unique_ptr<EaselComm2::Comm> mComm;
+    // Starts and runs the driver service.  Typically called from main().
+    // This will return only once the service shuts down.
+    int run();
+protected:
+    std::string mName;
 };
 
 class PaintboxPreparedModel : public IPreparedModel {
- public:
-  PaintboxPreparedModel(const Model& model, EaselComm2::Comm* comm);
-  virtual ~PaintboxPreparedModel() {}
-  virtual Return<bool> execute(const Request& request);
+public:
+    PaintboxPreparedModel(const Model& model)
+          : // Make a copy of the model, as we need to preserve it.
+            mModel(model) {}
+    ~PaintboxPreparedModel() override {}
+    bool initialize();
+    Return<ErrorStatus> execute(const Request& request,
+                                const sp<IExecutionCallback>& callback) override;
 
- private:
-  void executeCallback(const EaselComm2::Message& message);
-  Model mModel;
-  EaselComm2::Comm* mComm;
-  std::mutex mExecuteMutex;
-  std::condition_variable mExecuteDoneCond;
-  bool mExecuteDone;
-  int mExecuteReturn;
-  RunTimePoolInfo* mOutput;
+private:
+    void asyncExecute(const Request& request, const sp<IExecutionCallback>& callback);
+
+    Model mModel;
+    std::vector<RunTimePoolInfo> mPoolInfos;
 };
 
-}  // namespace paintbox_driver
-}  // namespace nn
-}  // namespace android
+} // namespace paintbox_driver
+} // namespace nn
+} // namespace android
 
-#endif  // PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
+#endif // PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
