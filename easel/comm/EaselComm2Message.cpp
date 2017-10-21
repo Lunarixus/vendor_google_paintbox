@@ -96,11 +96,14 @@ Message::Message(int channelId, const void* body, size_t size,
   }
 }
 
-Message::Message(int channelId, const HardwareBuffer& payload) {
+Message::Message(int channelId, const HardwareBuffer* payload) {
   ALOG_ASSERT(allocMessage(0));
   mMessageId = 0;
-  initializeHeader(channelId, BUFFER);
-  attachPayload(payload);
+  initializeHeader(channelId, PING);
+
+  if (payload != nullptr) {
+    attachPayload(*payload);
+  }
 }
 
 Message::Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,

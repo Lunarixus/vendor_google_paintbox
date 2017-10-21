@@ -41,8 +41,7 @@ class Comm {
   // This function will also start and join handler thread.
   // This function will block forever and never return unless open fails.
   // logging specifies if the open / close logging is turned on.
-  virtual int openPersistent(EaselService service_id,
-                             bool logging = true) = 0;
+  virtual int openPersistent(EaselService service_id, bool logging = true) = 0;
 
   // Closes down communication via this object.
   virtual void close() = 0;
@@ -56,6 +55,10 @@ class Comm {
   virtual void joinReceiving() = 0;
 
   // -------------------------------------------------------
+  // Sends an empty message and an optional payload to the other side.
+  // Returns the error code.
+  virtual int send(int channelId, const HardwareBuffer* payload = nullptr) = 0;
+
   // Sends a struct and an optional payload to the other side.
   // Returns the error code.
   virtual int send(int channelId, const void* body, size_t body_size,

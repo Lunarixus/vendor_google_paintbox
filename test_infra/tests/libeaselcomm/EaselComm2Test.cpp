@@ -236,7 +236,7 @@ TEST_F(EaselComm2Test, AHardareBufferEaselLoopback) {
 
   ASSERT_EQ(writePattern(kSeed, patternSimple, txBuffer), NO_ERROR);
   auto txHardwareBuffer = convertToHardwareBuffer(txBuffer);
-  ASSERT_EQ(comm()->send(kIonBufferChannel, {txHardwareBuffer}), NO_ERROR);
+  ASSERT_EQ(comm()->send(kIonBufferChannel, &txHardwareBuffer), NO_ERROR);
 
   wait();
 
@@ -273,7 +273,7 @@ TEST_F(EaselComm2Test, MallocAHardwareBufferEaselLoopback) {
       getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM), 0);
   writePattern(kSeed, patternSimple, kWidth, kWidth, kHeight,
                AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM, txBuffer);
-  ASSERT_EQ(comm()->send(kMallocBufferChannel, {txHardwareBuffer}), NO_ERROR);
+  ASSERT_EQ(comm()->send(kMallocBufferChannel, &txHardwareBuffer), NO_ERROR);
 
   wait();
 
@@ -419,8 +419,18 @@ TEST_F(EaselComm2Test, FileCopy) {
   EaselComm2::HardwareBuffer buffer;
   void* vaddr = buffer.loadFile(s);
   ASSERT_TRUE(vaddr != nullptr);
-  ASSERT_EQ(comm()->send(kFileChannel, {buffer}), NO_ERROR);
+  ASSERT_EQ(comm()->send(kFileChannel, &buffer), NO_ERROR);
   free(vaddr);
+  wait();
+}
+
+TEST_F(EaselComm2Test, Ping) {
+  comm()->registerHandler(kPingChannel,
+                          [&](const EaselComm2::Message&) {
+                            signal();
+                          });
+
+  ASSERT_EQ(comm()->send(kPingChannel), NO_ERROR);
   wait();
 }
 

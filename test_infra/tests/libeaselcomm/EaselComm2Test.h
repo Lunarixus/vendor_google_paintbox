@@ -10,6 +10,7 @@ const int kStructChannel = 2;
 const int kIonBufferChannel = 3;
 const int kMallocBufferChannel = 4;
 const int kFileChannel = 5;
+const int kPingChannel = 6;
 
 struct TestStruct {
   int number;

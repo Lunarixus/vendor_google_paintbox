@@ -100,6 +100,13 @@ int CommImpl::receivePayload(const Message& message, HardwareBuffer* buffer) {
   return mComm->receiveDMA(&easelMessage);
 }
 
+int CommImpl::send(int channelId, const HardwareBuffer* payload) {
+  Message message(channelId, payload);
+  EaselComm::EaselMessage easelMessage;
+  ConvertMessageToEaselMessage(message, &easelMessage);
+  return mComm->sendMessage(&easelMessage);
+}
+
 int CommImpl::send(int channelId, const void* body, size_t body_size,
                    const HardwareBuffer* payload) {
   Message message(channelId, body, body_size, payload);
@@ -127,10 +134,7 @@ int CommImpl::send(int channelId, const ::google::protobuf::MessageLite& proto,
 int CommImpl::send(int channelId, const std::vector<HardwareBuffer>& buffers,
                    int* lastId) {
   for (auto& buffer : buffers) {
-    Message message(channelId, buffer);
-    EaselComm::EaselMessage easelMessage;
-    ConvertMessageToEaselMessage(message, &easelMessage);
-    int ret = mComm->sendMessage(&easelMessage);
+    int ret = send(channelId, &buffer);
     if (ret != 0) {
       return ret;
     } else if (lastId != nullptr) {

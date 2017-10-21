@@ -23,14 +23,16 @@ class CommImpl : public Comm {
 
   void joinReceiving() override;
 
+  int send(int channelId, const HardwareBuffer* payload) override;
+
   int send(int channelId, const void* body, size_t body_size,
-           const HardwareBuffer* payload = nullptr) override;
+           const HardwareBuffer* payload) override;
 
   int send(int channelId, const std::string& s,
-           const HardwareBuffer* payload = nullptr) override;
+           const HardwareBuffer* payload) override;
 
   int send(int channelId, const ::google::protobuf::MessageLite& proto,
-           const HardwareBuffer* payload = nullptr) override;
+           const HardwareBuffer* payload) override;
 
   int send(int channelId, const std::vector<HardwareBuffer>& buffers,
            int* lastId) override;

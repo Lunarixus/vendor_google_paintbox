@@ -94,7 +94,7 @@ void handleIonBufferMessage(const EaselComm2::Message& message2) {
   EaselComm2::HardwareBuffer hardwareBuffer(fd, size, 0);
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
-  CHECK_EQ(server->send(kIonBufferChannel, {hardwareBuffer}), NO_ERROR);
+  CHECK_EQ(server->send(kIonBufferChannel, &hardwareBuffer), NO_ERROR);
 
   CHECK_EQ(ImxDeleteDeviceBuffer(buffer), IMX_SUCCESS);
 }
@@ -109,7 +109,7 @@ void handleMallocBufferMessage(const EaselComm2::Message& message2) {
   EaselComm2::HardwareBuffer hardwareBuffer(vaddr, size, 0);
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
-  CHECK_EQ(server->send(kMallocBufferChannel, {hardwareBuffer}), NO_ERROR);
+  CHECK_EQ(server->send(kMallocBufferChannel, &hardwareBuffer), NO_ERROR);
   free(vaddr);
 }
 
@@ -134,6 +134,11 @@ void handleFileMessage(const EaselComm2::Message& message2) {
   free(vaddr);
 }
 
+// Handles ping request.
+void handlePingMessage(const EaselComm2::Message&) {
+  CHECK_EQ(server->send(kPingChannel), NO_ERROR);
+}
+
 }  // namespace
 
 int main() {
@@ -148,6 +153,7 @@ int main() {
   server->registerHandler(kStructChannel, handleStructMessage);
   server->registerHandler(kStringChannel, handleStringMessage);
   server->registerHandler(kFileChannel, handleFileMessage);
+  server->registerHandler(kPingChannel, handlePingMessage);
 
   server->openPersistent(EASEL_SERVICE_TEST);
 }
