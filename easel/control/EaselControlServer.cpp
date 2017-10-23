@@ -48,10 +48,11 @@ std::mutex gServerLock;
 // true if easel_conn is opened
 bool gServerInitialized;
 
-EaselTimer heartbeat;
+static EaselTimer heartbeat;
 
 // Latency between heartbeat messages
-const std::chrono::milliseconds kHeartbeatPeriod = std::chrono::milliseconds(1000);
+static const std::chrono::milliseconds kHeartbeatPeriod = std::chrono::milliseconds(1000);
+static uint32_t heartbeatSeqNumber = 0;
 
 /*
  * The AP boottime clock value we received at the last SET_TIME command,
@@ -120,10 +121,8 @@ static void sendHeartbeatMessage()
 {
     EaselComm::EaselMessage msg;
     EaselControlImpl::HeartbeatMsg heartbeatMsg;
-    static uint32_t seqNumber = 0;
-
     heartbeatMsg.h.command = EaselControlImpl::CMD_HEARTBEAT;
-    heartbeatMsg.seqNumber = seqNumber++;
+    heartbeatMsg.seqNumber = heartbeatSeqNumber++;
 
     msg.message_buf = &heartbeatMsg;
     msg.message_buf_size = sizeof(heartbeatMsg);
@@ -152,8 +151,8 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
         // receiving this reply.
         easel_conn.sendReply(msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
 
+        heartbeatSeqNumber = 0;
         ret = heartbeat.start(kHeartbeatPeriod, sendHeartbeatMessage);
-
         if (ret) {
             ALOGE("%s: failed to start heartbeat timer (%d)", __FUNCTION__, ret);
         }
@@ -176,7 +175,7 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
         }
 
         ret = heartbeat.stop();
-        if (ret) {
+        if (ret && (ret != -ENODEV)) {
             ALOGE("%s: failed to stop heartbeat timer (%d)", __FUNCTION__, ret);
         }
 

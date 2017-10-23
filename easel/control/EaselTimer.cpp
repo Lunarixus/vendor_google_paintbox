@@ -23,15 +23,9 @@ int EaselTimer::start(std::chrono::milliseconds period, std::function<void()> ca
 {
     ALOGV("%s", __FUNCTION__);
 
-    if (mThread.joinable()) {
-        ALOGE("%s: timer is already running", __FUNCTION__);
-        return -EBUSY;
-    }
+    if (mThread.joinable()) return -EBUSY;
 
-    if (!callback) {
-        ALOGE("%s: cannot start timer with null callback", __FUNCTION__);
-        return -EINVAL;
-    }
+    if (!callback) return -EINVAL;
 
     mStopFlag = false;
     mThread = std::thread(&EaselTimer::timer, this, period, callback, fireOnce);
@@ -43,10 +37,7 @@ int EaselTimer::restart()
 {
     ALOGV("%s", __FUNCTION__);
 
-    if (!mThread.joinable()) {
-        ALOGE("%s: no timer running", __FUNCTION__);
-        return -ENODEV;
-    }
+    if (!mThread.joinable()) return -ENODEV;
 
     mCondition.notify_all();
 
@@ -57,10 +48,7 @@ int EaselTimer::stop()
 {
     ALOGV("%s", __FUNCTION__);
 
-    if (!mThread.joinable()) {
-        ALOGE("%s: no timer running", __FUNCTION__);
-        return -ENODEV;
-    }
+    if (!mThread.joinable()) return -ENODEV;
 
     {
         std::unique_lock<std::mutex> lock(mMutex);

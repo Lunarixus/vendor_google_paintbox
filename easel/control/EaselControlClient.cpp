@@ -77,6 +77,7 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
 
 EaselTimer watchdog;
 const std::chrono::milliseconds watchdogTimeout = std::chrono::milliseconds(2500);
+static uint32_t heartbeatSeqNumber;
 
 } // anonymous namespace
 
@@ -330,7 +331,6 @@ int sendDeactivateCommand()
 void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
         (EaselControlImpl::MsgHeader *)msg->message_buf;
-    static uint32_t heartbeatSeqNumber = 0;
 
     ALOGD("Received command %d", h->command);
 
@@ -546,22 +546,18 @@ int startWatchdog()
     int ret = watchdog.start(watchdogTimeout,
                              []() { reportError(EaselErrorReason::WATCHDOG); },
                              /*fireOnce=*/true);
-
     if (ret) {
         ALOGE("%s: failed to start watchdog (%d)\n", __FUNCTION__, ret);
     }
+
+    heartbeatSeqNumber = 0;
 
     return ret;
 }
 
 int stopWatchdog()
 {
-    int ret = watchdog.stop();
-    if (ret) {
-        ALOGE("%s: failed to stop watchdog (%d)\n", __FUNCTION__, ret);
-    }
-
-    return ret;
+    return watchdog.stop();
 }
 
 int switchState(enum ControlState nextState)
@@ -592,6 +588,7 @@ int switchState(enum ControlState nextState)
                 case ControlState::FAILED:
                 case ControlState::RESUMED:
                 case ControlState::INIT:
+                    stopWatchdog();
                     stopThermalMonitor();
                     stopLogClient();
                     teardownEaselConn();
