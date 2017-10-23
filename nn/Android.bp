@@ -1,5 +1,5 @@
 subdirs = [
     "paintbox_driver",
-//    "server",
+    "server",
     "shared",
 ]
