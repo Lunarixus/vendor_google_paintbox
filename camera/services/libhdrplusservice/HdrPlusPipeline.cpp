@@ -82,7 +82,9 @@ status_t HdrPlusPipeline::setStaticMetadata(const StaticMetadata& metadata) {
         ALOGV("%s: static metadata: %s.", __FUNCTION__, s.data());
     }
 
-    if (metadata.debugParams | DEBUG_PARAM_SAVE_PROFILE) {
+    bool shouldSaveProfile =
+        (metadata.debugParams & DEBUG_PARAM_SAVE_PROFILE) != 0;
+    if (shouldSaveProfile) {
         if (ImxEnableProfiling(kProfileFile) != IMX_SUCCESS) {
             ALOGE("%s: Failed to start profiling on easel.", __FUNCTION__);
         } else {
