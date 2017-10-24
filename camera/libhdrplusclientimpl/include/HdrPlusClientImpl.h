@@ -269,6 +269,9 @@ private:
 
     // Static metadata of current camera.
     std::unique_ptr<pbcamera::StaticMetadata> mStaticMetadata;
+
+    // Whether or not to ignore timeouts.
+    bool mIgnoreTimeouts;
 };
 
 /**
