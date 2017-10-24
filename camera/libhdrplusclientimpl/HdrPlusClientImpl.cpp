@@ -38,7 +38,8 @@ using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 namespace android {
 
 HdrPlusClientImpl::HdrPlusClientImpl(HdrPlusClientListener *listener) : HdrPlusClient(listener),
-        mClientListener(listener), mServiceFatalErrorState(false), mDisconnecting(false) {
+        mClientListener(listener), mServiceFatalErrorState(false), mDisconnecting(false),
+        mIgnoreTimeouts(false) {
     mNotifyFrameMetadataThread = new NotifyFrameMetadataThread(&mMessengerToService);
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
@@ -171,6 +172,11 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
         staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD;
     }
 
+    // Dumping the input payload takes too long so we have to ignore timeouts.
+    mIgnoreTimeouts =
+        (staticMetadataDest->debugParams &
+         pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD) != 0;
+
     res = mMessengerToService.setStaticMetadata(*staticMetadataDest);
     if (res == OK) {
         mStaticMetadata = std::move(staticMetadataDest);
@@ -267,7 +273,7 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
         mPendingRequests.push_back(std::move(pendingRequest));
     }
 
-    if (mTimerCallbackThread != nullptr) {
+    if (mTimerCallbackThread != nullptr && !mIgnoreTimeouts) {
         mTimerCallbackThread->addTimer(request->id, kDefaultRequestTimerMs);
     }
 
@@ -754,7 +760,9 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
         mPendingRequests.erase(pendingRequestIter);
     }
 
-    mTimerCallbackThread->cancelTimer(clientResult.requestId);
+    if (mTimerCallbackThread != nullptr) {
+        mTimerCallbackThread->cancelTimer(clientResult.requestId);
+    }
 
     if (successfulResult) {
         // Invoke client listener callback for the capture result.
