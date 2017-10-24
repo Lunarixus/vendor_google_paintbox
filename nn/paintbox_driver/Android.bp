@@ -20,6 +20,8 @@ cc_defaults {
     relative_install_path: "hw",
     proprietary: true,
     srcs: [
+        "Conversion.cpp",
+        "EaselExecutorClient.cpp",
         "PaintboxDriver.cpp",
     ],
     header_libs: [
@@ -28,10 +30,12 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "libdl",
+        "libeaselcomm",
         "libhardware",
         "libhidlbase",
         "libhidlmemory",
         "libhidltransport",
+        "libprotobuf-cpp-lite",
         "libtextclassifier_hash",
         "liblog",
         "libutils",
@@ -41,6 +45,7 @@ cc_defaults {
     ],
     static_libs: [
         "libneuralnetworks_common",
+        "paintbox_nn_shared",
     ],
 }
 
@@ -48,5 +53,7 @@ cc_binary {
     name: "android.hardware.neuralnetworks@1.0-service-paintbox",
     defaults: ["NeuralNetworksPaintboxDriver_defaults"],
     init_rc: ["PaintboxDriver.rc"],
-    srcs: ["PaintboxDriverOem.cpp"],
+    srcs: [
+        "PaintboxDriverOem.cpp",
+    ],
 }

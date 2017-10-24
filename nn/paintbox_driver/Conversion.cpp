@@ -1,111 +1,58 @@
 #define LOG_TAG "PAINTBOX_NN_CONVERSION"
 
 #include "Conversion.h"
+#include "Utils.h"
 #include "android-base/logging.h"
-#include "log/log.h"
+
+#include <sys/mman.h>
+#include <set>
 
 namespace paintbox_util {
+
+using android::nn::getSizeFromInts;
+using android::sp;
+
 namespace {
 
-paintbox_nn::OperandType convertHidlOperandType(const OperandType type) {
+paintbox_nn::OperandType convertHidlOperandType(OperandType type) {
   switch (type) {
-    case OperandType::FLOAT16:
-      return paintbox_nn::FLOAT16;
     case OperandType::FLOAT32:
       return paintbox_nn::FLOAT32;
-    case OperandType::INT8:
-      return paintbox_nn::INT8;
-    case OperandType::UINT8:
-      return paintbox_nn::UINT8;
-    case OperandType::INT16:
-      return paintbox_nn::INT16;
     case OperandType::INT32:
       return paintbox_nn::INT32;
     case OperandType::UINT32:
       return paintbox_nn::UINT32;
-    case OperandType::TENSOR_FLOAT16:
-      return paintbox_nn::TENSOR_FLOAT16;
     case OperandType::TENSOR_FLOAT32:
       return paintbox_nn::TENSOR_FLOAT32;
     case OperandType::TENSOR_QUANT8_ASYMM:
       return paintbox_nn::TENSOR_QUANT8_ASYMM;
+    case OperandType::OEM:
+      return paintbox_nn::OEM;
+    case OperandType::TENSOR_OEM_BYTE:
+      return paintbox_nn::TENSOR_OEM_BYTE;
     default:
       CHECK(false) << "invalid operand type.";
-      return paintbox_nn::FLOAT16;
+      return paintbox_nn::FLOAT32;
   }
 }
 
-paintbox_nn::OperationType convertHidlOperationType(const OperationType type) {
+paintbox_nn::OperandLifeTime convertHidlOperandLifeTime(OperandLifeTime type) {
   switch (type) {
-    case OperationType::AVERAGE_POOL:
-      return paintbox_nn::AVERAGE_POOL;
-    case OperationType::CONCATENATION:
-      return paintbox_nn::CONCATENATION;
-    case OperationType::CONV:
-      return paintbox_nn::CONV;
-    case OperationType::DEPTHWISE_CONV:
-      return paintbox_nn::DEPTHWISE_CONV;
-    case OperationType::MAX_POOL:
-      return paintbox_nn::MAX_POOL;
-    case OperationType::L2_POOL:
-      return paintbox_nn::L2_POOL;
-    case OperationType::DEPTH_TO_SPACE:
-      return paintbox_nn::DEPTH_TO_SPACE;
-    case OperationType::SPACE_TO_DEPTH:
-      return paintbox_nn::SPACE_TO_DEPTH;
-    case OperationType::LOCAL_RESPONSE_NORMALIZATION:
-      return paintbox_nn::LOCAL_RESPONSE_NORMALIZATION;
-    case OperationType::SOFTMAX:
-      return paintbox_nn::SOFTMAX;
-    case OperationType::RESHAPE:
-      return paintbox_nn::RESHAPE;
-    case OperationType::SPLIT:
-      return paintbox_nn::SPLIT;
-    case OperationType::FAKE_QUANT:
-      return paintbox_nn::FAKE_QUANT;
-    case OperationType::ADD:
-      return paintbox_nn::ADD;
-    case OperationType::FULLY_CONNECTED:
-      return paintbox_nn::FULLY_CONNECTED;
-    case OperationType::CAST:
-      return paintbox_nn::CAST;
-    case OperationType::MUL:
-      return paintbox_nn::MUL;
-    case OperationType::L2_NORMALIZATION:
-      return paintbox_nn::L2_NORMALIZATION;
-    case OperationType::LOGISTIC:
-      return paintbox_nn::LOGISTIC;
-    case OperationType::RELU:
-      return paintbox_nn::RELU;
-    case OperationType::RELU6:
-      return paintbox_nn::RELU6;
-    case OperationType::RELU1:
-      return paintbox_nn::RELU1;
-    case OperationType::TANH:
-      return paintbox_nn::TANH;
-    case OperationType::DEQUANTIZE:
-      return paintbox_nn::DEQUANTIZE;
-    case OperationType::FLOOR:
-      return paintbox_nn::FLOOR;
-    case OperationType::GATHER:
-      return paintbox_nn::GATHER;
-    case OperationType::RESIZE_BILINEAR:
-      return paintbox_nn::RESIZE_BILINEAR;
-    case OperationType::LSH_PROJECTION:
-      return paintbox_nn::LSH_PROJECTION;
-    case OperationType::LSTM:
-      return paintbox_nn::LSTM;
-    case OperationType::SVDF:
-      return paintbox_nn::SVDF;
-    case OperationType::RNN:
-      return paintbox_nn::RNN;
-    case OperationType::N_GRAM:
-      return paintbox_nn::N_GRAM;
-    case OperationType::LOOKUP:
-      return paintbox_nn::LOOKUP;
+    case OperandLifeTime::TEMPORARY_VARIABLE:
+      return paintbox_nn::TEMPORARY_VARIABLE;
+    case OperandLifeTime::MODEL_INPUT:
+      return paintbox_nn::MODEL_INPUT;
+    case OperandLifeTime::MODEL_OUTPUT:
+      return paintbox_nn::MODEL_OUTPUT;
+    case OperandLifeTime::CONSTANT_COPY:
+      return paintbox_nn::CONSTANT_COPY;
+    case OperandLifeTime::CONSTANT_REFERENCE:
+      return paintbox_nn::CONSTANT_REFERENCE;
+    case OperandLifeTime::NO_VALUE:
+      return paintbox_nn::NO_VALUE;
     default:
-      CHECK(false) << "invalid operation type.";
-      return paintbox_nn::AVERAGE_POOL;
+      CHECK(false) << "invalid operand life time.";
+      return paintbox_nn::TEMPORARY_VARIABLE;
   }
 }
 
@@ -122,6 +69,7 @@ void convertHidlModel(const Model& inputModel,
     protoOperand->set_numberofconsumers(operand.numberOfConsumers);
     protoOperand->set_scale(operand.scale);
     protoOperand->set_zeropoint(operand.zeroPoint);
+    protoOperand->set_lifetime(convertHidlOperandLifeTime(operand.lifetime));
 
     paintbox_nn::DataLocation* location = new paintbox_nn::DataLocation();
     location->set_poolindex(operand.location.poolIndex);
@@ -132,13 +80,6 @@ void convertHidlModel(const Model& inputModel,
 
   for (auto operation : inputModel.operations) {
     auto protoOperation = outputModel->add_operations();
-    paintbox_nn::OperationTuple* tuple = new paintbox_nn::OperationTuple();
-    tuple->set_operationtype(
-        convertHidlOperationType(operation.opTuple.operationType));
-    tuple->set_operandtype(
-        convertHidlOperandType(operation.opTuple.operandType));
-    protoOperation->set_allocated_optuple(tuple);
-
     for (auto input : operation.inputs) {
       protoOperation->add_inputs(input);
     }
@@ -156,14 +97,23 @@ void convertHidlModel(const Model& inputModel,
   }
   outputModel->set_operandvalues(inputModel.operandValues.data(),
                                  inputModel.operandValues.size());
+
+  for (auto& pool : inputModel.pools) {
+    outputModel->add_poolsizes(pool.size());
+  }
 }
 
 void convertHidlRequest(const Request& inputRequest,
                         paintbox_nn::Request* outputRequest) {
+  std::set<uint32_t> inputPoolSet;
   for (auto input : inputRequest.inputs) {
     auto protoInput = outputRequest->add_inputs();
+
+    protoInput->set_hasnovalue(input.hasNoValue);
+
     paintbox_nn::DataLocation* location = new paintbox_nn::DataLocation();
     location->set_poolindex(input.location.poolIndex);
+    inputPoolSet.insert(input.location.poolIndex);
     location->set_offset(input.location.offset);
     location->set_length(input.location.length);
     protoInput->set_allocated_location(location);
@@ -173,10 +123,19 @@ void convertHidlRequest(const Request& inputRequest,
     }
   }
 
+  for (auto index : inputPoolSet) {
+    outputRequest->add_inputpools(index);
+  }
+
+  std::set<uint32_t> outputPoolSet;
   for (auto output : inputRequest.outputs) {
     auto protoOutput = outputRequest->add_outputs();
+
+    protoOutput->set_hasnovalue(output.hasNoValue);
+
     paintbox_nn::DataLocation* location = new paintbox_nn::DataLocation();
     location->set_poolindex(output.location.poolIndex);
+    outputPoolSet.insert(output.location.poolIndex);
     location->set_offset(output.location.offset);
     location->set_length(output.location.length);
     protoOutput->set_allocated_location(location);
@@ -186,8 +145,77 @@ void convertHidlRequest(const Request& inputRequest,
     }
   }
 
+  for (auto index : outputPoolSet) {
+    outputRequest->add_outputpools(index);
+  }
+
   for (auto& pool : inputRequest.pools) {
     outputRequest->add_poolsizes(pool.size());
+  }
+}
+
+// Reference: RunTimePoolInfo::set
+// frameworks/ml/nn/common/CpuExecutor.cpp
+// This function supports two hidl_memory types: ashmem and the mmap_fd.
+// Ashmem hidl_memory will be unmapped in destructor.
+// TODO(cjluo): consider unmmap flow for mmap_fd type.
+bool mapPool(const hidl_memory& hidlMemory,
+             EaselComm2::HardwareBuffer* hardwareBuffer) {
+  auto memType = hidlMemory.name();
+  if (memType == "ashmem") {
+    sp<IMemory> memory;
+    memory = mapMemory(hidlMemory);
+    if (memory == nullptr) {
+      LOG(ERROR) << "Can't map shared memory.";
+      return false;
+    }
+    memory->update();
+    uint8_t* buffer =
+        reinterpret_cast<uint8_t*>(static_cast<void*>(memory->getPointer()));
+    if (buffer == nullptr) {
+      LOG(ERROR) << "Can't access shared memory.";
+      return false;
+    }
+    hardwareBuffer->vaddr = buffer;
+    hardwareBuffer->size = memory->getSize();
+    hardwareBuffer->ionFd = -1;
+    return true;
+  } else if (memType == "mmap_fd") {
+    size_t size = hidlMemory.size();
+    int fd = hidlMemory.handle()->data[0];
+    int prot = hidlMemory.handle()->data[1];
+    size_t offset = getSizeFromInts(hidlMemory.handle()->data[2],
+                                    hidlMemory.handle()->data[3]);
+    uint8_t* buffer = static_cast<uint8_t*>(
+        mmap(nullptr, size, prot, MAP_SHARED, fd, offset));
+    if (buffer == MAP_FAILED) {
+      LOG(ERROR) << "Can't mmap the file descriptor.";
+      return false;
+    }
+    hardwareBuffer->vaddr = buffer;
+    hardwareBuffer->size = size;
+    hardwareBuffer->ionFd = -1;
+  } else {
+    LOG(ERROR) << "unsupported hidl_memory type";
+    return false;
+  }
+  return false;
+}
+
+ErrorStatus convertProtoError(paintbox_nn::ErrorStatus error) {
+  switch (error) {
+    case paintbox_nn::NONE:
+      return ErrorStatus::NONE;
+    case paintbox_nn::DEVICE_UNAVAILABLE:
+      return ErrorStatus::DEVICE_UNAVAILABLE;
+    case paintbox_nn::GENERAL_FAILURE:
+      return ErrorStatus::GENERAL_FAILURE;
+    case paintbox_nn::OUTPUT_INSUFFICIENT_SIZE:
+      return ErrorStatus::OUTPUT_INSUFFICIENT_SIZE;
+    case paintbox_nn::INVALID_ARGUMENT:
+      return ErrorStatus::INVALID_ARGUMENT;
+    default:
+      return ErrorStatus::NONE;
   }
 }
 
