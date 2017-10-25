@@ -4,6 +4,7 @@
 // This header is part of the public Gcam API; try not to include any headers
 // unnecessarily, since any included headers also become part of the API.
 
+#include <string>
 #include <vector>
 
 #include "googlex/gcam/base/pixel_rect.h"
@@ -16,8 +17,8 @@ enum class HdrMode {
   kInvalid,
 };
 
-const char* ToText(HdrMode mode);
-HdrMode TextToHdrMode(const char* text);
+std::string ToText(HdrMode mode);
+HdrMode TextToHdrMode(const std::string& text);
 
 // This struct bundles together the minimal set of parameters needed to perform
 //   AE (auto-exposure) on a single frame.
@@ -28,8 +29,6 @@ HdrMode TextToHdrMode(const char* text);
 //   subset is nested inside the larger ShotParams, which contains all of the
 //   information needed to process an entire shot.
 struct AeShotParams {
-  AeShotParams() { Clear(); }
-  void Clear();  // Applies default settings.
   bool Equals(const AeShotParams& other) const;
 
   // Tells Gcam whether you want to process Bayer raw frames.
@@ -47,8 +46,8 @@ struct AeShotParams {
   //   1. A pair for the actual shot (below).
   //   2. A pair for memory estimation
   //        (InitParams::planning_to_process_bayer_*).
-  bool process_bayer_for_metering;
-  bool process_bayer_for_payload;
+  bool process_bayer_for_metering = false;
+  bool process_bayer_for_payload = false;
 
   // The size of the payload frames that you will pass into Gcam, when you
   //   pass them in.
@@ -76,8 +75,9 @@ struct AeShotParams {
   //   to use the more complex 'CropSchedule'.
   // In both cases, the aspect ratio and its inverse formed by these two values
   //   have to be less than kMaxOutputAspectRatio.
-  int payload_frame_orig_width;
-  int payload_frame_orig_height;
+  // The default value of 0 forces the caller to set these accurately.
+  int payload_frame_orig_width = 0;
+  int payload_frame_orig_height = 0;
 
   // Desired cropping to apply to the shot, i.e. digital zoom or change in
   //   aspect ratio, specified with a normalized rectangle. Gcam will come as
@@ -93,6 +93,7 @@ struct AeShotParams {
   //   See b/20054665 for more details.
   // The aspect ratio and its inverse formed by this crop must be less than
   //   kMaxOutputAspectRatio.
+  // Default: full frame (no digital zoom).
   NormalizedRect crop;
 
   // Allows manual influence over the spatial weighting used in Gcam's AE
@@ -130,10 +131,10 @@ struct AeShotParams {
   //   +1 = capture twice as much light as normal;
   //   -1 = capture half as much light as normal;
   //   etc.
-  float exposure_compensation;
+  float exposure_compensation = 0.0f;
 
   // Set to 'kAuto' (recommended) or 'kDisabled'.
-  HdrMode  hdr_mode;
+  HdrMode hdr_mode = HdrMode::kAuto;
 
   // The target dimensions for the final output image, achieved through some
   //   combination of resampling and, if necessary to meet the target aspect
@@ -154,8 +155,8 @@ struct AeShotParams {
   //   kMaxOutputAspectRatio. Otherwise, processing will be aborted with an
   //   error logged.
   // Default: 0 (invalid).
-  int target_width;
-  int target_height;
+  int target_width = 0;
+  int target_height = 0;
 };
 
 }  // namespace gcam
