@@ -14,9 +14,7 @@ namespace paintbox_driver {
 // Model paired with related callback.
 struct ModelPair {
   const Model* model;
-  std::function<void(const paintbox_nn::PrepareModelResponse&)> prepareCallback;
-  std::function<void(const paintbox_nn::TearDownModelResponse&)>
-      destroyCallback;
+  std::function<void(const paintbox_nn::PrepareModelResponse&)> callback;
 };
 
 // Request paired with related callback.
@@ -56,14 +54,11 @@ class EaselExecutorClient {
       const Request& request,
       std::function<void(const paintbox_nn::RequestResponse&)> callback);
 
-  // Signals the execute request to Easel and run callback when finished.
+  // Signals Easel to destroy the prepared model.
   // Sets the mState to DESTROYING during waiting easel response.
   // Sets the mState to DESTROYED after receiving easel response.
   // Prerequisite: PREPARED state, mRequestQueue empty.
-  // Returns 0 if successful, otherwise the error code.
-  int destroyModel(
-      const Model& model,
-      std::function<void(const paintbox_nn::TearDownModelResponse&)> callback);
+  void destroyModel(const Model& model);
 
  private:
   // State of EaselExecutor

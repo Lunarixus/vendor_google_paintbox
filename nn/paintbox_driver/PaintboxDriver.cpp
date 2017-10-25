@@ -74,14 +74,7 @@ int PaintboxDriver::run() {
 }
 
 PaintboxPreparedModel::~PaintboxPreparedModel() {
-    std::mutex destroyLock;
-    std::condition_variable destroyComplete;
-    mClient->destroyModel(mModel, [&](const paintbox_nn::TearDownModelResponse&){
-        destroyComplete.notify_one();
-    });
-
-    std::unique_lock<std::mutex> lock;
-    destroyComplete.wait(lock);
+    mClient->destroyModel(mModel);
 }
 
 void PaintboxPreparedModel::asyncExecute(const Request& request,

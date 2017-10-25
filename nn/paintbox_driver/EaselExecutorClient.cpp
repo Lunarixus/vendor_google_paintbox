@@ -59,7 +59,7 @@ int EaselExecutorClient::prepareModel(
     // Update mModel and mState.
     mModel = std::make_unique<ModelPair>();
     mModel->model = &model;
-    mModel->prepareCallback = callback;
+    mModel->callback = callback;
     mState = State::PREPARING;
   }
 
@@ -97,7 +97,7 @@ void EaselExecutorClient::prepareModelHandler(
 
     // Update the state and callback to driver about preparation result.
     mState = State::PREPARED;
-    mModel->prepareCallback(response);
+    mModel->callback(response);
   }
 
   mStateChanged.notify_all();
@@ -123,7 +123,7 @@ int EaselExecutorClient::execute(
       protoRequest.inputpools().size());
   for (int i = 0; i < protoRequest.inputpools().size(); i++) {
     int poolIndex = protoRequest.inputpools(i);
-    auto pool = request.pools[poolIndex];
+    auto& pool = request.pools[poolIndex];
     EaselComm2::HardwareBuffer buffer;
     CHECK(paintbox_util::mapPool(pool, &buffer));
     buffer.id = i;
@@ -150,7 +150,8 @@ void EaselExecutorClient::executeHandler(const EaselComm2::Message& message) {
     // Updates the output buffer pools with results.
     int poolId = message.getHeader()->payloadId;
     std::lock_guard<std::mutex> lock(mExecutorLock);
-    auto pool = mRequestQueue.front().request->pools[poolId];
+    // Always assume the current request is on the front of the queue.
+    auto& pool = mRequestQueue.front().request->pools[poolId];
 
     EaselComm2::HardwareBuffer buffer;
     CHECK(paintbox_util::mapPool(pool, &buffer));
@@ -173,9 +174,7 @@ void EaselExecutorClient::executeHandler(const EaselComm2::Message& message) {
   }
 }
 
-int EaselExecutorClient::destroyModel(
-    const Model& model,
-    std::function<void(const paintbox_nn::TearDownModelResponse&)> callback) {
+void EaselExecutorClient::destroyModel(const Model& model) {
   // Wait for readiness.
   std::unique_lock<std::mutex> lock(mExecutorLock);
   mStateChanged.wait(lock, [&] {
@@ -188,8 +187,11 @@ int EaselExecutorClient::destroyModel(
 
   // Update the state and destroy callback.
   mState = State::DESTROYING;
-  mModel->destroyCallback = callback;
-  return mComm->send(DESTROY_MODEL);
+
+  mComm->send(DESTROY_MODEL);
+
+  // Wait until server acknowledges the model to be destroyed.
+  mStateChanged.wait(lock, [&] { return mState == State::DESTROYED; });
 }
 
 void EaselExecutorClient::destroyModelHandler(
@@ -204,7 +206,6 @@ void EaselExecutorClient::destroyModelHandler(
     // TODO(cjluo): need to handle error.
     CHECK_EQ(response.error(), paintbox_nn::NONE);
     mState = State::DESTROYED;
-    mModel->destroyCallback(response);
     mModel = nullptr;
   }
 

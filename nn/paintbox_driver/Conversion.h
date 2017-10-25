@@ -15,7 +15,7 @@ void convertHidlRequest(const Request& inputModel,
                         paintbox_nn::Request* outputRequest);
 
 // Converts HIDL memory to EaselComm2 hardware buffer.
-// Returns true if convertion is successful, otherwise false.
+// Returns true if conversion is successful, otherwise false.
 bool mapPool(const hidl_memory& pool,
              EaselComm2::HardwareBuffer* hardwareBuffer);
 

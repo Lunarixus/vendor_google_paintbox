@@ -106,7 +106,7 @@ void convertHidlModel(const Model& inputModel,
 void convertHidlRequest(const Request& inputRequest,
                         paintbox_nn::Request* outputRequest) {
   std::set<uint32_t> inputPoolSet;
-  for (auto input : inputRequest.inputs) {
+  for (auto& input : inputRequest.inputs) {
     auto protoInput = outputRequest->add_inputs();
 
     protoInput->set_hasnovalue(input.hasNoValue);
@@ -128,7 +128,7 @@ void convertHidlRequest(const Request& inputRequest,
   }
 
   std::set<uint32_t> outputPoolSet;
-  for (auto output : inputRequest.outputs) {
+  for (auto& output : inputRequest.outputs) {
     auto protoOutput = outputRequest->add_outputs();
 
     protoOutput->set_hasnovalue(output.hasNoValue);
@@ -215,7 +215,7 @@ ErrorStatus convertProtoError(paintbox_nn::ErrorStatus error) {
     case paintbox_nn::INVALID_ARGUMENT:
       return ErrorStatus::INVALID_ARGUMENT;
     default:
-      return ErrorStatus::NONE;
+      return ErrorStatus::GENERAL_FAILURE;
   }
 }
 
