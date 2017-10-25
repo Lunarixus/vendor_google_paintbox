@@ -78,6 +78,14 @@ enum ErrorStatus {
   INVALID_ARGUMENT = 4;
 }
 
-message Response {
-  optional ErrorStatus result = 1;
+message PrepareModelResponse {
+  optional ErrorStatus error = 1;
+}
+
+message RequestResponse {
+  optional ErrorStatus error = 1;
+}
+
+message TearDownModelResponse {
+  optional ErrorStatus error = 1;
 }
