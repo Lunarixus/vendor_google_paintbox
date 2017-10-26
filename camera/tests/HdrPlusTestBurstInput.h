@@ -74,7 +74,7 @@ private:
 
     // Load an array of int32 and set metadata with the tag and values.
     status_t loadInt32Metadata(std::ifstream *infile, const std::string &keyLine,
-            CameraMetadata *metadata, uint32_t tag);
+            CameraMetadata *metadata, uint32_t tag, const char *delimiters = nullptr);
 
     // Load an array of int64 and set metadata with the tag and values.
     status_t loadInt64Metadata(std::ifstream *infile, const std::string &keyLine,

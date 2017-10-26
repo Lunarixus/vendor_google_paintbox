@@ -139,7 +139,8 @@ std::string::size_type HdrPlusTestBurstInput::getNumEntriesFromLine(const std::s
 }
 
 status_t HdrPlusTestBurstInput::loadInt32Metadata(std::ifstream *infile,
-        const std::string &keyLine, CameraMetadata *metadata, uint32_t tag) {
+        const std::string &keyLine, CameraMetadata *metadata, uint32_t tag,
+        const char *delimiters) {
     if (infile == nullptr || metadata == nullptr) return BAD_VALUE;
 
     std::string::size_type numValues = getNumEntriesFromLine(keyLine);
@@ -159,7 +160,7 @@ status_t HdrPlusTestBurstInput::loadInt32Metadata(std::ifstream *infile,
 
         // Extract all entries.
         std::vector<std::string> entries;
-        status_t res = extractEntries(&entries, line);
+        status_t res = extractEntries(&entries, line, delimiters);
         if (res != OK) {
             ALOGE("%s: Failed to extract entries from line: %s.", __FUNCTION__, line.data());
             return BAD_VALUE;
@@ -653,6 +654,19 @@ status_t HdrPlusTestBurstInput::loadStaticMetadataFromFile(CameraMetadata *metad
 
             RETURN_ON_METADATA_UPDATE_ERROR(metadata, ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,
                     focusDistanceCalibration);
+        } else if((n = line.find("android.control.aeCompensationRange")) != std::string::npos) {
+            res = loadInt32Metadata(&infile, line, metadata, ANDROID_CONTROL_AE_COMPENSATION_RANGE);
+            if(res != OK){
+                ALOGE("%s: Parsing aeCompensationRange failed.", __FUNCTION__);
+                return res;
+            }
+        } else if((n = line.find("android.control.aeCompensationStep")) != std::string::npos) {
+            res = loadRationalMetadata(&infile, line, metadata,
+                    ANDROID_CONTROL_AE_COMPENSATION_STEP);
+            if(res != OK){
+                ALOGE("%s: Parsing aeCompensationStep failed.", __FUNCTION__);
+                return res;
+            }
         }
     }
 
@@ -803,6 +817,46 @@ status_t HdrPlusTestBurstInput::loadFrameMetadataFromFile(CameraMetadata *metada
             res = loadFloatMetadata(&infile, line, metadata, ANDROID_LENS_FOCUS_DISTANCE);
             if (res != OK) {
                 ALOGE("%s: Parsing focusDistance failed.", __FUNCTION__);
+                return res;
+            }
+        } else if ((n = line.find("android.control.aeExposureCompensation")) != std::string::npos) {
+            res = loadInt32Metadata(&infile, line, metadata,
+                    ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION);
+            if (res != OK) {
+                ALOGE("%s: Parsing aeExposureCompensation failed.", __FUNCTION__);
+                return res;
+            }
+        } else if ((n = line.find("android.control.aeMode")) != std::string::npos) {
+            res = loadByteMetadata(&infile, line, metadata, ANDROID_CONTROL_AE_MODE);
+            if (res != OK) {
+                ALOGE("%s: Parsing aeMode failed.", __FUNCTION__);
+                return res;
+            }
+        } else if ((n = line.find("android.control.aeLock")) != std::string::npos) {
+            if (!std::getline(infile, line)) {
+                ALOGE("%s: Cannot find the value for %s", __FUNCTION__, line.data());
+                return BAD_VALUE;
+            }
+            uint8_t aeLock = line.find("true") == std::string::npos ?
+                    ANDROID_CONTROL_AE_LOCK_OFF : ANDROID_CONTROL_AE_LOCK_ON;
+            RETURN_ON_METADATA_UPDATE_ERROR(metadata, ANDROID_CONTROL_AE_LOCK, aeLock);
+        } else if ((n = line.find("android.control.aeState")) != std::string::npos) {
+            res = loadByteMetadata(&infile, line, metadata, ANDROID_CONTROL_AE_STATE);
+            if (res != OK) {
+                ALOGE("%s: Parsing aeState failed.", __FUNCTION__);
+                return res;
+            }
+        } else if ((n = line.find("android.control.aePrecaptureTrigger")) != std::string::npos) {
+            res = loadByteMetadata(&infile, line, metadata, ANDROID_CONTROL_AE_PRECAPTURE_TRIGGER);
+            if (res != OK) {
+                ALOGE("%s: Parsing aePrecaptureTrigger failed.", __FUNCTION__);
+                return res;
+            }
+        } else if ((n = line.find("android.control.aeRegions")) != std::string::npos) {
+            res = loadInt32Metadata(&infile, line, metadata, ANDROID_CONTROL_AE_REGIONS,
+                    "xywht:()[], ");
+            if (res != OK) {
+                ALOGE("%s: Parsing noiseProfile failed.", __FUNCTION__);
                 return res;
             }
         }
