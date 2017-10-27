@@ -33,6 +33,8 @@
 
 #define LPDDR_MIN_FREQ 33
 
+static std::mutex state_mutex;
+
 static const int fspIndexToFrequency[] = {33, 400, 1600, 2400};
 static const int validCpuFrequencies[] = {200, 400, 600, 800, 950};
 static const int validIpuFrequencies[] = {100, 200, 300, 400, 425};
@@ -61,6 +63,8 @@ int EaselClockControl::setMode(enum Mode mode, enum EaselThermalMonitor::Conditi
     if ((mode == mMode) && (mThermalCondition == thermalCond)) {
         return 0;
     }
+
+    std::lock_guard<std::mutex> lk(state_mutex);
 
     switch (mode) {
         case Mode::Bypass:
