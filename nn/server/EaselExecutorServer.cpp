@@ -113,26 +113,25 @@ void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
 
     auto& request = mRequests.back().request;
     auto& pools = mRequests.back().pools;
+    // id is also the index of pools (not inputpools or outputpools).
     int id = message.getPayload().id();
 
-    CHECK_LT(id, static_cast<int>(request.inputpools().size()));
-    // Check we have received the previous buffers.
-    if (id > 0) {
-      int prevIndex = request.inputpools(id - 1);
-      CHECK(pools[prevIndex].vaddr() != nullptr);
-    }
+    CHECK_LT(id, static_cast<int>(request.poolsizes().size()));
+    // TODO(cjluo): find a efficient way to check
+    // 1) id is inside request.pools().
+    // 2) we have received the previous buffers.
 
     size_t inputSize = message.getPayload().size();
-    int poolIndex = request.inputpools(id);
-    CHECK_EQ(inputSize, request.poolsizes(poolIndex));
+    CHECK_EQ(inputSize, request.poolsizes(id));
 
     EaselComm2::HardwareBuffer hardwareBuffer(inputSize);
     CHECK(hardwareBuffer.valid());
     CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
-    pools.push_back(hardwareBuffer);
+    pools[id] = hardwareBuffer;
 
     // Set to request fully received state on last input buffer.
-    if (id == request.inputpools().size() - 1) {
+    int last = request.inputpools().size() - 1;
+    if (id == request.inputpools(last)) {
       requestFullyReceived();
     }
   }
@@ -171,9 +170,8 @@ void EaselExecutorServer::executeRunThread() {
 
     std::vector<EaselComm2::HardwareBuffer> hardwareBuffers;
     // Send output pools back to client.
-    int i = 0;
     for (int outputIndex : pair.request.outputpools()) {
-      pair.pools[outputIndex].setId(i++);
+      pair.pools[outputIndex].setId(outputIndex);
       hardwareBuffers.push_back(pair.pools[outputIndex]);
     }
     mComm->send(EXECUTE, hardwareBuffers);

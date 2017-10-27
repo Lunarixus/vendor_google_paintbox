@@ -53,6 +53,7 @@ public:
     bool initialize();
     Return<ErrorStatus> execute(const Request& request,
                                 const sp<IExecutionCallback>& callback) override;
+    const Model& model() const;
 
 private:
     void asyncExecute(const Request& request, const sp<IExecutionCallback>& callback);

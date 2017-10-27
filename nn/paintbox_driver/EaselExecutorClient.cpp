@@ -2,7 +2,6 @@
 
 #include "EaselExecutorClient.h"
 
-#include "Conversion.h"
 #include "Rpc.h"
 
 #include <android-base/logging.h>
@@ -18,7 +17,10 @@ EaselExecutorClient::EaselExecutorClient() : mState(State::INIT) {
 EaselExecutorClient::~EaselExecutorClient() { mComm->close(); }
 
 int EaselExecutorClient::initialize() {
-  CHECK(mState == State::INIT);
+  LOG(DEBUG) << __FUNCTION__;
+
+  std::lock_guard<std::mutex> lock(mExecutorLock);
+  if (mState != State::INIT) return 0;
   CHECK(mRequestQueue.empty());
 
   int res = mComm->open(EASEL_SERVICE_NN);
@@ -42,51 +44,62 @@ int EaselExecutorClient::initialize() {
                          });
 
   res = mComm->startReceiving();
+  if (res == 0) mState = State::INITED;
   return res;
 }
 
 int EaselExecutorClient::prepareModel(
     const Model& model,
     std::function<void(const paintbox_nn::PrepareModelResponse&)> callback) {
-  {
-    // Wait for readiness.
-    std::unique_lock<std::mutex> lock(mExecutorLock);
-    mStateChanged.wait(lock, [&] {
-      return ((mState == State::INIT) || (mState == State::DESTROYED)) &&
-             (mModel == nullptr) && mRequestQueue.empty();
-    });
+  LOG(DEBUG) << __FUNCTION__;
 
-    // Update mModel and mState.
-    mModel = std::make_unique<ModelPair>();
-    mModel->model = &model;
-    mModel->callback = callback;
-    mState = State::PREPARING;
-  }
+  // Wait for readiness.
+  std::unique_lock<std::mutex> lock(mExecutorLock);
+  mStateChanged.wait(lock, [&] {
+    return ((mState == State::INITED) || (mState == State::DESTROYED)) &&
+      (mModel == nullptr) && mRequestQueue.empty();
+  });
+
+  // Update mModel and mState.
+  mModel = std::make_unique<ModelPair>();
+  mModel->model = &model;
+  mModel->callback = callback;
+  mModel->bufferPools =
+    std::vector<paintbox_util::HardwareBufferPool>(model.pools.size());
+  mState = State::PREPARING;
 
   paintbox_nn::Model protoModel;
   paintbox_util::convertHidlModel(model, &protoModel);
 
   // Prepare the buffer pools to be sent to Easel.
-  std::vector<EaselComm2::HardwareBuffer> pools(model.pools.size());
   for (size_t i = 0; i < model.pools.size(); i++) {
     auto& pool = model.pools[i];
-    EaselComm2::HardwareBuffer buffer;
-    CHECK(paintbox_util::mapPool(pool, &buffer));
-    buffer.setId(i);
-    pools[i] = buffer;
+    paintbox_util::HardwareBufferPool bufferPool;
+    CHECK(paintbox_util::mapPool(pool, &bufferPool));
+    bufferPool.buffer.setId(i);
+    mModel->bufferPools[i] = bufferPool;
   }
 
-  std::lock_guard<std::mutex> lock(mExecutorLock);
   // Send the model object first.
   int res = mComm->send(PREPARE_MODEL, protoModel);
   if (res != 0) return res;
 
   // Then send the buffer pools.
-  return mComm->send(PREPARE_MODEL, pools);
+  if (!mModel->bufferPools.empty()) {
+    for (paintbox_util::HardwareBufferPool& bufferPool : mModel->bufferPools) {
+      res = mComm->send(PREPARE_MODEL, &(bufferPool.buffer));
+      if (res != 0) {
+        LOG(ERROR) << "Failed to send model pool, return code " << res;
+        return res;
+      }
+    }
+  }
+  return 0;
 }
 
 void EaselExecutorClient::prepareModelHandler(
     const EaselComm2::Message& message) {
+  LOG(DEBUG) << __FUNCTION__;
   paintbox_nn::PrepareModelResponse response;
   CHECK(message.toProto(&response));
 
@@ -107,53 +120,64 @@ void EaselExecutorClient::prepareModelHandler(
 int EaselExecutorClient::execute(
     const Request& request,
     std::function<void(const paintbox_nn::RequestResponse&)> callback) {
-  {
-    // Wait for readiness.
-    std::unique_lock<std::mutex> lock(mExecutorLock);
-    mStateChanged.wait(lock, [&] {
-      return (mState == State::PREPARED) && (mModel != nullptr);
-    });
-  }
+  LOG(DEBUG) << __FUNCTION__;
+
+  // Wait for readiness.
+  std::unique_lock<std::mutex> lock(mExecutorLock);
+  mStateChanged.wait(lock, [&] {
+    return (mState == State::PREPARED) && (mModel != nullptr);
+  });
 
   paintbox_nn::Request protoRequest;
   paintbox_util::convertHidlRequest(request, &protoRequest);
 
-  // Prepare the buffer pools to be sent to Easel.
-  // We only send input pools to Easel.
-  std::vector<EaselComm2::HardwareBuffer> pools(
-      protoRequest.inputpools().size());
-  for (int i = 0; i < protoRequest.inputpools().size(); i++) {
-    int poolIndex = protoRequest.inputpools(i);
-    auto& pool = request.pools[poolIndex];
-    EaselComm2::HardwareBuffer buffer;
-    CHECK(paintbox_util::mapPool(pool, &buffer));
-    buffer.setId(i);
-    pools[i] = buffer;
-  }
-
   // Updates the request queue.
-  std::lock_guard<std::mutex> lock(mExecutorLock);
   CHECK(mModel != nullptr);
-  mRequestQueue.push({&request, callback});
+  mRequestQueue.push(
+      {&request, callback,
+       std::vector<paintbox_util::HardwareBufferPool>(request.pools.size())});
+
+  RequestPair& pair = mRequestQueue.back();
+
+  for (size_t i = 0; i < request.pools.size(); i++) {
+    auto& pool = request.pools[i];
+    paintbox_util::HardwareBufferPool bufferPool;
+    CHECK(paintbox_util::mapPool(pool, &bufferPool));
+    bufferPool.buffer.setId(i);
+    LOG(INFO) << bufferPool.buffer.size();
+    pair.bufferPools[i] = bufferPool;
+  }
 
   // Send the request object first.
   int res = mComm->send(EXECUTE, protoRequest);
   if (res != 0) return res;
 
   // Then send the buffer pools.
-  return mComm->send(EXECUTE, pools);
+  for (int i = 0; i < protoRequest.inputpools().size(); i++) {
+    int poolIndex = protoRequest.inputpools(i);
+    const EaselComm2::HardwareBuffer& buffer =
+        pair.bufferPools[poolIndex].buffer;
+    LOG(ERROR) << "Sending pool" << poolIndex << " size" << buffer.size();
+    res = mComm->send(EXECUTE, &buffer);
+    if (res != 0) {
+      LOG(ERROR) << "Failed to send request pool, return code " << res;
+      return res;
+    }
+  }
+
+  return 0;
 }
 
 void EaselExecutorClient::executeHandler(const EaselComm2::Message& message) {
+  LOG(DEBUG) << __FUNCTION__;
+  std::lock_guard<std::mutex> lock(mExecutorLock);
+
   if (message.hasPayload()) {
     // Updates the output buffer pools with results.
     int poolId = message.getHeader()->payloadId;
-    std::lock_guard<std::mutex> lock(mExecutorLock);
     // Always assume the current request is on the front of the queue.
-    auto& pool = mRequestQueue.front().request->pools[poolId];
-
-    EaselComm2::HardwareBuffer buffer;
-    CHECK(paintbox_util::mapPool(pool, &buffer));
+    EaselComm2::HardwareBuffer& buffer =
+        mRequestQueue.front().bufferPools[poolId].buffer;
     mComm->receivePayload(message, &buffer);
     // TODO(cjluo): need to check how many output buffer gets returned.
   } else {
@@ -163,7 +187,6 @@ void EaselExecutorClient::executeHandler(const EaselComm2::Message& message) {
 
     {
       // Pop the finished request from mRequestQueue.
-      std::lock_guard<std::mutex> lock(mExecutorLock);
       auto callback = mRequestQueue.front().callback;
       mRequestQueue.pop();
       callback(response);
@@ -174,6 +197,7 @@ void EaselExecutorClient::executeHandler(const EaselComm2::Message& message) {
 }
 
 void EaselExecutorClient::destroyModel(const Model& model) {
+  LOG(DEBUG) << __FUNCTION__;
   // Wait for readiness.
   std::unique_lock<std::mutex> lock(mExecutorLock);
   mStateChanged.wait(lock, [&] {
@@ -195,6 +219,7 @@ void EaselExecutorClient::destroyModel(const Model& model) {
 
 void EaselExecutorClient::destroyModelHandler(
     const EaselComm2::Message& message) {
+  LOG(DEBUG) << __FUNCTION__;
   paintbox_nn::TearDownModelResponse response;
   CHECK(message.toProto(&response));
 
