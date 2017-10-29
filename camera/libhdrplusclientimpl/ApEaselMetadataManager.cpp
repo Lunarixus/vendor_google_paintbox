@@ -347,11 +347,17 @@ status_t ApEaselMetadataManager::convertAndReturnRequestMetadata(
     pbcamera::RequestMetadata dest = {};
     RETURN_ERROR_ON_ERROR(fillMetadataArray(&dest.cropRegion, requestMetadataSrc,
             ANDROID_SCALER_CROP_REGION));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.postviewEnable, requestMetadataSrc,
-            static_cast<camera_metadata_tag>(qcamera::NEXUS_EXPERIMENTAL_2017_POSTVIEW)));
-    RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.continuousCapturing, requestMetadataSrc,
+
+    // TODO(b/65597969): Enable vendor flag(e.g. qcamera::NEXUS_EXPERIMENTAL_2017_POSTVIEW) in test.
+    //                   Use RETURN_ERROR_ON_ERROR consistently when calling fillMetadataValue.
+    dest.postviewEnable = false;
+    fillMetadataValue(&dest.postviewEnable, requestMetadataSrc,
+            static_cast<camera_metadata_tag>(qcamera::NEXUS_EXPERIMENTAL_2017_POSTVIEW));
+    dest.continuousCapturing = false;
+    fillMetadataValue(&dest.continuousCapturing, requestMetadataSrc,
             static_cast<camera_metadata_tag>(
-            qcamera::NEXUS_EXPERIMENTAL_2017_CONTINUOUS_ZSL_CAPTURE)));
+                qcamera::NEXUS_EXPERIMENTAL_2017_CONTINUOUS_ZSL_CAPTURE));
+
     RETURN_ERROR_ON_ERROR(fillMetadataValue(&dest.aeExposureCompensation, requestMetadataSrc,
             ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION));
 

@@ -644,6 +644,9 @@ protected:
                 entry.count << " entries. (Expecting 4)";
         int32_t cropRegion[4] = { 0, 0, entry.data.i32[2], entry.data.i32[3] };
         requestMetadata.update(ANDROID_SCALER_CROP_REGION, cropRegion, 4);
+        int32_t aeExposureCompensation = 0;
+        requestMetadata.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION,
+                &aeExposureCompensation, 1);
 
         std::vector<pbcamera::CaptureRequest> submittedRequests;
 
