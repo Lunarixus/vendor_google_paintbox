@@ -1,16 +1,11 @@
-subdirs = [
-    "common",
-]
-
 cc_binary {
     name: "nnserver",
     proprietary: true,
     srcs: [
-        "EaselExecutor.cpp",
+        "EaselExecutorServer.cpp",
         "main.cpp",
     ],
     static_libs: [
-        "paintbox_nn_common",
         "paintbox_nn_shared",
     ],
     shared_libs: [

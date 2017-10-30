@@ -1,6 +1,6 @@
-#include "EaselExecutor.h"
+#include "EaselExecutorServer.h"
 
 int main() {
-  paintbox_nn::EaselExecutor executor;
-  executor.start();
+  paintbox_nn::EaselExecutorServer server;
+  server.start();
 }
