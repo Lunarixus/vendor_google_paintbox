@@ -43,7 +43,7 @@ int spi_read(uint32_t addr, uint32_t *data)
         return -errno;
     }
 
-    // Give the PBL some time to fetch the data
+    // Give the PBL some time to fetch the  data
     usleep(1000);
 
     // Send it dummy data for 96 bits
