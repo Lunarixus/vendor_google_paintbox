@@ -16,13 +16,13 @@ struct ImageSaverParams {
   void Print() const;
 
   // Destination folder for saving.
-  char dest_folder[512] = "";
+  std::string dest_folder;
 
   // Optional filename prefix. If non-empty, should end in "_".
-  char filename_prefix[512] = "";
+  std::string filename_prefix;
 
   // Optional filename suffix. If non-empty, should begin with "_".
-  char filename_suffix[512] = "";
+  std::string filename_suffix;
 };
 
 class ImageSaver {

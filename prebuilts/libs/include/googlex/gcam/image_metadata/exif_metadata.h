@@ -28,6 +28,10 @@ enum class ExifOrientation {
   kRotate270        // (w,0)-(w,h) is top edge
 };
 
+// Minimum digital zoom ratio to encode in EXIF. Otherwise we indicate no
+// digital zoom.
+const float kMinDigitalZoomRatio = 1.02f;
+
 // Bundle of Gcam image metadata, used when reading/writing JPG or DNG images.
 // Both of these file formats encode metadata using a set of TIFF-style tags,
 // following the EXIF, TIFF/EP, and DNG specifications.
@@ -53,6 +57,9 @@ struct ExifMetadata {
   // shown; for example, this handles the case where the raw image was
   // pre-cropped before saving it to DNG.
   PixelRect dng_crop;
+
+  // Crop rectangle for the final output, reflected in the final JPG.
+  NormalizedRect final_crop;
 
   // Amount of dynamic range compression suitable for the scene, given as a
   // factor relating the brightness of the scene's shadows and its highlights
