@@ -65,8 +65,7 @@ ManagerServer::ManagerServer() {
 }
 
 ManagerServer::~ManagerServer() {
-  mComm->close();
-  mCommOpenThread.join();
+  powerOff();
 }
 
 char const* ManagerServer::getServiceName() { return gEaselManagerService; }
@@ -79,7 +78,7 @@ void ManagerServer::initialize() {
       return;
     }
 
-    std::lock_guard<std::mutex> lock(mMapLock);
+    std::lock_guard<std::mutex> lock(mManagerLock);
 
     auto iter = mAppCallbackMap.find(convertApp(response.app()));
     if (iter == mAppCallbackMap.end()) {
@@ -105,13 +104,10 @@ void ManagerServer::initialize() {
       LOG(FATAL) << "App " << response.app()
                  << " unknown but no error reported";
     }
-  });
 
-  // Constantly try to connect to the easelmanagerserver on Easel side.
-  // Exit when easel could not be opened.
-  mCommOpenThread = std::thread([&] {
-    int res = mComm->openPersistent(EASEL_SERVICE_MANAGER);
-    if (res != 0) exit(res);
+    if (mAppCallbackMap.empty()) {
+      powerOff();
+    }
   });
 }
 
@@ -120,7 +116,7 @@ binder::Status ManagerServer::startApp(int32_t app,
                                        int32_t* _aidl_return) {
   LOG(INFO) << __FUNCTION__ << ": App " << app;
 
-  std::lock_guard<std::mutex> lock(mMapLock);
+  std::lock_guard<std::mutex> lock(mManagerLock);
 
   auto iter = mAppCallbackMap.find(app);
   if (iter != mAppCallbackMap.end()) {
@@ -132,6 +128,15 @@ binder::Status ManagerServer::startApp(int32_t app,
 
   EaselManagerService::StartAppRequest request;
   request.set_app(convertApp(app));
+
+  if (!mComm->connected()) {
+    int res = powerOn();
+    if (res != 0) {
+      *_aidl_return = static_cast<int32_t>(EASEL_POWER_ERROR);
+      return binder::Status::ok();
+    }
+  }
+
   mComm->send(START_APP, request);
 
   *_aidl_return = static_cast<int32_t>(SUCCESS);
@@ -142,7 +147,7 @@ binder::Status ManagerServer::startApp(int32_t app,
 binder::Status ManagerServer::stopApp(int32_t app, int32_t* _aidl_return) {
   LOG(INFO) << __FUNCTION__ << ": App " << app;
 
-  std::lock_guard<std::mutex> lock(mMapLock);
+  std::lock_guard<std::mutex> lock(mManagerLock);
 
   auto iter = mAppCallbackMap.find(app);
   if (iter != mAppCallbackMap.end()) {
@@ -155,6 +160,22 @@ binder::Status ManagerServer::stopApp(int32_t app, int32_t* _aidl_return) {
   }
 
   return binder::Status::ok();
+}
+
+int ManagerServer::powerOn() {
+  LOG(INFO) << "Easel power on";
+  // TODO(b/68394081): Implement this method.
+
+  // Open the channel without timeout to avoid busy polling.
+  int res = mComm->open(EASEL_SERVICE_MANAGER);
+  if (res != 0) return res;
+  return mComm->startReceiving();
+}
+
+void ManagerServer::powerOff() {
+  mComm->close();
+  LOG(INFO) << "Easel power off";
+  // TODO(b/68394081): Implement this method.
 }
 
 }  // namespace EaselManager
