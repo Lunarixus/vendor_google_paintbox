@@ -49,8 +49,8 @@ public:
      */
     status_t connect(EaselMessengerListener &listener) override;
 
-    // Disconnect from HDR+ service.
-    void disconnect() override;
+    // Disconnect from HDR+ client.
+    void disconnect(bool isErrorState = false) override;
 
     /*
      * The following functions will invoke messages sent to HDR+ client. These should match
