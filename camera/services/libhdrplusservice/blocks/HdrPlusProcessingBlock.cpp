@@ -478,7 +478,7 @@ void HdrPlusProcessingBlock::fillGcamImageSaverParams(gcam::ImageSaverParams *pa
         destFolder.erase(kGcamMaxFilenameLength - 1);
     }
 
-    memcpy(param->dest_folder, destFolder.c_str(), destFolder.size());
+    param->dest_folder = destFolder;
 }
 
 status_t HdrPlusProcessingBlock::handleCaptureRequestLocked(const std::vector<Input> &inputs,

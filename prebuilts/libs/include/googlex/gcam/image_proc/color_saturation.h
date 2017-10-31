@@ -58,7 +58,7 @@ T GetSaturationStrength(T highlight_saturation_strength,  // From tuning.
       ((white_level - lightness) * (1.0f / white_level)) *
       (shadow_saturation_strength - highlight_saturation_strength);
 }
-// LINT.ThenChange(//depot/google3/googlex/gcam/ae/ae_finish_halide.cc,//depot/google3/googlex/gcam/hdrplus/lib_raw_finish/finish_raw_halide.cc)
+// LINT.ThenChange(//depot/google3/googlex/gcam/ae/ae_finish_halide.cc,//depot/google3/googlex/gcam/finish_raw/finish_raw/finish_raw_halide.cc)
 
 // GetSaturationCenterValue*():
 // During color saturation enhancement, these helper functions determine, given

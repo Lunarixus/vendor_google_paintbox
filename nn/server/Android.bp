@@ -1,0 +1,17 @@
+cc_binary {
+    name: "nnserver",
+    proprietary: true,
+    srcs: [
+        "EaselExecutorServer.cpp",
+        "main.cpp",
+    ],
+    static_libs: [
+        "paintbox_nn_shared",
+    ],
+    shared_libs: [
+        "libbase",
+        "libeaselcomm",
+        "liblog",
+        "libprotobuf-cpp-lite",
+    ],
+}

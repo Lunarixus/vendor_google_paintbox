@@ -2,6 +2,7 @@
 
 #include "EaselStateManager.h"
 #include "EaselThermalMonitor.h"
+#include "EaselWatchdog.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "easelcomm.h"
@@ -60,8 +61,10 @@ std::mutex state_mutex;
 enum ControlState {
     INIT,        // Unknown initial state
     SUSPENDED,   // Suspended
-    RESUMED,     // Powered, but no EaselCommClient channel
-    ACTIVATED,   // Powered, EaselCommClient channel is active
+    RESUMED,     // Powered, support Bypass
+    PARTIAL,     // Powered, but boot failed and can only support Bypass
+    ACTIVATED,   // Powered, ready for HDR+
+    FAILED,      // Fatal error, wait for device close
 } state = INIT;
 
 // EaselThermalMonitor instance
@@ -71,34 +74,50 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"bd_therm",    1000, {45000, 50000, 55000}}, /* for taimen */
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
 };
+
+EaselWatchdog watchdog;
+const std::chrono::duration<int> watchdogTimeout = std::chrono::seconds(2);
+
 } // anonymous namespace
 
 /*
  * Determine severity
  *
- * | Reason              | Bypass    | HDR+  |
- * |---------------------|-----------|-------|
- * | LINK_FAIL           | FATAL     | FATAL |
- * | BOOTSTRAP_FAIL      | NON_FATAL | FATAL |
- * | OPEN_SYSCTRL_FAIL   | NON_FATAL | FATAL |
- * | HANDSHAKE_FAIL      | NON_FATAL | FATAL |
- * | IPU_RESET_REQ       | NON_FATAL | FATAL |
+ * | Reason              |  RESUMED  | ACTIVATED |
+ * |---------------------|-----------|-----------|
+ * | LINK_FAIL           |   FATAL   |   FATAL   |
+ * | BOOTSTRAP_FAIL      | NON_FATAL |   FATAL   |
+ * | OPEN_SYSCTRL_FAIL   | NON_FATAL |   FATAL   |
+ * | HANDSHAKE_FAIL      | NON_FATAL |   FATAL   |
+ * | IPU_RESET_REQ       | NON_FATAL |   FATAL   |
+ * | WATCHDOG            | NON_FATAL |   FATAL   |
  */
 
 static void reportError(enum EaselErrorReason reason) {
 
-    enum EaselErrorSeverity severity = EaselErrorSeverity::FATAL;
+    enum EaselErrorSeverity severity;
 
-    if (!property_get_int32("persist.camera.hdrplus.enable", 1)) {
-        // LINK_FAIL is fatal in bypass mode, because MIPI configuration
-        // will not continue.  Others are not fatal, because no further
-        // communication needed in bypass mode.
-        if (reason != EaselErrorReason::LINK_FAIL) {
-            severity = EaselErrorSeverity::NON_FATAL;
+    // Acquire state lock while handling error
+    {
+        std::unique_lock<std::mutex> state_lock(state_mutex);
+
+        if (state == RESUMED) {
+            // LINK_FAIL is fatal in bypass mode, because MIPI configuration
+            // will not continue.  Others are not fatal, because no further
+            // communication needed in bypass mode.
+            if (reason != EaselErrorReason::LINK_FAIL) {
+                severity = EaselErrorSeverity::NON_FATAL;
+                state = ControlState::PARTIAL;
+            } else {
+                severity = EaselErrorSeverity::FATAL;
+                state = ControlState::FAILED;
+            }
+
+        } else {
+            // All errors are fatal in HDR+ mode
+            severity = EaselErrorSeverity::FATAL;
+            state = ControlState::FAILED;
         }
-    } else {
-        // All errors are fatal in HDR+ mode
-        severity = EaselErrorSeverity::FATAL;
     }
 
     int ret = gErrorCallback(reason, severity);
@@ -298,12 +317,18 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
         (EaselControlImpl::MsgHeader *)msg->message_buf;
 
-    ALOGI("Received command %d", h->command);
+    ALOGD("Received command %d", h->command);
 
     switch(h->command) {
     case EaselControlImpl::CMD_RESET_REQ: {
         ALOGW("Server requested a chip reset");
         reportError(EaselErrorReason::IPU_RESET_REQ);
+        break;
+    }
+
+    case EaselControlImpl::CMD_HEARTBEAT: {
+        ALOGD("%s: server sent heartbeat", __FUNCTION__);
+        watchdog.pet();
         break;
     }
 
@@ -494,6 +519,26 @@ int stopKernelEventThread()
     return 0;
 }
 
+int startWatchdog()
+{
+    int ret = watchdog.start(watchdogTimeout);
+    if (ret) {
+        ALOGE("%s: failed to start EaselWatchdog (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
+int stopWatchdog()
+{
+    int ret = watchdog.stop();
+    if (ret) {
+        ALOGE("%s: failed to stop EaselWatchdog (%d)\n", __FUNCTION__, ret);
+    }
+
+    return ret;
+}
+
 int switchState(enum ControlState nextState)
 {
     int ret = 0;
@@ -510,6 +555,7 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
+                    stopWatchdog();
                     sendDeactivateCommand();
                     stopThermalMonitor();
                     stopLogClient();
@@ -517,6 +563,8 @@ int switchState(enum ControlState nextState)
                     stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
                     stopKernelEventThread();
                     break;
+                case ControlState::PARTIAL:
+                case ControlState::FAILED:
                 case ControlState::RESUMED:
                 case ControlState::INIT:
                     stopThermalMonitor();
@@ -552,7 +600,10 @@ int switchState(enum ControlState nextState)
                     }
                     break;
                 case ControlState::ACTIVATED:
-                    ret = sendDeactivateCommand();
+                    ret = stopWatchdog();
+                    if (!ret) {
+                        ret = sendDeactivateCommand();
+                    }
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
@@ -584,6 +635,9 @@ int switchState(enum ControlState nextState)
                         if (!ret) {
                             ret = sendActivateCommand();
                         }
+                        if (!ret) {
+                            ret = startWatchdog();
+                        }
                     }
                     break;
                 case ControlState::RESUMED:
@@ -591,6 +645,15 @@ int switchState(enum ControlState nextState)
                     if (!ret) {
                         ret = sendActivateCommand();
                     }
+                    if (!ret) {
+                        ret = startWatchdog();
+                    }
+                    break;
+                case ControlState::PARTIAL:
+                    // If Easel did not boot correctly, we cannot transition
+                    // into the ACTIVATED state. Let the upper layer decide how
+                    // to handle this use case.
+                    ret = -EIO;
                     break;
                 default:
                     ALOGE("%s: Invalid state transition from %d to %d", __FUNCTION__, state,
@@ -744,6 +807,8 @@ int EaselControlClient::open() {
 
     // Register default implemetation of error callback
     registerErrorCallback(defaultErrorCallback);
+
+    watchdog.setBiteCallback([]() { reportError(EaselErrorReason::WATCHDOG); });
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {

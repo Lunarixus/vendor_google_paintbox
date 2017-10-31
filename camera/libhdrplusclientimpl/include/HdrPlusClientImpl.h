@@ -35,6 +35,7 @@
 namespace android {
 
 class NotifyFrameMetadataThread;
+class TimerCallbackThread;
 
 /**
  * HdrPlusClientImpl
@@ -166,6 +167,9 @@ public:
 private:
     static const size_t kMaxNumFrameHistory = 64;
 
+    // Timeout duration for an HDR+ request to come back from Easel.
+    static const int64_t kDefaultRequestTimerMs = 2000; // 2 seconds
+
     // Callbacks from HDR+ service start here.
     // Override pbcamera::MessengerListenerFromHdrPlusService
     void notifyFrameEaselTimestamp(int64_t easelTimestampNs) override;
@@ -185,6 +189,9 @@ private:
 
     // Return and mark all pending requests as failed. Must called with mClientListenerLock held.
     void failAllPendingRequestsLocked();
+
+    // Handle the situation when an HDR+ request has not completed within a timeout duration.
+    void handleRequestTimeout(uint32_t id);
 
     // Update camera result metadata based on HDR+ result.
     status_t updateResultMetadata(std::shared_ptr<CameraMetadata> *cameraMetadata,
@@ -244,6 +251,9 @@ private:
 
     sp<NotifyFrameMetadataThread> mNotifyFrameMetadataThread;
 
+    // A thread to invoke a callback function after a specified duration has been reached.
+    sp<TimerCallbackThread> mTimerCallbackThread;
+
     // If HDR+ service is closed unexpectedly. Once mServiceClosed is true, it can no longer send
     // messages to HDR+ service.
     std::atomic<bool> mServiceFatalErrorState;
@@ -294,6 +304,64 @@ private:
     std::queue<std::shared_ptr<pbcamera::FrameMetadata>> mFrameMetadataQueue;
 
     // Whether exit has been requested. Must be protected by mEventLock.
+    bool mExitRequested;
+};
+
+/**
+ * TimerCallbackThread
+ *
+ * A thread to invoke a callback function after a specified duration has been reached.
+ */
+class TimerCallbackThread : public Thread {
+public:
+    TimerCallbackThread(std::function<void(uint32_t)> callback);
+    virtual ~TimerCallbackThread();
+
+    /*
+     * Add a new timer.
+     *
+     * id is the ID of the timer. callback function will be invoked with id. id must be unique.
+     * durationMs is the duration of the timer in milliseconds.
+     *
+     * Returns:
+     *   OK on success.
+     *   ALREADY_EXISTS if id already exists in pending timers.
+     */
+    status_t addTimer(uint32_t id, uint64_t durationMs);
+
+    // Cancel a timer.
+    void cancelTimer(uint32_t id);
+
+    // Override Thread::requestExit to request thread exit.
+    void requestExit() override;
+
+private:
+    // Wait 5 seconds if there is no timer.
+    static const int64_t kEmptyTimerWaitTimeMs = 5000;
+
+    // Threadloop to wait on new timer or exit request.
+    virtual bool threadLoop() override;
+
+    // Return the current time (CLOCK_BOOTTIME) in milliseconds.
+    int64_t getCurrentTimeMs();
+
+    // Return the wait time for the timer that has the earliest expiration time. Must be protected
+    // by mTimerLock.
+    int64_t getWaitTimeMsLocked();
+
+    // Callback to invoke once a timer has expired.
+    std::function<void(uint32_t)> mCallback;
+
+    // Mutext to protect variables as noted.
+    std::mutex mTimerLock;
+
+    // Condition variable for new timer or thread exit request. Must be protected by mTimerLock.
+    std::condition_variable mTimerCond;
+
+    // Map from timer id to expiration time in milliseconds. Must be protected by mTimerLock.
+    std::unordered_map<uint32_t, int64_t> mTimers;
+
+    // Whether exit has been requested. Must be protected by mTimerLock.
     bool mExitRequested;
 };
 

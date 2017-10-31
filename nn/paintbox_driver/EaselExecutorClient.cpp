@@ -76,6 +76,7 @@ int EaselExecutorClient::prepareModel(
     pools[i] = buffer;
   }
 
+  std::lock_guard<std::mutex> lock(mExecutorLock);
   // Send the model object first.
   int res = mComm->send(PREPARE_MODEL, protoModel);
   if (res != 0) return res;
@@ -130,12 +131,10 @@ int EaselExecutorClient::execute(
     pools[i] = buffer;
   }
 
-  {
-    // Updates the request queue.
-    std::lock_guard<std::mutex> lock(mExecutorLock);
-    CHECK(mModel != nullptr);
-    mRequestQueue.push({&request, callback});
-  }
+  // Updates the request queue.
+  std::lock_guard<std::mutex> lock(mExecutorLock);
+  CHECK(mModel != nullptr);
+  mRequestQueue.push({&request, callback});
 
   // Send the request object first.
   int res = mComm->send(EXECUTE, protoRequest);
