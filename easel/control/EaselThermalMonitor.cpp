@@ -153,7 +153,7 @@ enum EaselThermalMonitor::Condition EaselThermalMonitor::checkCondition()
 
         if (temperature >= 0) {
             int i;
-            for (i = Condition::Low; i < Condition::High; i++) {
+            for (i = Condition::Low; i < Condition::Critical; i++) {
                 if (temperature < thresholds[i]) {
                     break;
                 }
