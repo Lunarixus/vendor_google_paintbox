@@ -2,7 +2,7 @@
 
 #include "EaselStateManager.h"
 #include "EaselThermalMonitor.h"
-#include "EaselWatchdog.h"
+#include "EaselTimer.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "easelcomm.h"
@@ -75,8 +75,8 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
 };
 
-EaselWatchdog watchdog;
-const std::chrono::duration<int> watchdogTimeout = std::chrono::seconds(2);
+EaselTimer watchdog;
+const std::chrono::milliseconds watchdogTimeout = std::chrono::milliseconds(2500);
 
 } // anonymous namespace
 
@@ -316,6 +316,7 @@ int sendDeactivateCommand()
 void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     EaselControlImpl::MsgHeader *h =
         (EaselControlImpl::MsgHeader *)msg->message_buf;
+    static uint32_t heartbeatSeqNumber = 0;
 
     ALOGD("Received command %d", h->command);
 
@@ -327,8 +328,15 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     }
 
     case EaselControlImpl::CMD_HEARTBEAT: {
-        ALOGD("%s: server sent heartbeat", __FUNCTION__);
-        watchdog.pet();
+        EaselControlImpl::HeartbeatMsg *heartbeatMsg =
+            (EaselControlImpl::HeartbeatMsg *)msg->message_buf;
+        ALOGD("%s: server heartbeat %d", __FUNCTION__, heartbeatMsg->seqNumber);
+        if (heartbeatMsg->seqNumber != heartbeatSeqNumber) {
+            ALOGW("%s: heartbeat sequence number did not match: %d (expected %d)",
+                  __FUNCTION__, heartbeatMsg->seqNumber, heartbeatSeqNumber);
+        }
+        heartbeatSeqNumber = heartbeatMsg->seqNumber + 1;
+        watchdog.restart();
         break;
     }
 
@@ -521,7 +529,10 @@ int stopKernelEventThread()
 
 int startWatchdog()
 {
-    int ret = watchdog.start(watchdogTimeout);
+    int ret = watchdog.start(watchdogTimeout,
+                             []() { reportError(EaselErrorReason::WATCHDOG); },
+                             /*fireOnce=*/true);
+
     if (ret) {
         ALOGE("%s: failed to start EaselWatchdog (%d)\n", __FUNCTION__, ret);
     }
@@ -807,8 +818,6 @@ int EaselControlClient::open() {
 
     // Register default implemetation of error callback
     registerErrorCallback(defaultErrorCallback);
-
-    watchdog.setBiteCallback([]() { reportError(EaselErrorReason::WATCHDOG); });
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {

@@ -58,5 +58,12 @@ public:
       uint64_t boottime;    // AP boottime clock
       uint64_t realtime;    // AP realtime time of day clock
   };
+
+  // CMD_HEARTBEAT message, from client to server
+  struct HeartbeatMsg {
+      struct MsgHeader h;   // common header
+      uint32_t seqNumber;   // sequence number
+  };
+
 };
 #endif // ANDROID_EASELCONTROL_IMPL_H
