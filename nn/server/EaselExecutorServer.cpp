@@ -54,18 +54,17 @@ void EaselExecutorServer::handlePrepareModel(
     CHECK(mState == State::MODEL_RECEIVED);
 
     // If it is a message with pool that comes after Model:
-    int id = message.getPayload().id;
+    int id = message.getPayload().id();
 
     CHECK_LT(id, mModel.model.poolsizes().size());
     // Check we have received the previous buffers.
     CHECK_EQ(mModel.pools.size(), static_cast<size_t>(id));
-    size_t inputSize = message.getPayload().size;
+    size_t inputSize = message.getPayload().size();
     CHECK_EQ(inputSize, mModel.model.poolsizes(id));
 
     // Receive input data.
-    void* inputBuffer = malloc(inputSize);
-    CHECK(inputBuffer != nullptr);
-    EaselComm2::HardwareBuffer hardwareBuffer(inputBuffer, inputSize, id);
+    EaselComm2::HardwareBuffer hardwareBuffer(inputSize, id);
+    CHECK(hardwareBuffer.valid());
     CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
     mModel.pools.push_back(hardwareBuffer);
 
@@ -100,9 +99,6 @@ void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
               << pair.request.poolsizes().size();
     CHECK(pair.pools.empty());
     pair.pools.resize(pair.request.poolsizes().size());
-    for (auto& pool : pair.pools) {
-      pool.vaddr = nullptr;
-    }
     mRequests.emplace(pair);
     mState = State::REQUEST_RECEIVED;
 
@@ -117,22 +113,21 @@ void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
 
     auto& request = mRequests.back().request;
     auto& pools = mRequests.back().pools;
-    int id = message.getPayload().id;
+    int id = message.getPayload().id();
 
     CHECK_LT(id, static_cast<int>(request.inputpools().size()));
     // Check we have received the previous buffers.
     if (id > 0) {
       int prevIndex = request.inputpools(id - 1);
-      CHECK(pools[prevIndex].vaddr != nullptr);
+      CHECK(pools[prevIndex].vaddr() != nullptr);
     }
 
-    size_t inputSize = message.getPayload().size;
+    size_t inputSize = message.getPayload().size();
     int poolIndex = request.inputpools(id);
     CHECK_EQ(inputSize, request.poolsizes(poolIndex));
 
-    void* inputBuffer = malloc(inputSize);
-    CHECK(inputBuffer != nullptr);
-    EaselComm2::HardwareBuffer hardwareBuffer(inputBuffer, inputSize);
+    EaselComm2::HardwareBuffer hardwareBuffer(inputSize);
+    CHECK(hardwareBuffer.valid());
     CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
     pools.push_back(hardwareBuffer);
 
@@ -157,10 +152,6 @@ void EaselExecutorServer::executeRunThread() {
     if (mState == State::MODEL_DESTROYING) {
       LOG(INFO) << "Model about to be destroyed, finishing executor thread.";
       while (!mRequests.empty()) {
-        for (EaselComm2::HardwareBuffer& hardwareBuffer :
-             mRequests.front().pools) {
-          free(hardwareBuffer.vaddr);
-        }
         mRequests.pop();
       }
       return;
@@ -169,11 +160,10 @@ void EaselExecutorServer::executeRunThread() {
     RequestPair& pair = mRequests.front();
     // Allocate empty output pools.
     for (size_t i = 0; i < pair.pools.size(); i++) {
-      if (pair.pools[i].vaddr == nullptr) {
+      if (!pair.pools[i].valid()) {
         size_t size = pair.request.poolsizes(i);
-        void* buffer = malloc(size);
-        CHECK(buffer != nullptr);
-        pair.pools[i] = EaselComm2::HardwareBuffer(buffer, size);
+        pair.pools[i] = EaselComm2::HardwareBuffer(size);
+        CHECK(pair.pools[i].valid());
       }
     }
 
@@ -183,7 +173,7 @@ void EaselExecutorServer::executeRunThread() {
     // Send output pools back to client.
     int i = 0;
     for (int outputIndex : pair.request.outputpools()) {
-      pair.pools[outputIndex].id = i++;
+      pair.pools[outputIndex].setId(i++);
       hardwareBuffers.push_back(pair.pools[outputIndex]);
     }
     mComm->send(EXECUTE, hardwareBuffers);
@@ -192,9 +182,6 @@ void EaselExecutorServer::executeRunThread() {
     mComm->send(EXECUTE, response);
 
     // Release allocated resource
-    for (size_t i = 0; i < pair.pools.size(); i++) {
-      free(pair.pools[i].vaddr);
-    }
     mRequests.pop();
   }
 }
@@ -217,10 +204,6 @@ void EaselExecutorServer::handleDestroyModel(const EaselComm2::Message&) {
 
   std::lock_guard<std::mutex> lock(mExecutorLock);
   mModel.model = Model();
-  for (auto& buffer : mModel.pools) {
-    free(buffer.vaddr);
-  }
-
   mModel.pools.clear();
 
   TearDownModelResponse response;

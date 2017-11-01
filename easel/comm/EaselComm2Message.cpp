@@ -63,8 +63,7 @@ Message::Message(void* messageBuf, size_t messageBufSize, size_t dmaBufSize,
                  uint64_t messageId) {
   mMessageBuf = messageBuf;
   mMessageBufSize = messageBufSize;
-  mPayload.size = dmaBufSize;
-  mPayload.id = getHeader()->payloadId;
+  mPayload = HardwareBuffer(nullptr, dmaBufSize, getHeader()->payloadId);
   mAllocMessage = false;
   mMessageId = messageId;
 }
@@ -102,7 +101,7 @@ bool Message::toProto(::google::protobuf::MessageLite* proto) const {
 
 void Message::attachPayload(const HardwareBuffer& payload) {
   auto header = getMutableHeader();
-  header->payloadId = payload.id;
+  header->payloadId = payload.id();
   mPayload = payload;
 }
 
@@ -144,5 +143,5 @@ HardwareBuffer Message::getPayload() const { return mPayload; }
 
 uint64_t Message::getMessageId() const { return mMessageId; }
 
-bool Message::hasPayload() const { return mPayload.size > 0; }
+bool Message::hasPayload() const { return mPayload.size() > 0; }
 }  // namespace EaselComm2

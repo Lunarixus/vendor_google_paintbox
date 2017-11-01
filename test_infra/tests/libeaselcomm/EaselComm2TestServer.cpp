@@ -80,7 +80,7 @@ void handleStructMessage(const EaselComm2::Message& message2) {
 // Handles DMA ion buffer and echo same buffer back.
 void handleIonBufferMessage(const EaselComm2::Message& message2) {
   CHECK(message2.hasPayload());
-  size_t size = message2.getPayload().size;
+  size_t size = message2.getPayload().size();
   ImxDeviceBufferHandle buffer;
   CHECK_EQ(ImxCreateDeviceBufferManaged(
                allocator, size, kImxDefaultDeviceBufferAlignment,
@@ -102,25 +102,21 @@ void handleIonBufferMessage(const EaselComm2::Message& message2) {
 // Handles DMA malloc buffer and echo same buffer back.
 void handleMallocBufferMessage(const EaselComm2::Message& message2) {
   CHECK(message2.hasPayload());
-  size_t size = message2.getPayload().size;
-  void* vaddr = malloc(size);
-  CHECK(vaddr != nullptr);
+  size_t size = message2.getPayload().size();
 
-  EaselComm2::HardwareBuffer hardwareBuffer(vaddr, size, 0);
+  EaselComm2::HardwareBuffer hardwareBuffer(size, 0);
+  CHECK(hardwareBuffer.valid());
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   // Replies the same message.
   CHECK_EQ(server->send(kMallocBufferChannel, &hardwareBuffer), NO_ERROR);
-  free(vaddr);
 }
 
 // Handles file saving request.
 void handleFileMessage(const EaselComm2::Message& message2) {
   CHECK(message2.hasPayload());
-  size_t size = message2.getPayload().size;
-  void* vaddr = malloc(size);
-  CHECK(vaddr != nullptr);
+  size_t size = message2.getPayload().size();
 
-  EaselComm2::HardwareBuffer hardwareBuffer(vaddr, size, 0);
+  EaselComm2::HardwareBuffer hardwareBuffer(size, 0);
   CHECK_EQ(server->receivePayload(message2, &hardwareBuffer), NO_ERROR);
   std::string s = "/tmp/filetest";
   CHECK_EQ(hardwareBuffer.saveFile(s), NO_ERROR);
@@ -131,7 +127,6 @@ void handleFileMessage(const EaselComm2::Message& message2) {
   size_t fileSize = st.st_size;
   FileStruct fs = {fileSize};
   CHECK_EQ(server->send(kFileChannel, &fs, sizeof(FileStruct)), NO_ERROR);
-  free(vaddr);
 }
 
 // Handles ping request.

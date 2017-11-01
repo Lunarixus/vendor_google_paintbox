@@ -72,7 +72,7 @@ int EaselExecutorClient::prepareModel(
     auto& pool = model.pools[i];
     EaselComm2::HardwareBuffer buffer;
     CHECK(paintbox_util::mapPool(pool, &buffer));
-    buffer.id = i;
+    buffer.setId(i);
     pools[i] = buffer;
   }
 
@@ -127,7 +127,7 @@ int EaselExecutorClient::execute(
     auto& pool = request.pools[poolIndex];
     EaselComm2::HardwareBuffer buffer;
     CHECK(paintbox_util::mapPool(pool, &buffer));
-    buffer.id = i;
+    buffer.setId(i);
     pools[i] = buffer;
   }
 
