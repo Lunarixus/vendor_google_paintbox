@@ -77,7 +77,7 @@ status_t MessengerToHdrPlusService::connect(EaselMessengerListener &listener) {
     res = connectToService();
     if (res != 0) {
         ALOGE("%s: Connecting to HDR+ service failed: %s (%d)", __FUNCTION__, strerror(-res), res);
-        disconnectLocked();
+        disconnectLocked(/*isErrorState*/false);
         return res;
     }
 
@@ -96,12 +96,19 @@ status_t MessengerToHdrPlusService::connectToService() {
     return sendMessage(message);
 }
 
-void MessengerToHdrPlusService::disconnect() {
+void MessengerToHdrPlusService::disconnect(bool isErrorState) {
     std::lock_guard<std::mutex> lock(mApiLock);
-    return disconnectLocked();
+    return disconnectLocked(isErrorState);
 }
 
-status_t MessengerToHdrPlusService::disconnectFromService() {
+status_t MessengerToHdrPlusService::disconnectFromService(bool isErrorState) {
+    if (isErrorState) {
+        // Don't send any message to HDR+ service if it's in an error state.
+        ALOGW("%s: HDR+ service is in an error state. Skip sending a disconnect message.",
+                __FUNCTION__);
+        return 0;
+    }
+
     // Prepare the message.
     Message *message = nullptr;
     int res = getEmptyMessage(&message);
@@ -113,10 +120,10 @@ status_t MessengerToHdrPlusService::disconnectFromService() {
     return sendMessage(message);
 }
 
-void MessengerToHdrPlusService::disconnectLocked() {
+void MessengerToHdrPlusService::disconnectLocked(bool isErrorState) {
     if (!mConnected) return;
 
-    int res = disconnectFromService();
+    int res = disconnectFromService(isErrorState);
     if (res != 0) {
         ALOGE("%s: Disconnecting from service failed: %s (%d).", __FUNCTION__, strerror(-res), res);
     }

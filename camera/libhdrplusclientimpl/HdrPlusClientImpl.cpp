@@ -38,7 +38,8 @@ using ::android::hardware::camera::common::V1_0::helper::CameraMetadata;
 namespace android {
 
 HdrPlusClientImpl::HdrPlusClientImpl(HdrPlusClientListener *listener) : HdrPlusClient(listener),
-        mClientListener(listener), mServiceFatalErrorState(false), mDisconnecting(false) {
+        mClientListener(listener), mServiceFatalErrorState(false), mDisconnecting(false),
+        mIgnoreTimeouts(false) {
     mNotifyFrameMetadataThread = new NotifyFrameMetadataThread(&mMessengerToService);
     if (mNotifyFrameMetadataThread != nullptr) {
         mNotifyFrameMetadataThread->run("NotifyFrameMetadataThread");
@@ -122,7 +123,7 @@ void HdrPlusClientImpl::disconnect() {
     mApEaselMetadataManager.clear();
 
     // Disconnect from the service.
-    mMessengerToService.disconnect();
+    mMessengerToService.disconnect(mServiceFatalErrorState);
 }
 
 status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMetadata) {
@@ -178,6 +179,11 @@ status_t HdrPlusClientImpl::setStaticMetadata(const camera_metadata_t &staticMet
     if (property_get_bool("persist.gcam.hdrplus.profile", false)) {
         staticMetadataDest->debugParams |= pbcamera::DEBUG_PARAM_SAVE_PROFILE;
     }
+
+    // Dumping the input payload takes too long so we have to ignore timeouts.
+    mIgnoreTimeouts =
+        (staticMetadataDest->debugParams &
+         pbcamera::DEBUG_PARAM_SAVE_GCAME_INPUT_PAYLOAD) != 0;
 
     res = mMessengerToService.setStaticMetadata(*staticMetadataDest);
     if (res == OK) {
@@ -277,7 +283,7 @@ status_t HdrPlusClientImpl::submitCaptureRequest(pbcamera::CaptureRequest *reque
         mPendingRequests.push_back(std::move(pendingRequest));
     }
 
-    if (mTimerCallbackThread != nullptr) {
+    if (mTimerCallbackThread != nullptr && !mIgnoreTimeouts) {
         mTimerCallbackThread->addTimer(request->id, kDefaultRequestTimerMs);
     }
 
@@ -396,6 +402,10 @@ void HdrPlusClientImpl::notifyFrameMetadata(uint32_t frameNumber,
 
         mNotifyFrameMetadataThread->queueFrameMetadata(frameMetadata);
     }
+}
+
+void HdrPlusClientImpl::nofityEaselFatalError() {
+    mServiceFatalErrorState = true;
 }
 
 // Callbacks from HDR+ service.
@@ -760,7 +770,9 @@ void HdrPlusClientImpl::notifyDmaCaptureResult(pbcamera::DmaCaptureResult *resul
         mPendingRequests.erase(pendingRequestIter);
     }
 
-    mTimerCallbackThread->cancelTimer(clientResult.requestId);
+    if (mTimerCallbackThread != nullptr) {
+        mTimerCallbackThread->cancelTimer(clientResult.requestId);
+    }
 
     if (successfulResult) {
         // Invoke client listener callback for the capture result.

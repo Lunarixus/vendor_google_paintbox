@@ -2,7 +2,7 @@
 
 #include "EaselStateManager.h"
 #include "EaselThermalMonitor.h"
-#include "EaselWatchdog.h"
+#include "EaselTimer.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "easelcomm.h"
@@ -73,12 +73,19 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"bcm15602_tz",    1, {60000, 70000, 80000}},
     {"bd_therm",    1000, {45000, 50000, 55000}}, /* for taimen */
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
+    {"mnh_lpddr",      1, {65000, 75000, 85000}},
+    {"mnh_cpu",        1, {65000, 75000, 85000}},
+    {"mnh_ipu1",       1, {65000, 75000, 85000}},
+    {"mnh_ipu2",       1, {65000, 75000, 85000}},
 };
 
-EaselWatchdog watchdog;
-const std::chrono::duration<int> watchdogTimeout = std::chrono::seconds(2);
+EaselTimer watchdog;
+const std::chrono::milliseconds watchdogTimeout = std::chrono::milliseconds(2500);
+static uint32_t heartbeatSeqNumber;
 
 } // anonymous namespace
+
+int stopWatchdog();
 
 /*
  * Determine severity
@@ -110,12 +117,24 @@ static void reportError(enum EaselErrorReason reason) {
                 state = ControlState::PARTIAL;
             } else {
                 severity = EaselErrorSeverity::FATAL;
+                // Watchdog should not be stopped during timer callback. Since
+                // watchdog is a oneshot timer, we don't need to explicitly stop
+                // it.
+                if (reason != EaselErrorReason::WATCHDOG) {
+                    stopWatchdog();
+                }
                 state = ControlState::FAILED;
             }
 
         } else {
             // All errors are fatal in HDR+ mode
             severity = EaselErrorSeverity::FATAL;
+            // Watchdog should not be stopped during timer callback. Since
+            // watchdog is a oneshot timer, we don't need to explicitly stop
+            // it.
+            if (reason != EaselErrorReason::WATCHDOG) {
+                stopWatchdog();
+            }
             state = ControlState::FAILED;
         }
     }
@@ -327,8 +346,15 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     }
 
     case EaselControlImpl::CMD_HEARTBEAT: {
-        ALOGD("%s: server sent heartbeat", __FUNCTION__);
-        watchdog.pet();
+        EaselControlImpl::HeartbeatMsg *heartbeatMsg =
+            (EaselControlImpl::HeartbeatMsg *)msg->message_buf;
+        ALOGD("%s: server heartbeat %d", __FUNCTION__, heartbeatMsg->seqNumber);
+        if (heartbeatMsg->seqNumber != heartbeatSeqNumber) {
+            ALOGW("%s: heartbeat sequence number did not match: %d (expected %d)",
+                  __FUNCTION__, heartbeatMsg->seqNumber, heartbeatSeqNumber);
+        }
+        heartbeatSeqNumber = heartbeatMsg->seqNumber + 1;
+        watchdog.restart();
         break;
     }
 
@@ -521,22 +547,21 @@ int stopKernelEventThread()
 
 int startWatchdog()
 {
-    int ret = watchdog.start(watchdogTimeout);
+    int ret = watchdog.start(watchdogTimeout,
+                             []() { reportError(EaselErrorReason::WATCHDOG); },
+                             /*fireOnce=*/true);
     if (ret) {
-        ALOGE("%s: failed to start EaselWatchdog (%d)\n", __FUNCTION__, ret);
+        ALOGE("%s: failed to start watchdog (%d)\n", __FUNCTION__, ret);
     }
+
+    heartbeatSeqNumber = 0;
 
     return ret;
 }
 
 int stopWatchdog()
 {
-    int ret = watchdog.stop();
-    if (ret) {
-        ALOGE("%s: failed to stop EaselWatchdog (%d)\n", __FUNCTION__, ret);
-    }
-
-    return ret;
+    return watchdog.stop();
 }
 
 int switchState(enum ControlState nextState)
@@ -567,6 +592,7 @@ int switchState(enum ControlState nextState)
                 case ControlState::FAILED:
                 case ControlState::RESUMED:
                 case ControlState::INIT:
+                    stopWatchdog();
                     stopThermalMonitor();
                     stopLogClient();
                     teardownEaselConn();
@@ -807,8 +833,6 @@ int EaselControlClient::open() {
 
     // Register default implemetation of error callback
     registerErrorCallback(defaultErrorCallback);
-
-    watchdog.setBiteCallback([]() { reportError(EaselErrorReason::WATCHDOG); });
 
     ret = thermalMonitor.open(thermalCfg);
     if (ret) {

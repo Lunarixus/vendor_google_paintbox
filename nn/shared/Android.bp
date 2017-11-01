@@ -4,6 +4,7 @@ cc_library_static {
     srcs: [
         "proto/types.proto",
     ],
+    cflags: ["-Wall", "-Werror"],
     proto: {
         type: "lite",
         export_proto_headers: true,

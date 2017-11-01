@@ -164,6 +164,12 @@ public:
      */
     void notifyAtrace(const std::string &trace, int32_t cookie, int32_t begin) override;
 
+    /*
+     * Notify Easel has encountered a fatal error and HDR+ client should stop sending messages
+     * to Easel.
+     */
+    void nofityEaselFatalError() override;
+
 private:
     static const size_t kMaxNumFrameHistory = 64;
 
@@ -263,6 +269,9 @@ private:
 
     // Static metadata of current camera.
     std::unique_ptr<pbcamera::StaticMetadata> mStaticMetadata;
+
+    // Whether or not to ignore timeouts.
+    bool mIgnoreTimeouts;
 };
 
 /**

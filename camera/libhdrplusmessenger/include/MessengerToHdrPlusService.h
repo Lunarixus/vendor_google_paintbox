@@ -45,7 +45,14 @@ public:
      *  -ENODEV:    if connecting failed due to a serious error.
      */
     status_t connect(EaselMessengerListener &listener) override;
-    void disconnect() override;
+
+    /*
+     * Disconnect from HDR+ service.
+     *
+     * isErrorState indicate if HDR+ service or Easel is in an error state. If true, it won't send
+     *              any messsage to Easel because it may hang.
+     */
+    void disconnect(bool isErrorState = false) override;
 
     /*
      * The following functions will invoke sending messages to HDR+ service. These should match
@@ -131,7 +138,7 @@ public:
 
 private:
     // Disconnect with mApiLock held.
-    void disconnectLocked();
+    void disconnectLocked(bool isErrorState);
 
     /*
      * Send a message to connect to HDR+ service.
@@ -144,7 +151,7 @@ private:
     status_t connectToService();
 
     // Send a message to disconnect from HDR+ service.
-    status_t disconnectFromService();
+    status_t disconnectFromService(bool isErrorState);
 
     // Write a stream configuration to a message.
     status_t writeStreamConfiguration(Message *message, const StreamConfiguration &config);

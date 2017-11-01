@@ -61,7 +61,7 @@ status_t MessengerToHdrPlusClient::connect(EaselMessengerListener &listener) {
     return 0;
 }
 
-void MessengerToHdrPlusClient::disconnect() {
+void MessengerToHdrPlusClient::disconnect(bool) {
     std::lock_guard<std::mutex> lock(mApiLock);
 
     if (!mConnected) return;
