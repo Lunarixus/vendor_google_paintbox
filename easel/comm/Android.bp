@@ -15,6 +15,7 @@ cc_defaults {
     srcs: [
         "EaselComm.cpp",
         "EaselComm2.cpp",
+        "EaselComm2Buffer.cpp",
         "EaselComm2Impl.cpp",
         "EaselComm2Message.cpp",
     ],
