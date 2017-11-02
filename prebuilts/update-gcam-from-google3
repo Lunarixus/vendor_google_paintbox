@@ -19,50 +19,18 @@
 #
 
 set -o errexit
+source gbash.sh || (echo "Have you run 'prodaccess'?" 1>&2; exit 1)
 
-usage() {
-cat << EOF
-  Usage:
-  $0 [--google3 {google3-path}] [--prod] [--nopcg]
-    --google3 {google3-path}  Local google3 workspace path
-    --prod                    Build gcam with prod=1
-    --nopcg                   Skip PCG generation
-EOF
-}
+DEFINE_bool generate_pcgs true "If true, re-generate PCGs from the CitC"
+DEFINE_string google3 "" "Local google3 workspace path"
+DEFINE_bool prod false "Build gcam with prod=1"
 
-google3=""
-prod=""
-nopcg=false
-while [ $# -gt 0 ]; do
-  arg="$1"
-  shift
-  case "$arg" in
-    "-h")
-      usage
-      exit 0
-      ;;
-    "--google3")
-      arg="$1"
-      shift
-      google3="$arg"
-      ;;
-    "--prod")
-      prod=" --define prod=1 "
-      ;;
-    "--nopcg")
-      nopcg=true
-      ;;
-    *)
-      usage
-      exit 0
-      ;;
-  esac
-done
+gbash::init_google "$@"
 
 ######################################################################
 # Setup paths
 
-GOOGLE3_PATH="${google3}"
+GOOGLE3_PATH="${FLAGS_google3}"
 
 GOOGLE3_HARDWARE="hardware"
 GOOGLE3_GOOGLEX="googlex"
@@ -132,7 +100,7 @@ fi
 # Verify gcam paths
 if [ ! -d "${GOOGLE3_GCAM_FULL_PATH}" ]; then
   echo "${GOOGLE3_GCAM_FULL_PATH} does not exist!"
-  return 1
+  exit 1
 fi
 if [ ! -r "${GOOGLE3_GCAM_FULL_PATH}/BUILD" ]; then
   echo "${GOOGLE3_GCAM_FULL_PATH} does not contain a readable BUILD file. Wrong path?"
@@ -152,7 +120,7 @@ echo -e "\e[1;34m** Building libgcam library\e[00m"
 pushd ${GOOGLE3_PATH}
 
 # Generate PCG
-if [ "${nopcg}" = false ]; then
+if [ ${FLAGS_generate_pcgs} = true ]; then
   rm -rf ${TMP_PCG_FULL_PATH}
   GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
   if [ $? -ne 0 ]; then
@@ -162,6 +130,9 @@ if [ "${nopcg}" = false ]; then
 fi
 
 # Build libgcam
+if [ ${FLAGS_prod} = true ]; then
+  prod=" --define prod=1 "
+fi
 blaze build $prod \
   --define easel=1 \
   --define ipuonly=1 \
