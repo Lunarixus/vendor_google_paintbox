@@ -26,9 +26,12 @@ class ManagerServer : public BinderService<ManagerServer>,
   binder::Status stopApp(int32_t app, int32_t* _aidl_return) override;
 
  private:
-  std::mutex mMapLock;
+  int powerOn();
+  void powerOff();
+
+  std::mutex mManagerLock;
   std::unordered_map<int32_t, sp<IAppStatusCallback>>
-      mAppCallbackMap;  // Guarded by mMapLock;
+      mAppCallbackMap;  // Guarded by mManagerLock;
   std::unique_ptr<EaselComm2::Comm> mComm;
   std::thread mCommOpenThread;
 

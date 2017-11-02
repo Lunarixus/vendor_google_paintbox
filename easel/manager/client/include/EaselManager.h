@@ -25,6 +25,7 @@ enum Error {
   APP_NOT_FOUND = 5,                  // Easel could not find app.
   APP_PROCESS_FAILURE = 6,            // Could not start app process.
   APP_NOT_STARTED = 7,                // Could not started the app.
+  EASEL_POWER_ERROR = 8,              // Could not poweron easel.
 };
 
 // EaselManager client.

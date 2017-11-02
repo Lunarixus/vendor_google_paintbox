@@ -17,6 +17,7 @@ class CommImpl : public Comm {
   int open(EaselService service_id, long timeout_ms = 0) override;
   int open(EaselService service_id) override;
   int openPersistent(EaselService service_id, bool logging) override;
+  bool connected() override;
   void close() override;
 
   int startReceiving() override;

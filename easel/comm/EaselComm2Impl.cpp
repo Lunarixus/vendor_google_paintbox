@@ -61,6 +61,8 @@ int CommImpl::openPersistent(EaselService service_id, bool logging) {
   }
 }
 
+bool CommImpl::connected() { return mComm->isConnected(); }
+
 void CommImpl::close() { mComm->close(); }
 
 void CommImpl::registerHandler(int channelId, Handler handler) {
