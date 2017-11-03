@@ -67,6 +67,9 @@ mkdir /dev/socket
 echo 64 > /proc/sys/net/unix/max_dgram_qlen
 /system/bin/logd.easel &
 
+# Start easelmanagerd.
+/system/bin/easelmanagerserver &
+
 # Start pbserver.
 /system/bin/pbserver &
 
