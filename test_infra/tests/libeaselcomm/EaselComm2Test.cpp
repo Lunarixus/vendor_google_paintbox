@@ -71,13 +71,6 @@ class EaselComm2Test : public ::testing::Test {
     return AHardwareBuffer_allocate(&desc, bufferOut);
   }
 
-  // Allocates a malloc buffer with format AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM.
-  // Returns the buffer vaddr.
-  void* allocMallocBuffer(uint32_t width, uint32_t height) {
-    return malloc(
-        getBufferSize(width, height, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM));
-  }
-
   // Releases the AHardwareBuffer.
   void releaseAHardwareBuffer(AHardwareBufferHandle buffer) {
     if (buffer != nullptr) {
@@ -249,36 +242,27 @@ TEST_F(EaselComm2Test, MallocAHardwareBufferEaselLoopback) {
   const uint32_t kHeight = 24;
   const uint32_t kSeed = 17;
 
-  void* txBuffer = allocMallocBuffer(kWidth, kHeight);
-  ASSERT_NE(txBuffer, nullptr);
-  void* rxBuffer = allocMallocBuffer(kWidth, kHeight);
-  ASSERT_NE(rxBuffer, nullptr);
-
   comm()->registerHandler(
       kMallocBufferChannel, [&](const EaselComm2::Message& message) {
         ASSERT_TRUE(message.hasPayload());
-        EaselComm2::HardwareBuffer rxHardwareBuffer(
-            rxBuffer,
-            getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM),
-            0);
+        EaselComm2::HardwareBuffer rxHardwareBuffer(getBufferSize(
+            kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM));
+        ASSERT_TRUE(rxHardwareBuffer.valid());
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
         EXPECT_TRUE(checkPattern(kSeed, patternSimple, kWidth, kWidth, kHeight,
                                  AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM,
-                                 rxBuffer));
+                                 rxHardwareBuffer.vaddr()));
         signal();
       });
 
   EaselComm2::HardwareBuffer txHardwareBuffer(
-      txBuffer,
-      getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM), 0);
+      getBufferSize(kWidth, kHeight, AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM));
+  ASSERT_TRUE(txHardwareBuffer.valid());
   writePattern(kSeed, patternSimple, kWidth, kWidth, kHeight,
-               AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM, txBuffer);
+               AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM, txHardwareBuffer.vaddr());
   ASSERT_EQ(comm()->send(kMallocBufferChannel, &txHardwareBuffer), NO_ERROR);
 
   wait();
-
-  free(txBuffer);
-  free(rxBuffer);
 }
 
 TEST_F(EaselComm2Test, MultipleAHardareBufferEaselLoopback) {
@@ -296,7 +280,7 @@ TEST_F(EaselComm2Test, MultipleAHardareBufferEaselLoopback) {
         ASSERT_TRUE(message.hasPayload());
         auto rxHardwareBuffer = convertToHardwareBuffer(rxBuffer);
         ASSERT_EQ(comm()->receivePayload(message, &rxHardwareBuffer), NO_ERROR);
-        EXPECT_EQ(checkPattern(static_cast<uint32_t>(rxHardwareBuffer.id),
+        EXPECT_EQ(checkPattern(static_cast<uint32_t>(rxHardwareBuffer.id()),
                                patternSimple, rxBuffer),
                   NO_ERROR);
         count++;
@@ -416,19 +400,15 @@ TEST_F(EaselComm2Test, FileCopy) {
                             signal();
                           });
 
-  EaselComm2::HardwareBuffer buffer;
-  void* vaddr = buffer.loadFile(s);
-  ASSERT_TRUE(vaddr != nullptr);
+  EaselComm2::HardwareBuffer buffer(s);
+  ASSERT_TRUE(buffer.valid());
   ASSERT_EQ(comm()->send(kFileChannel, &buffer), NO_ERROR);
-  free(vaddr);
   wait();
 }
 
 TEST_F(EaselComm2Test, Ping) {
   comm()->registerHandler(kPingChannel,
-                          [&](const EaselComm2::Message&) {
-                            signal();
-                          });
+                          [&](const EaselComm2::Message&) { signal(); });
 
   ASSERT_EQ(comm()->send(kPingChannel), NO_ERROR);
   wait();
