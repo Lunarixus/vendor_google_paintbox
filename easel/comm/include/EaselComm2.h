@@ -43,6 +43,9 @@ class Comm {
   // logging specifies if the open / close logging is turned on.
   virtual int openPersistent(EaselService service_id, bool logging = true) = 0;
 
+  // Returns true to communication is up, otherwise false.
+  virtual bool connected() = 0;
+
   // Closes down communication via this object.
   virtual void close() = 0;
 

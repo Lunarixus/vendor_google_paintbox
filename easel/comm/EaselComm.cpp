@@ -639,9 +639,7 @@ void EaselComm::close() {
         mClosed = true;
     }
 
-    if (mHandlerThread.joinable()) {
-        mHandlerThread.join();
-    }
+    joinMessageHandlerThread();
 }
 
 // Flush connection.
@@ -655,7 +653,9 @@ void EaselComm::flush() {
 int EaselComm::startMessageHandlerThread(
         std::function<void(EaselMessage *msg)> callback) {
     if (mHandlerThread.joinable()) {
-        return -EBUSY;
+        // There is a chance that the handler thread is not joined after close.
+        // So join the thread before starting a new thread.
+        mHandlerThread.join();
     }
 
     std::lock_guard<std::mutex> lock(mStatusMutex);
@@ -668,7 +668,14 @@ int EaselComm::startMessageHandlerThread(
 
 void EaselComm::joinMessageHandlerThread() {
     if (mHandlerThread.joinable()) {
-        mHandlerThread.join();
+        std::thread::id currentTid = std::this_thread::get_id();
+        std::thread::id handlerTid = mHandlerThread.get_id();
+        if (currentTid != handlerTid) {
+            mHandlerThread.join();
+        } else {
+            ALOGW("%s: Handler thread trying to join itself, ignoring",
+                    __FUNCTION__);
+        }
     }
 }
 

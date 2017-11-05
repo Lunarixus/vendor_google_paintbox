@@ -176,9 +176,7 @@ bool mapPool(const hidl_memory& hidlMemory,
       LOG(ERROR) << "Can't access shared memory.";
       return false;
     }
-    hardwareBuffer->vaddr = buffer;
-    hardwareBuffer->size = memory->getSize();
-    hardwareBuffer->ionFd = -1;
+    *hardwareBuffer = EaselComm2::HardwareBuffer(buffer, memory->getSize());
     return true;
   } else if (memType == "mmap_fd") {
     size_t size = hidlMemory.size();
@@ -192,9 +190,7 @@ bool mapPool(const hidl_memory& hidlMemory,
       LOG(ERROR) << "Can't mmap the file descriptor.";
       return false;
     }
-    hardwareBuffer->vaddr = buffer;
-    hardwareBuffer->size = size;
-    hardwareBuffer->ionFd = -1;
+    *hardwareBuffer = EaselComm2::HardwareBuffer(buffer, size);
   } else {
     LOG(ERROR) << "unsupported hidl_memory type";
     return false;

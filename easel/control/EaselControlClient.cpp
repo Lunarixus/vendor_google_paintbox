@@ -11,6 +11,7 @@
 #include <thread>
 
 #include <fstream>
+#include <future>
 #include <poll.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -152,6 +153,11 @@ static void reportError(enum EaselErrorReason reason) {
     }
 }
 
+static void reportErrorAsync(enum EaselErrorReason reason)
+{
+    std::thread([reason](){ reportError(reason); }).detach();
+}
+
 static int sendTimestamp(void) {
     int ret;
 
@@ -259,7 +265,7 @@ void EventReportingThread(int pipeReadFd)
             read(pollFds[0].fd, &value, 1);
 
             ALOGE("%s: observed link failure", __FUNCTION__);
-            reportError(EaselErrorReason::LINK_FAIL);
+            reportErrorAsync(EaselErrorReason::LINK_FAIL);
         }
 
         if (pollFds[1].revents & POLLIN) {
@@ -356,7 +362,7 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
     switch(h->command) {
     case EaselControlImpl::CMD_RESET_REQ: {
         ALOGW("Server requested a chip reset");
-        reportError(EaselErrorReason::IPU_RESET_REQ);
+        reportErrorAsync(EaselErrorReason::IPU_RESET_REQ);
         break;
     }
 
@@ -392,10 +398,10 @@ void easelConnThread()
         captureBootTrace();
         if (ret == -EHOSTUNREACH) {
             ALOGE("%s: Easel is in a partial active state", __FUNCTION__);
-            reportError(EaselErrorReason::BOOTSTRAP_FAIL);
+            reportErrorAsync(EaselErrorReason::BOOTSTRAP_FAIL);
         } else {
             ALOGE("%s: Easel failed to enter active state (%d)\n", __FUNCTION__, ret);
-            reportError(EaselErrorReason::LINK_FAIL);
+            reportErrorAsync(EaselErrorReason::LINK_FAIL);
         }
         return;
     }
@@ -405,7 +411,7 @@ void easelConnThread()
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)", __FUNCTION__, ret);
         captureBootTrace();
-        reportError(EaselErrorReason::OPEN_SYSCTRL_FAIL);
+        reportErrorAsync(EaselErrorReason::OPEN_SYSCTRL_FAIL);
         return;
     }
 
@@ -417,7 +423,7 @@ void easelConnThread()
             ALOGD("%s: connection was closed during handshake", __FUNCTION__);
         } else {
             ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
-            reportError(EaselErrorReason::HANDSHAKE_FAIL);
+            reportErrorAsync(EaselErrorReason::HANDSHAKE_FAIL);
         }
         return;
     }
@@ -551,7 +557,7 @@ int stopKernelEventThread()
 int startWatchdog()
 {
     int ret = watchdog.start(watchdogTimeout,
-                             []() { reportError(EaselErrorReason::WATCHDOG); },
+                             []() { reportErrorAsync(EaselErrorReason::WATCHDOG); },
                              /*fireOnce=*/true);
     if (ret) {
         ALOGE("%s: failed to start watchdog (%d)\n", __FUNCTION__, ret);
