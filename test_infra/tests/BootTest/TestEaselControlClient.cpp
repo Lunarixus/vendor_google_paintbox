@@ -2,105 +2,190 @@
 
 #include "easelcontrol.h"
 
+#include <cutils/properties.h>
+#include <gtest/gtest.h>
 #include <log/log.h>
 
 #include <getopt.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 
-namespace android {
+#define PMIC_SYSFS_FILE_WAHOO      "/sys/devices/soc/c1b7000.i2c/i2c-9/9-0008/toggle_pon"
+#define PMIC_SYSFS_FILE_BLUECROSS  "/sys/devices/soc/a88000.i2c/i2c-0/0-0066/toggle_pon"
 
-int body(int sec, int iterations) {
-    int ret = 0;
-    int i;
+static int numIteration = 1;
+static int numSleepSecond = 1;
+
+TEST(EaselBootTest, PmicPowerCycle) {
+    int fd = -1;
+    char device[PROPERTY_VALUE_MAX];
+    char str[32];
+
+    property_get("ro.hardware", device, "default");
+    if ((strcmp(device, "walleye") == 0) ||
+        (strcmp(device, "taimen") == 0)) {
+        fd = open(PMIC_SYSFS_FILE_WAHOO, O_RDONLY);
+    } else if ((strcmp(device, "blueline") == 0) ||
+               (strcmp(device, "crosshatch") == 0)) {
+        fd = open(PMIC_SYSFS_FILE_BLUECROSS, O_RDONLY);
+    }
+    ASSERT_GE(fd, 0) << "failed to open PMIC sysfs file (" << errno << ").";
+
+    ASSERT_GE(read(fd, str, 32), 0);
+}
+
+TEST(EaselBootTest, BootShutdownLoop) {
     EaselControlClient easelControl;
 
     ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
-          iterations, sec);
+          numIteration, numSleepSecond);
 
+    for (int i = 0; i < numIteration; i++) {
+        ASSERT_EQ(easelControl.open(), 0);
+
+        ASSERT_EQ(easelControl.resume(), 0);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+        ASSERT_EQ(easelControl.suspend(), 0);
+
+        ALOGI("Testing Easel Boot n. %d done", i);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+        easelControl.close();
+    }
+}
+
+TEST(EaselBootTest, BootShutdownLoopWithActivate) {
+    EaselControlClient easelControl;
     struct timespec begin;
     struct timespec now;
     int64_t diff_ms;
 
-    for (i = 1; i < iterations + 1; i++) {
-        ret = easelControl.open();
-        if (ret) {
-            ALOGE("easelControl.open() failed (%d)", ret);
-            break;
-        }
+    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
+          numIteration, numSleepSecond);
 
-        ret = easelControl.suspend();
-        if (ret) {
-            ALOGE("easelControl.suspend() failed (%d)", ret);
-            break;
-        }
+    for (int i = 0; i < numIteration; i++) {
+        ASSERT_EQ(easelControl.open(), 0);
+
+        ASSERT_EQ(easelControl.suspend(), 0);
 
         // Start timer
         clock_gettime(CLOCK_MONOTONIC, &begin);
 
-        ret = easelControl.resume();
-        if (ret) {
-            ALOGE("easelControl.resume() failed (%d)", ret);
-            break;
-        }
+        ASSERT_EQ(easelControl.resume(), 0);
 
-        ret = easelControl.activate();
-        if (ret) {
-            ALOGE("easelControl.activate() failed (%d)", ret);
-            break;
-        }
+        ASSERT_EQ(easelControl.activate(), 0);
 
         // Stop timer
         clock_gettime(CLOCK_MONOTONIC, &now);
         diff_ms = (now.tv_sec - begin.tv_sec) * 1000
                   + (now.tv_nsec - begin.tv_nsec) / 1000000;
-        ALOGI("iter %d: Easel resume->activate done: %ld ms!", i, diff_ms);
+        ALOGI("iter %d: Easel resume->activate done: %" PRId64 " ms", i, diff_ms);
 
-        if (sec >= 0) {
-            sleep(sec);
-        } else {
-            getchar();
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
         }
 
-        ret = easelControl.deactivate();
-        if (ret) {
-            ALOGE("easelControl.deactivate() failed (%d)", ret);
-            break;
-        }
+        ASSERT_EQ(easelControl.deactivate(), 0);
 
-        ret = easelControl.suspend();
-        if (ret) {
-            ALOGE("Warning: easelControl.suspend() returned (%d)", ret);
-            break;
-        }
-
-        easelControl.close();
+        ASSERT_EQ(easelControl.suspend(), 0);
 
         ALOGI("Testing Easel Boot n. %d done", i);
 
-        if (sec >= 0) {
-            sleep(sec);
-        } else {
-            getchar();
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+        easelControl.close();
+    }
+}
+
+TEST(EaselBootTest, SuspendResumeLoop) {
+    EaselControlClient easelControl;
+
+    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
+          numIteration, numSleepSecond);
+
+    ASSERT_EQ(easelControl.open(), 0);
+
+    for (int i = 0; i < numIteration; i++) {
+        ASSERT_EQ(easelControl.resume(), 0);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+        ASSERT_EQ(easelControl.suspend(), 0);
+
+        ALOGI("Testing Easel Boot n. %d done", i);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+    }
+
+    easelControl.close();
+}
+
+TEST(EaselBootTest, SuspendResumeLoopWithActivate) {
+    EaselControlClient easelControl;
+    struct timespec begin;
+    struct timespec now;
+    int64_t diff_ms;
+
+    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
+          numIteration, numSleepSecond);
+
+    ASSERT_EQ(easelControl.open(), 0);
+
+    for (int i = 0; i < numIteration; i++) {
+        ASSERT_EQ(easelControl.suspend(), 0);
+
+        // Start timer
+        clock_gettime(CLOCK_MONOTONIC, &begin);
+
+        ASSERT_EQ(easelControl.resume(), 0);
+
+        ASSERT_EQ(easelControl.activate(), 0);
+
+        // Stop timer
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        diff_ms = (now.tv_sec - begin.tv_sec) * 1000
+                  + (now.tv_nsec - begin.tv_nsec) / 1000000;
+        ALOGI("iter %d: Easel resume->activate done: %" PRId64 " ms", i, diff_ms);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+
+        ASSERT_EQ(easelControl.deactivate(), 0);
+
+        ASSERT_EQ(easelControl.suspend(), 0);
+
+        ALOGI("Testing Easel Boot n. %d done", i);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
         }
     }
 
-    if (ret == 0) {
-        ALOGI("Easel Boot Test PASSED %d cycles", i - 1);
-    } else {
-        ALOGI("Easel Boot Test FAILED at %d cycles", i);
-    }
-
-    return ret;
+    easelControl.close();
 }
-
-}   // namespace android
 
 int main(int argc, char **argv) {
     int ch;
-    int numIteration = 1;
-    int numSleepSecond = 1;
-    int ret = 0;
+
+    ::testing::InitGoogleTest(&argc, argv);
 
     /*
      * h - help, no argument
@@ -128,7 +213,6 @@ int main(int argc, char **argv) {
             break;
           case 'h':
             /* FALLTHRU */
-          default:
             fprintf(stderr,
                     "Usage: %s -s <sleep_sec> -i <iter>\n", argv[0]);
             fprintf(stderr,
@@ -138,15 +222,11 @@ int main(int argc, char **argv) {
                     "       -i <iter>       Num of iterations.\n"
                     );
             exit(1);
+            break;
+          default:
+            break;
         }
     }
 
-    ret = android::body(numSleepSecond, numIteration);
-    if (ret == 0) {
-        fprintf(stderr, "%s PASSED\n", argv[0]);
-    } else {
-        fprintf(stderr, "%s FAILED (%d)\n", argv[0], ret);
-    }
-
-    return ret;
+    return RUN_ALL_TESTS();
 }
