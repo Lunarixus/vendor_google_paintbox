@@ -439,8 +439,7 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
     shotParams->ae.process_bayer_for_payload = true;
     shotParams->ae.exposure_compensation = mStaticMetadata->aeCompensationStep * expCompensation;
     shotParams->zsl = true;
-    // TODO(jdcollin): Add RAISR once that is supported on IPU.
-    shotParams->resampling_method_override = gcam::ResamplingMethod::kLanczos;
+    shotParams->resampling_method_override = gcam::ResamplingMethod::kRaisr;
 
     if (mStaticMetadata->flashInfoAvailable == ANDROID_FLASH_INFO_AVAILABLE_FALSE) {
         shotParams->flash_mode = gcam::FlashMode::kOff;
