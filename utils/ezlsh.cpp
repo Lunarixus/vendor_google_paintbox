@@ -182,7 +182,6 @@ void server_exec_cmd(ExecRequest *request);
 int server_exec_cmd(std::string &cmd);
 
 void client_exit(int exitcode) {
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
     easel_comm_client.close();
     exit(exitcode);
 }
@@ -202,6 +201,33 @@ bool client_check_state(State expect_state) {
                 expect_state);
         return false;
     }
+}
+
+// Client opens easelcomm service, flush the service, then spawn a listener
+// Returns: nullptr - failed open service or register handler
+//          a pointer to thread - successful
+std::thread *client_open_easelcomm_spawn_handler(EaselCommClient *client,
+                                                 EaselService serviceId,
+                                                 std::function<void()> handler) {
+    int ret = client->open(serviceId);
+    if (ret) {
+        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
+                serviceId, ret);
+        if (ret == -EBUSY) {
+            fprintf(stderr, "ezlsh already running? Try 'killall ezlsh'\n");
+        }
+        return nullptr;
+    }
+
+    client->flush();
+
+    std::thread *msg_handler_thread;
+    msg_handler_thread = new std::thread(handler);
+    if (msg_handler_thread == nullptr) {
+        fprintf(stderr, "failed to allocate thread for message handler\n");
+    }
+
+    return msg_handler_thread;
 }
 
 // Reads a sysfs node.
@@ -250,19 +276,23 @@ void client_push_response_handler(EaselComm::EaselMessage *msg) {
     if (resp->response_code) {
         fprintf(stderr, "ERROR: ezlsh %s: %s: %s\n", __FUNCTION__,
                 file_xfer_path_remote, strerror(resp->response_code));
+        client_exit(1);
     }
 
     client_xfer_done();
 }
 
 // Client saves pulled file based on response from server.
-void client_save_pulled_file(EaselComm::EaselMessage *msg) {
+// Returns: 0 - success
+//         others - error
+int client_save_pulled_file(EaselComm::EaselMessage *msg) {
+    int ret = 0;
     FilePullResponse *resp = (FilePullResponse *)msg->message_buf;
 
     if (resp->response_code) {
         fprintf(stderr, "ezlsh: %s: %s: %s\n", __FUNCTION__,
                 file_xfer_path_remote, strerror(resp->response_code));
-        return;
+        return resp->response_code;
     }
 
     char *file_data = nullptr;
@@ -271,38 +301,49 @@ void client_save_pulled_file(EaselComm::EaselMessage *msg) {
         file_data = (char *)malloc(msg->dma_buf_size);
 
         if (file_data == nullptr) {
-            perror("malloc");
+            fprintf(stderr, "%s: failed to malloc buffer to pull file: %s\n",
+                    __FUNCTION__, strerror(errno));
             // Discard DMA transfer
-            msg->dma_buf = nullptr;
-            (void) easel_comm_client.receiveDMA(msg);
-            return;
+            easel_comm_client.cancelReceiveDMA(msg);
+            return -ENOMEM;
         }
 
         msg->dma_buf = file_data;
-        int ret = easel_comm_client.receiveDMA(msg);
+        ret = easel_comm_client.receiveDMA(msg);
         if (ret) {
-            perror("EaselComm receiveDMA");
+            fprintf(stderr, "%s: failed to receive DMA: %s\n",
+                    __FUNCTION__, strerror(errno));
             free(file_data);
-            return;
+            return ret;
         }
     }
 
     int fd = creat(file_xfer_path_local, resp->st_mode);
     if (fd < 0) {
-        perror(file_xfer_path_local);
+        fprintf(stderr, "%s: cannot create regular file %s: %s\n",
+                __FUNCTION__, file_xfer_path_local, strerror(errno));
+        ret = -errno;
     } else if (msg->dma_buf_size) {
         ssize_t len = write(fd, file_data, msg->dma_buf_size);
-        if (len < 0)
-            perror(file_xfer_path_local);
+        if (len < 0) {
+            fprintf(stderr, "%s: cannot write regular file %s: %s\n",
+                    __FUNCTION__, file_xfer_path_local, strerror(errno));
+            ret = -errno;
+        }
     }
 
     close(fd);
     free(file_data);
+
+    return ret;
 }
 
 // Client receives file pull response.
 void client_pull_response_handler(EaselComm::EaselMessage *msg) {
-    client_save_pulled_file(msg);
+    int ret = client_save_pulled_file(msg);
+    if (ret) {
+        client_exit(ret);
+    }
     client_xfer_done();
 }
 
@@ -332,9 +373,7 @@ void client_pull_recursive_response_handler(EaselComm::EaselMessage *msg) {
     if (files_buffer == NULL) {
         fprintf(stderr, "ezlsh: %s: malloc failed", __FUNCTION__);
         // Discard DMA transfer
-        msg->dma_buf = nullptr;
-        msg->dma_buf_size = 0;
-        easel_comm_client.receiveDMA(msg);
+        easel_comm_client.cancelReceiveDMA(msg);
         client_recursive_done();
         return;
     }
@@ -374,6 +413,7 @@ void client_exec_response_handler(EaselComm::EaselMessage *msg) {
     if (resp->done) {
         if (resp->exit != 0) {
             fprintf(stderr, "exit %d\n", resp->exit);
+            client_exit(resp->exit);
         }
         client_exec_done();
     } else {
@@ -391,8 +431,14 @@ void client_message_handler() {
         EaselComm::EaselMessage msg;
         int ret = easel_comm_client.receiveMessage(&msg);
         if (ret) {
-            if (errno != ESHUTDOWN)
-                perror("");
+            if (errno == ESHUTDOWN) {
+                ALOGI("%s: service channel shutdown", __FUNCTION__);
+                exitcode = 0;
+                // ESHUTDOWN means service channel is off.
+                // Just return the listener thread
+                return;
+            }
+            perror("ezlsh listener stopped");
             exitcode = errno;
             break;
         }
@@ -413,6 +459,7 @@ void client_message_handler() {
             case CMD_CLOSE_SHELL:
                 close_conn = true;
                 exec_cond.notify_one();
+                tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
                 break;
 
             case CMD_PUSH_RESPONSE:
@@ -439,12 +486,18 @@ void client_message_handler() {
             free(msg.message_buf);
         }
     }
+
     client_exit(exitcode);
 }
 
 void shell_client_session() {
-    std::thread *msg_handler_thread;
     int ret;
+
+    std::thread *msg_handler_thread = client_open_easelcomm_spawn_handler(
+        &easel_comm_client, EASEL_SERVICE_SHELL, client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        client_exit(1);
+    }
 
     tty_fd = STDOUT_FILENO;
 
@@ -460,20 +513,6 @@ void shell_client_session() {
     tio.c_cc[VTIME] = 0;
     tio.c_cc[VMIN] = 1;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
-
-    ret = easel_comm_client.open(EASEL_SERVICE_SHELL);
-    if (ret) {
-        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
-                EASEL_SERVICE_SHELL, ret);
-    }
-
-    easel_comm_client.flush();
-
-    msg_handler_thread = new std::thread(client_message_handler);
-    if (msg_handler_thread == nullptr) {
-        fprintf(stderr, "failed to allocate thread for message handler\n");
-        client_exit(1);
-    }
 
     // Tell server to start a new session
     OpenShellMsg open_msg;
@@ -500,18 +539,14 @@ void shell_client_session() {
             break;
     }
 
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &saved_terminal_state);
     client_exit(0);
 }
 
 void client_exec_cmd(const char *cmd) {
-    int ret = easel_comm_client.open(EASEL_SERVICE_SHELL);
-    assert(ret == 0);
-    easel_comm_client.flush();
-
-    std::thread *msg_handler_thread;
-    msg_handler_thread = new std::thread(client_message_handler);
+    std::thread *msg_handler_thread = client_open_easelcomm_spawn_handler(
+        &easel_comm_client, EASEL_SERVICE_SHELL, client_message_handler);
     if (msg_handler_thread == nullptr) {
-        fprintf(stderr, "failed to allocate thread for message handler\n");
         client_exit(1);
     }
 
@@ -624,6 +659,11 @@ static void list_dir_recursive(
     closedir(dir);
 }
 
+int is_path_present(const char *path) {
+    struct stat path_stat;
+    return stat(path, &path_stat);
+}
+
 int is_regular_file(const char *path) {
     struct stat path_stat;
     stat(path, &path_stat);
@@ -638,6 +678,7 @@ void client_push_file_worker(char *local_path, char *remote_path) {
 
     int fd = open(local_path, O_RDONLY);
     if (fd < 0) {
+        fprintf(stderr, "cannot open %s\n", local_path);
         perror(local_path);
         client_exit(1);
     }
@@ -645,6 +686,7 @@ void client_push_file_worker(char *local_path, char *remote_path) {
     ssize_t data_len = 0;
 
     if (fstat(fd, &stat_buf) < 0) {
+        fprintf(stderr, "cannot stat %s\n", local_path);
         perror(local_path);
         close(fd);
         client_exit(1);
@@ -686,16 +728,16 @@ void client_push_file_worker(char *local_path, char *remote_path) {
 // Client file push command processing. Send push request and wait for
 // incoming message handler to process the response from server.
 void client_push_file(char *local_path, char *remote_path) {
-    int ret = easel_comm_client.open(EASEL_SERVICE_SHELL);
-    if (ret) {
-        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
-                EASEL_SERVICE_SHELL, ret);
+    std::thread *msg_handler_thread = client_open_easelcomm_spawn_handler(
+        &easel_comm_client, EASEL_SERVICE_SHELL, client_message_handler);
+    if (msg_handler_thread == nullptr) {
+        client_exit(1);
     }
 
-    std::thread *msg_handler_thread;
-    msg_handler_thread = new std::thread(client_message_handler);
-    if (msg_handler_thread == nullptr) {
-        fprintf(stderr, "failed to allocate thread for message handler\n");
+    // Either file or directory, check existence first
+    if (is_path_present(local_path)) {
+        fprintf(stderr, "%s: (local) %s: %s\n",
+                __FUNCTION__, local_path, strerror(errno));
         client_exit(1);
     }
 
@@ -728,18 +770,9 @@ void client_pull_recursive_file(char *remote_path, char *dest_arg) {
     }
     file_recursive_path_local = local_path_str;
 
-    int ret = easel_comm_client.open(EASEL_SERVICE_SHELL);
-    if (ret) {
-        fprintf(stderr, "Failed to open client, service=%d, error=%d\n",
-                EASEL_SERVICE_SHELL, ret);
-    }
-
-    easel_comm_client.flush();
-
-    std::thread *msg_handler_thread;
-    msg_handler_thread = new std::thread(client_message_handler);
+    std::thread *msg_handler_thread = client_open_easelcomm_spawn_handler(
+        &easel_comm_client, EASEL_SERVICE_SHELL, client_message_handler);
     if (msg_handler_thread == nullptr) {
-        fprintf(stderr, "failed to allocate thread for message handler\n");
         client_exit(1);
     }
 
