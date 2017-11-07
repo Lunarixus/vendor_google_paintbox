@@ -154,6 +154,8 @@ struct AeShotParams {
   //   target aspect ratio and its inverse must also be less than
   //   kMaxOutputAspectRatio. Otherwise, processing will be aborted with an
   //   error logged.
+  // TODO(hasinoff): Enforce that the aspect ratio of the target dimensions
+  //   matches that of 'crop', up to some slop.
   // Default: 0 (invalid).
   int target_width = 0;
   int target_height = 0;

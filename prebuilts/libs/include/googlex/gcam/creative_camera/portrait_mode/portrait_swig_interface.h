@@ -29,14 +29,14 @@ class GoudaSwigWrapper {
 
   // Processes a portrait image, returning a background defocused result.
   //
-  // If 'pd_input' is not null, uses PD data to assist in computing the
+  // If `pd_input` is not null, uses PD data to assist in computing the
   // background defocused result.
   //
-  // 'id' should be a unique identifier for this portrait. It should not be
+  // `id` should be a unique identifier for this portrait. It should not be
   // duplicated for the lifetime of this GoudaProcessor.
   //
-  // 'callbacks' is a collection of callback pointers.
-  // - 'callbacks.image_callback' must not be nullptr.
+  // `callbacks` is a collection of callback pointers.
+  // - `callbacks.image_callback` must not be nullptr.
   // - For each callback pointer that is not nullptr, its lifetime must persist
   //   until this call to Process() returns.
   //

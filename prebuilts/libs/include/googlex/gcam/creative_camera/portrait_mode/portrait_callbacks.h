@@ -12,11 +12,11 @@ namespace creative_camera {
 // GoudaProgressCallback::Run is invoked at various points during procressing to
 // report a rough estimate of the progress so far.
 //
-// 'id' is a generic unique identifier and intentionally a signed int for Java
+// `id` is a generic unique identifier and intentionally a signed int for Java
 // compatibility.
 //
-// 'progress' is in the range [0, 1] and is expected to increase monotonically
-// at each invocation. 'progress' will be reported at 1.0f upon completion.
+// `progress` is in the range [0, 1] and is expected to increase monotonically
+// at each invocation. `progress` will be reported at 1.0f upon completion.
 class GoudaProgressCallback {
  public:
   virtual ~GoudaProgressCallback() = default;
@@ -27,17 +27,17 @@ class GoudaProgressCallback {
 // image is ready. Depending on the pixel formats requested, more than one
 // member function may be invoked.
 //
-// For both callbacks, it is the client's responsibility to call 'delete image'.
+// For both callbacks, it is the client's responsibility to call delete `image`.
 // (We would prefer to use std::unique_ptr. However, our client is a Java
 // Android app and SWIG does not yet support std::unique_ptr across languages).
 //
-// 'id' is a generic unique identifier and intentionally a signed int for Java
+// `id` is a generic unique identifier and intentionally a signed int for Java
 // compatibility.
 //
-// 'pixel_format' determines the precise pixel format and byte ordering in
-// 'image'.
+// `pixel_format` determines the precise pixel format and byte ordering in
+// `image`.
 //
-// 'description' is a concise, potentially human-facing description of the image
+// `description` is a concise, potentially human-facing description of the image
 // being delivered--e.g., "input_image", "raw_pd", "disparity",
 // "face_detections", etc.  Description strings should only contain characters
 // suitable for use in filenames, i.e., a-zA-Z0-9_.
@@ -54,10 +54,29 @@ class GoudaImageCallback {
                         const std::string& description) = 0;
 };
 
-// GoudaCompleteCallback::Run is invoked after all other callbacks for the
-// object with unique identifier 'id' have been invoked.
+// GoudaOutputFeaturesCallback's member functions are invoked just prior to the
+// PortraitProcessor exiting.
 //
-// 'id' is a generic unique identifier and intentionally a signed int for Java
+// `id` is a generic unique identifier and intentionally a signed int for Java
+// compatibility.
+//
+// `description` is a human-readable string describing a feature produced by
+// the portrait processor. It is logged for debugging purposes. Possible
+// features are the face size fraction, focus distance or statistics of the
+// disparity histogram.
+//
+// `value` is the value of the feature described by `description`.
+class GoudaOutputFeaturesCallback {
+ public:
+  virtual ~GoudaOutputFeaturesCallback() = default;
+  virtual void AddFeature(
+      int64_t id, const std::string& description, double value) = 0;
+};
+
+// GoudaCompleteCallback::Run is invoked after all other callbacks for the
+// object with unique identifier `id` have been invoked.
+//
+// `id` is a generic unique identifier and intentionally a signed int for Java
 // compatibility.
 //
 // Run() will only ever be invoked at most once (upon completion).
@@ -98,6 +117,10 @@ struct GoudaCallbacks {
   // invoked any number of times (including zero) before the complete_callback
   // is invoked.
   GoudaImageCallback* debug_image_callback = nullptr;
+
+  // Invoked once when all background processing is complete. Contains features
+  // and metadata created during processing that may be useful for debugging.
+  GoudaOutputFeaturesCallback* features_callback = nullptr;
 
   // Invoked when background processing is complete and no more callbacks will
   // be invoked.

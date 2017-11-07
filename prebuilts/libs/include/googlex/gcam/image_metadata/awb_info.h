@@ -18,16 +18,14 @@ enum class WhiteBalanceMode {
   kUnknown,
 };
 
-const char* ToText(WhiteBalanceMode mode);
-WhiteBalanceMode TextToWhiteBalanceMode(const char* text);
+std::string ToText(WhiteBalanceMode mode);
+WhiteBalanceMode TextToWhiteBalanceMode(const std::string& text);
 
 const int kColorTempUnknown = 0;
 const int kMinValidColorTemp = 300;
 const int kMaxValidColorTemp = 9600;
 
 struct AwbInfo {
-  AwbInfo() { Clear(); }
-  void Clear();
   bool Check() const;
   void Print(LogLevel log_level, int indent_spaces) const;
   void SerializeToString(std::string* str, int indent_spaces) const;
@@ -57,17 +55,17 @@ struct AwbInfo {
   //     Payload frame request          (valid)            (unknown)
   //     Payload frame result           (valid)            (unknown)
   //
-  int color_temp;
+  int color_temp = kColorTempUnknown;
 
   // Gains for the 4 color channels, applied in a linear (pre-gamma/tonemap)
   //   color space.
   // Channel order here is: [R, Gr, Gb, B].
-  float gains[4];
+  float gains[4] = {0};
 
   // The 3x3 color conversion matrix (CCM), mapping from sensor RGB to the
   // output color space.
   // The values are stored row-major, so indices: (0,1,2) = first row; etc.
-  float rgb2rgb[9];
+  float rgb2rgb[9] = {0};
 };
 
 // 'TetToAwb' can be used to define an arbitrary map from a TET to an AwbInfo
