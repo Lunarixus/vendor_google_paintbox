@@ -26,13 +26,9 @@ struct GoudaRequest {
   int64_t id;
 
   // The desired output width and height. The processed images will be resampled
-  // to this resolution. 'output_width' and 'output_height' must positive.
+  // to this resolution. `output_width` and `output_height` must positive.
   int output_width = 0;
   int output_height = 0;
-
-  // The desired output format for primary image (RGB and NV12 are supported).
-  // This field is not serialized.
-  gcam::GcamPixelFormat output_format_primary;
 
   // Amount to sharpen images after resampling to the requested resolution.
   float post_resample_sharpening = 0.0f;
@@ -51,6 +47,20 @@ struct GoudaRequest {
   // Version number corresponding to how PD was processed prior to portrait
   // mode. This field should not be set manually.
   int pd_version = kPdCurrentVersion;
+
+  // --------------------------------------------------------------------------
+  // Unserialized fields that we don't automatically want to apply during
+  // reprocessing.
+  // TODO(nealw): Put these in their own struct.
+
+  // If true, the disparity map or mask and the original image will be passed
+  // to the client to be encoded into the GDepth and GImage sections of the
+  // final bokeh-blurred jpeg. This field is not serialized.
+  bool embed_gdepth_metadata = false;
+
+  // The desired output format for primary image (RGB and NV12 are supported).
+  // This field is not serialized.
+  gcam::GcamPixelFormat output_format_primary;
 
   // A path at which to save the raw inputs to the GoudaProcessor. To skip
   // saving raw inputs, leave this string empty. This field is not serialized.

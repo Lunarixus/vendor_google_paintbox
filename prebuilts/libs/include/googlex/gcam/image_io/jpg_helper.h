@@ -19,7 +19,7 @@ const int kMaxJpgQuality = 100;
 
 // By default, match the JPG quality level used for non-Gcam images and
 // and thumbnails on Glass.
-const int kDefaultJpgQuality = 95;
+extern const int kDefaultJpgQuality;
 const int kDefaultJpgQualityThumbnail = 60;
 
 // The MakerNote size is limited by the maximum size of the EXIF APP1 segment.

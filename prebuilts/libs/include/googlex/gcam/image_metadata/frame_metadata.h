@@ -445,7 +445,7 @@ struct FrameMetadata {
   std::vector<std::string> capture_warnings;
   std::vector<std::string> capture_errors;
 
-  // Sensor ID, in the range [0, number_sensors-1].
+  // Sensor ID.
   // Indicates which imaging sensor on the physical device the frame is from.
   //   The distinction is necessary for devices with multiple cameras, as in a
   //   cellphone's front and rear cameras, or an array camera system.
@@ -453,6 +453,8 @@ struct FrameMetadata {
   //   give no indication about properties or arrangement. The sensor ID's used
   //   for per-frame metadata correspond to the sensor ID's reported in static
   //   metadata, StaticMetadata::sensor_id.
+  // Starting in 2018, the sensor ID can be an arbitrary integer. For legacy
+  //   devices, this was in the range [0, number_sensors-1].
   // Defaults to 0.
   int sensor_id;
 

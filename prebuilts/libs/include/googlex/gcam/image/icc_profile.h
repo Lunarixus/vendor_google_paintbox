@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace gcam {
 
@@ -31,8 +32,8 @@ enum class IccProfile {
   kInvalid,
 };
 
-const char* ToText(IccProfile icc_profile);
-IccProfile TextToIccProfile(const char* text);
+std::string ToText(IccProfile icc_profile);
+IccProfile TextToIccProfile(const std::string& text);
 
 // Look up an embedded binary ICC profile, based on the enum.
 bool GetIccProfileData(IccProfile icc_profile, const uint8_t** icc_data,
