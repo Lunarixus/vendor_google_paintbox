@@ -268,6 +268,11 @@ private:
     // Return an input. Must be called with mQueueLock held.
     void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
 
+    // Check if there are any old inputs, and return old inputs if returnOldInputs is true. Must
+    // be called with mQueueLock held.
+    void checkOldInputsLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline,
+            bool returnOldInputs);
+
     // Given an input crop resolution and output resolution, calculate the overall crop region that
     // has the same aspect ratio as the output resolution.
     status_t calculateCropRect(int32_t inputCropW, int32_t inputCropH,
@@ -296,11 +301,14 @@ private:
     // Return if gcam YUV format is the same as HAL format.
     bool isTheSameYuvFormat(gcam::YuvFormat gcamFormat, int halFormat);
 
-    // Notify AP about a shutter. Must be called when mShuttersLock is locked.
-    void notifyShutterLocked(const Shutter &shutter);
+    // Notify AP about shutters and postviews that are ready.
+    void notifyShuttersAndPostviews();
 
-    // Notify AP about a postview. Must be called when mPostviewsLock is locked.
-    void notifyPostviewLocked(const Postview &postview);
+    // Notify AP about a shutter.
+    void notifyShutter(const Shutter &shutter);
+
+    // Notify AP about a postview.
+    void notifyPostview(const Postview &postview);
 
     // Helper functions for managing buffer references.
     void addInputReference(int64_t bufferId, Input input);

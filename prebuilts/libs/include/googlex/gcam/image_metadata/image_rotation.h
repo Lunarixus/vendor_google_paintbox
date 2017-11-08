@@ -2,6 +2,7 @@
 #define GOOGLEX_GCAM_IMAGE_METADATA_IMAGE_ROTATION_H_
 
 #include <cassert>
+#include <string>
 
 namespace gcam {
 
@@ -19,8 +20,8 @@ enum class ImageRotation {
   kInvalid
 };
 
-const char* ToText(ImageRotation rotation);
-ImageRotation TextToImageRotation(const char* text);
+std::string ToText(ImageRotation rotation);
+ImageRotation TextToImageRotation(const std::string& text);
 
 // Reverse the direction of an image rotation.
 ImageRotation ReverseRotation(const ImageRotation& rotation);
