@@ -731,8 +731,12 @@ void DequeueRequestThread::dequeueRequestThreadLoop() {
 
             paintbox::CaptureError err = frameBuffer->GetError();
             if (err != paintbox::CaptureError::SUCCESS) {
-                ALOGE("%s: Request encountered an error: %s (%d)", __FUNCTION__,
-                        GetCaptureErrorDesc(err), err);
+                if (err == paintbox::CaptureError::CANCEL) {
+                    ALOGI("%s: Request cancelled", __FUNCTION__);
+                } else {
+                    ALOGE("%s: Request encountered an error: %s (%d)",
+                            __FUNCTION__, GetCaptureErrorDesc(err), err);
+                }
                 // Abort the request.
                 mParent->abortOutputRequest(request);
                 continue;
