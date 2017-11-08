@@ -79,6 +79,10 @@ endif
 INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 	INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
+	BIN_MODULES += \
+		$(call intermediates-dir-for,EXECUTABLES,imxserver)/imxserver
+	LIB_MODULES += \
+		$(call intermediates-dir-for,SHARED_LIBRARIES,libimxservice)/libimxservice.so
 endif
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/

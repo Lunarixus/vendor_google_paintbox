@@ -44,6 +44,7 @@ PRODUCT_PACKAGES += \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \
+    libimxservice \
     pbticlient \
     pbtiserver \
     hdrplus_client_tests
