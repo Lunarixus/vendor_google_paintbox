@@ -43,13 +43,15 @@ HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock>
         mSourceCaptureBlock(sourceCaptureBlock),
         mSkipTimestampCheck(skipTimestampCheck),
         mCameraId(cameraId),
-        mImxMemoryAllocatorHandle(imxMemoryAllocatorHandle) {
+        mImxMemoryAllocatorHandle(imxMemoryAllocatorHandle),
+        mPcgLoaded(false) {
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
     if (!mInputIdMap.empty()) {
         ALOGE("%s: Some input buffers are still referenced!", __FUNCTION__);
     }
+    if (mLoadPcgThread.joinable()) mLoadPcgThread.join();
 }
 
 std::shared_ptr<HdrPlusProcessingBlock> HdrPlusProcessingBlock::newHdrPlusProcessingBlock(
@@ -122,6 +124,8 @@ bool HdrPlusProcessingBlock::isReady() {
         }
     }
 
+    if (!mPcgLoaded) return false;
+
     return true;
 }
 
@@ -171,7 +175,12 @@ void HdrPlusProcessingBlock::checkOldInputsLocked(
 bool HdrPlusProcessingBlock::doWorkLocked() {
     ALOGV("%s", __FUNCTION__);
 
-    std::call_once(loadPcgOnce, [](){ gcam::LoadPrecompiledGraphs(); });
+    std::call_once(loadPcgOnce, [&] {
+        mLoadPcgThread = std::thread([&] {
+            gcam::LoadPrecompiledGraphs();
+            mPcgLoaded = true;
+        });
+    });
 
     std::vector<Input> inputs;
     OutputRequest outputRequest = {};
@@ -237,6 +246,8 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
         outputRequest = mOutputRequestQueue[0];
         mOutputRequestQueue.pop_front();
     }
+
+    if (mLoadPcgThread.joinable()) mLoadPcgThread.join();
 
     status_t res = handleCaptureRequestLocked(inputs, outputRequest);
     if (res != 0) {
