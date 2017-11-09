@@ -1,6 +1,9 @@
 #define LOG_TAG "EaselManagerServer"
 
 #include "ManagerServer.h"
+
+#include <fstream>
+
 #include "ManagerShared.h"
 
 #include "android-base/logging.h"
@@ -57,6 +60,38 @@ Error convertError(EaselManagerService::Error error) {
       LOG(FATAL) << "Error " << error << " not defined";
   }
 }
+
+const char* kPowerOn = "/sys/devices/virtual/misc/mnh_sm/download";
+const char* kPowerOff = "/sys/devices/virtual/misc/mnh_sm/poweroff";
+const char* kStageFw = "/sys/devices/virtual/misc/mnh_sm/stage_fw";
+const char* kSysState = "/sys/devices/virtual/misc/mnh_sm/state";
+
+enum State {
+  POWER_ON = 1,
+  POWER_OFF = 0,
+};
+
+// Reads a sysfs node.
+void readSysfsNode(const char* node) {
+  std::string s;
+  std::ifstream f(node);
+  f >> s;
+}
+
+// Writes a int to sysfs node.
+void writeSysfsNode(const char* node, int value) {
+  std::ofstream f(node);
+  f << value;
+}
+
+// Compares a sysfs node value with target and returns true if matched.
+bool matchSysfsNode(const char* node, int target) {
+  int value = 0;
+  std::ifstream f(node);
+  f >> value;
+  return value == target;
+}
+
 }  // namespace
 
 ManagerServer::ManagerServer() {
@@ -64,9 +99,7 @@ ManagerServer::ManagerServer() {
   initialize();
 }
 
-ManagerServer::~ManagerServer() {
-  powerOff();
-}
+ManagerServer::~ManagerServer() { powerOff(); }
 
 char const* ManagerServer::getServiceName() { return gEaselManagerService; }
 
@@ -92,17 +125,18 @@ void ManagerServer::initialize() {
       // Client will not get any new updates about this app
       // Until new callback registers with startApp call.
       mAppCallbackMap.erase(iter);
-      return;
-    }
-
-    if (response.status() == EaselManagerService::LIVE) {
-      iter->second->onAppStart();
-    } else if (response.status() == EaselManagerService::EXIT) {
-      iter->second->onAppEnd(response.exit());
-      mAppCallbackMap.erase(iter);
     } else {
-      LOG(FATAL) << "App " << response.app()
-                 << " unknown but no error reported";
+      if (response.status() == EaselManagerService::LIVE) {
+        LOG(INFO) << "App " << response.app() << " started";
+        iter->second->onAppStart();
+      } else if (response.status() == EaselManagerService::EXIT) {
+        LOG(INFO) << "App " << response.app() << " stopped, exit " <<  response.exit();
+        iter->second->onAppEnd(response.exit());
+        mAppCallbackMap.erase(iter);
+      } else {
+        LOG(FATAL) << "App " << response.app()
+                   << " unknown but no error reported";
+      }
     }
 
     if (mAppCallbackMap.empty()) {
@@ -164,10 +198,13 @@ binder::Status ManagerServer::stopApp(int32_t app, int32_t* _aidl_return) {
 
 int ManagerServer::powerOn() {
   LOG(INFO) << "Easel power on";
-  // TODO(b/68394081): Implement this method.
+  if (!matchSysfsNode(kSysState, POWER_ON)) {
+    writeSysfsNode(kStageFw, 1);
+    readSysfsNode(kPowerOn);
+  }
 
-  // Open the channel without timeout to avoid busy polling.
-  int res = mComm->open(EASEL_SERVICE_MANAGER);
+  // Open the channel.
+  int res = mComm->open(EASEL_SERVICE_MANAGER, /*timeout_ms=mm*/100);
   if (res != 0) return res;
   return mComm->startReceiving();
 }
@@ -175,7 +212,9 @@ int ManagerServer::powerOn() {
 void ManagerServer::powerOff() {
   mComm->close();
   LOG(INFO) << "Easel power off";
-  // TODO(b/68394081): Implement this method.
+  if (!matchSysfsNode(kSysState, POWER_OFF)) {
+    readSysfsNode(kPowerOff);
+  }
 }
 
 }  // namespace EaselManager
