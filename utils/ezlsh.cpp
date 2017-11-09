@@ -225,6 +225,7 @@ std::thread *client_open_easelcomm_spawn_handler(EaselCommClient *client,
     msg_handler_thread = new std::thread(handler);
     if (msg_handler_thread == nullptr) {
         fprintf(stderr, "failed to allocate thread for message handler\n");
+        client->close();
     }
 
     return msg_handler_thread;
@@ -312,7 +313,7 @@ int client_save_pulled_file(EaselComm::EaselMessage *msg) {
         ret = easel_comm_client.receiveDMA(msg);
         if (ret) {
             fprintf(stderr, "%s: failed to receive DMA: %s\n",
-                    __FUNCTION__, strerror(errno));
+                    __FUNCTION__, strerror(-ret));
             free(file_data);
             return ret;
         }
@@ -679,7 +680,6 @@ void client_push_file_worker(char *local_path, char *remote_path) {
     int fd = open(local_path, O_RDONLY);
     if (fd < 0) {
         fprintf(stderr, "cannot open %s\n", local_path);
-        perror(local_path);
         client_exit(1);
     }
     struct stat stat_buf;
@@ -687,7 +687,6 @@ void client_push_file_worker(char *local_path, char *remote_path) {
 
     if (fstat(fd, &stat_buf) < 0) {
         fprintf(stderr, "cannot stat %s\n", local_path);
-        perror(local_path);
         close(fd);
         client_exit(1);
     }
