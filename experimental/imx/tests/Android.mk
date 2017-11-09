@@ -8,7 +8,8 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/bin
 LOCAL_VENDOR_MODULE := true
 LOCAL_SRC_FILES := \
     BasicTest.cpp \
-    GreyTestCommon.cpp
+    GreyTestCommon.cpp \
+    FinishJobTest.cpp
 LOCAL_SHARED_LIBRARIES := \
     libbase \
     libimx \

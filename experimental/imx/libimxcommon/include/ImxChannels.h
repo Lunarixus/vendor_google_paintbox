@@ -16,7 +16,8 @@ enum ImxChannel {
     kFinalizeBuffersChannel,
     kLockDeviceBufferChannel,
     kUnlockDeviceBufferChannel,
-    kExecuteJobChannel
+    kExecuteJobChannel,
+    kExecuteFinishJobChannel
 };
 
 }  // namespace imx
