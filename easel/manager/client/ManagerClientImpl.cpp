@@ -8,6 +8,7 @@ namespace android {
 namespace EaselManager {
 
 Error ManagerClientImpl::initialize() {
+  android::ProcessState::initWithDriver("/dev/vndbinder");
   sp<IServiceManager> sm = defaultServiceManager();
   if (sm == nullptr) return ANDROID_SERVICE_MANAGER_ERROR;
   sp<IBinder> binder = sm->getService(String16(gEaselManagerService));

@@ -23,6 +23,7 @@ PRODUCT_PACKAGES += \
 
 # vendor/google_paintbox
 PRODUCT_PACKAGES += \
+    easelmanagerd \
     libhdrplusclientimpl \
     libhdrplusmessenger \
     libeaselcomm \
@@ -44,6 +45,7 @@ PRODUCT_PACKAGES += \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \
+    libimxservice \
     pbticlient \
     pbtiserver \
     hdrplus_client_tests

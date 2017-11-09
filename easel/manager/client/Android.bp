@@ -1,6 +1,7 @@
 cc_library_shared {
     name: "libeaselmanager_aidl",
-
+    proprietary: true,
+    owner: "google",
     aidl: {
         export_aidl_headers: true,
         local_include_dirs: ["aidl"],
@@ -26,6 +27,8 @@ cc_library_shared {
 
 cc_binary {
     name: "easelmanagerd",
+    proprietary: true,
+    owner: "google",
 
     local_include_dirs: ["include"],
 
@@ -53,10 +56,14 @@ cc_binary {
         "-Wall",
         "-Wextra",
     ],
+
+    init_rc: ["easelmanagerd.rc"],
 }
 
 cc_test {
     name: "easelmanager_client_example",
+    proprietary: true,
+    owner: "google",
 
     local_include_dirs: ["include"],
 
