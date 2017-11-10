@@ -1,9 +1,10 @@
 #define LOG_TAG "EaselExecutorServer"
 
+#include "CpuExecutor.h"
 #include "EaselExecutorServer.h"
 #include "Rpc.h"
 
-#include <android-base/logging.h>
+#include <log/log.h>
 
 namespace paintbox_nn {
 
@@ -32,7 +33,7 @@ void EaselExecutorServer::start() {
 
 void EaselExecutorServer::handlePrepareModel(
     const EaselComm2::Message& message) {
-  LOG(INFO) << "received PrepareModel";
+  ALOGI("received PrepareModel");
 
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
@@ -43,8 +44,8 @@ void EaselExecutorServer::handlePrepareModel(
     CHECK(mModel.pools.empty());
     CHECK(!mExecutorThread.joinable());
     CHECK(message.toProto(&mModel.model));
-    LOG(INFO) << "PrepareModel done. model size " << mModel.model.ByteSize()
-              << " pool size " << mModel.model.poolsizes().size();
+    ALOGI("PrepareModel done. model size %d pool size %d",
+          mModel.model.ByteSize(), mModel.model.poolsizes().size());
     mState = State::MODEL_RECEIVED;
     // If model does not have pools, set to fully received state right away.
     if (mModel.model.poolsizes().empty()) {
@@ -86,7 +87,7 @@ void EaselExecutorServer::modelFullyReceived() {
 }
 
 void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
-  LOG(INFO) << "received Execute";
+  ALOGI("received Execute");
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
   if (!message.hasPayload()) {
@@ -95,8 +96,8 @@ void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
 
     RequestPair pair;
     CHECK(message.toProto(&pair.request));
-    LOG(INFO) << "request size " << pair.request.ByteSize() << " pool size "
-              << pair.request.poolsizes().size();
+    ALOGI("request size %d pool size %d", pair.request.ByteSize(),
+          pair.request.poolsizes().size());
     CHECK(pair.pools.empty());
     pair.pools.resize(pair.request.poolsizes().size());
     mRequests.emplace(pair);
@@ -142,6 +143,18 @@ void EaselExecutorServer::requestFullyReceived() {
   mRequestAvailable.notify_one();
 }
 
+namespace {
+void setRunTimePoolInfosFromHardwareBuffer(
+    std::vector<android::nn::RunTimePoolInfo>* poolInfos,
+    std::vector<EaselComm2::HardwareBuffer>* pools) {
+  poolInfos->resize(pools->size());
+  for (size_t i = 0; i < pools->size(); i++) {
+    auto& poolInfo = (*poolInfos)[i];
+    poolInfo.buffer = static_cast<uint8_t*>((*pools)[i].vaddr());
+  }
+}
+}  // namespace
+
 void EaselExecutorServer::executeRunThread() {
   std::unique_lock<std::mutex> lock(mExecutorLock);
   while (true) {
@@ -149,7 +162,7 @@ void EaselExecutorServer::executeRunThread() {
       return !mRequests.empty() || mState == State::MODEL_DESTROYING;
     });
     if (mState == State::MODEL_DESTROYING) {
-      LOG(INFO) << "Model about to be destroyed, finishing executor thread.";
+      ALOGI("Model about to be destroyed, finishing executor thread.");
       while (!mRequests.empty()) {
         mRequests.pop();
       }
@@ -166,17 +179,31 @@ void EaselExecutorServer::executeRunThread() {
       }
     }
 
-    // TODO(cjluo): implement this thread function
+    std::vector<android::nn::RunTimePoolInfo> modelPoolInfos;
+    setRunTimePoolInfosFromHardwareBuffer(&modelPoolInfos, &(mModel.pools));
 
-    std::vector<EaselComm2::HardwareBuffer> hardwareBuffers;
-    // Send output pools back to client.
-    for (int outputIndex : pair.request.outputpools()) {
-      pair.pools[outputIndex].setId(outputIndex);
-      hardwareBuffers.push_back(pair.pools[outputIndex]);
+    std::vector<android::nn::RunTimePoolInfo> requestPoolInfos;
+    setRunTimePoolInfosFromHardwareBuffer(&requestPoolInfos, &(pair.pools));
+
+    android::nn::CpuExecutor executor;
+    int n = executor.run(mModel.model, pair.request, modelPoolInfos,
+                         requestPoolInfos);
+    ALOGI("executor.run returned %d", n);
+    ErrorStatus executionStatus =
+        n == ANEURALNETWORKS_NO_ERROR ? NONE : GENERAL_FAILURE;
+
+    if (executionStatus == ErrorStatus::NONE) {
+      std::vector<EaselComm2::HardwareBuffer> hardwareBuffers;
+      // Send output pools back to client.
+      for (int outputIndex : pair.request.outputpools()) {
+        pair.pools[outputIndex].setId(outputIndex);
+        hardwareBuffers.push_back(pair.pools[outputIndex]);
+      }
+      mComm->send(EXECUTE, hardwareBuffers);
     }
-    mComm->send(EXECUTE, hardwareBuffers);
+
     RequestResponse response;
-    response.set_error(NONE);
+    response.set_error(executionStatus);
     mComm->send(EXECUTE, response);
 
     // Release allocated resource
@@ -185,7 +212,7 @@ void EaselExecutorServer::executeRunThread() {
 }
 
 void EaselExecutorServer::handleDestroyModel(const EaselComm2::Message&) {
-  LOG(INFO) << "received DestoryModel";
+  ALOGI("received DestoryModel");
 
   {
     std::lock_guard<std::mutex> lock(mExecutorLock);

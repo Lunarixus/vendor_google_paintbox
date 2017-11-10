@@ -9,8 +9,9 @@ cc_binary {
         "EaselExecutorServer.cpp",
         "main.cpp",
     ],
-    cflags: ["-Wall", "-Werror"],
+    cflags: ["-Wall", "-Werror", "-Wextra"],
     static_libs: [
+        "paintbox_nn_common",
         "paintbox_nn_shared",
     ],
     shared_libs: [
@@ -18,5 +19,8 @@ cc_binary {
         "libeaselcomm",
         "liblog",
         "libprotobuf-cpp-lite",
+    ],
+    header_libs: [
+        "libneuralnetworks_headers",
     ],
 }
