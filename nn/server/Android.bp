@@ -1,3 +1,7 @@
+subdirs = [
+    "common",
+]
+
 cc_binary {
     name: "nnserver",
     proprietary: true,

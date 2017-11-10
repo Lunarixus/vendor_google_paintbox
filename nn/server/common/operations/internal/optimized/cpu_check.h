@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
-#define ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#ifndef FRAMEWORKS_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_CPU_CHECK_
+#define FRAMEWORKS_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_CPU_CHECK_
 
-#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+// NEON_OR_PORTABLE(SomeFunc, arcs) calls NeonSomeFunc(args) if NEON is
+// enabled at build time, or PortableSomeFunc(args) otherwise.
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+#define NEON_OR_PORTABLE(funcname, ...) Neon##funcname(__VA_ARGS__)
+#else
+#define NEON_OR_PORTABLE(funcname, ...) Portable##funcname(__VA_ARGS__)
+#endif
 
-using ::paintbox_nn::Model;
-using ::paintbox_nn::Operand;
-using ::paintbox_nn::OperandLifeTime;
-using ::paintbox_nn::OperandType;
-using ::paintbox_nn::Operation;
-using ::paintbox_nn::Request;
-using ::paintbox_nn::RequestArgument;
-
-#endif // ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#endif  // FRAMEWORKS_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_CPU_CHECK_

@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
-#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
 
 #include "gemmlowp.h"
 #include "../common.h"
 #include "../types.h"
 
-namespace paintbox_nn {
+namespace android {
+namespace nn {
 namespace optimized_ops {
 
 // Implementation of float DepthwiseConv
@@ -612,7 +613,8 @@ inline void DepthwiseConvInitAccBuffer(int num_output_pixels, int output_depth,
 template <FusedActivationFunctionType Ac>
 void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
                    const float* filter_data, const Dims<4>& filter_dims,
-                   const float* bias_data, const Dims<4>& bias_dims, int stride,
+                   const float* bias_data, const Dims<4>& bias_dims,
+                   int stride_width, int stride_height,
                    int pad_width, int pad_height, int depth_multiplier,
                    float* output_data, const Dims<4>& output_dims) {
   gemmlowp::ScopedProfilingLabel label("DepthwiseConv");
@@ -665,7 +667,7 @@ void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
   }
 #define TFMINI_USE_DEPTHWISECONV_KERNEL(ALLOW_STRIDED, FIXED_INPUT_DEPTH, \
                                         FIXED_DEPTH_MULTIPLIER)           \
-  if ((stride == 1 || ALLOW_STRIDED) &&                                   \
+  if ((stride_width == 1 || ALLOW_STRIDED) &&                             \
       fixed_input_depth == FIXED_INPUT_DEPTH &&                           \
       fixed_depth_multiplier == FIXED_DEPTH_MULTIPLIER) {                 \
     row_accum_func =                                                      \
@@ -689,7 +691,7 @@ void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
   float* output_ptr = output_data;
   for (int b = 0; b < batches; ++b) {
     for (int out_y = 0; out_y < output_height; ++out_y) {
-      const int in_y_origin = (out_y * stride) - pad_height;
+      const int in_y_origin = (out_y * stride_height) - pad_height;
       const int filter_y_start = std::max(0, -in_y_origin);
       const int filter_y_end =
           std::min(filter_height, input_height - in_y_origin);
@@ -709,7 +711,7 @@ void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
         for (int filter_y = filter_y_start; filter_y < filter_y_end;
              ++filter_y) {
           const int in_y = in_y_origin + filter_y;
-          row_accum_func(stride, input_depth, input_width,
+          row_accum_func(stride_width, input_depth, input_width,
                          input_data + in_y * input_dims.strides[2] +
                              b * input_dims.strides[3],
                          pad_width, depth_multiplier, filter_width,
@@ -780,7 +782,8 @@ void DepthwiseConv(const float* input_data, const Dims<4>& input_dims,
 }
 
 }  // namespace optimized_ops
-}  // namespace paintbox_nn
+}  // namespace nn
+}  // namespace android
 
 
-#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
+#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_OPTIMIZED_DEPTHWISECONV_FLOAT_H_
