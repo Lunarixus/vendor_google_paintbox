@@ -228,6 +228,10 @@ void ImxService::registerHandlers() {
         kUnlockDeviceBufferChannel,
         [this](const UnlockDeviceBufferRequest& r,
                const EaselComm2::Message& m) { unlockDeviceBuffer(r, m); });
+    registerHandler<ExecuteFinishJobRequest>(
+        kExecuteFinishJobChannel,
+        [this](const ExecuteFinishJobRequest& r,
+               const EaselComm2::Message&) { executeFinishJob(r); });
 }
 
 void ImxService::createDeviceBufferSimple(
@@ -334,6 +338,52 @@ void ImxService::unlockDeviceBuffer(
         std::lock_guard<std::mutex> lock(mClientLock);
         response.set_status(ConvertStatus(ImxUnlockDeviceBuffer(buffer_handle)));
         mClient->send(kUnlockDeviceBufferChannel, response);
+    }
+}
+
+void ImxService::executeFinishJob(const ExecuteFinishJobRequest& request) {
+    std::lock_guard<std::mutex> lock(mBufferMapLock);
+    ExecuteFinishJobResponse response;
+    ImxDeviceBufferHandle in_buffer_handle =
+        reinterpret_cast<ImxDeviceBufferHandle>(request.in_buffer_handle());
+    ImxDeviceBufferHandle out_buffer_handle =
+        reinterpret_cast<ImxDeviceBufferHandle>(request.out_buffer_handle());
+    int in_width = request.width();
+    int in_height = request.height();
+    response.set_width(in_width);
+    response.set_height(in_height);
+    using img_c_type = uint16_t; /* must correspond to IMX_UINT16 */
+    /* lookup vaddr for input buffer */
+    auto in_buffer_record_it = mBufferMap.find(in_buffer_handle);
+    if (in_buffer_record_it == mBufferMap.end()) {
+        ALOGE("%s: easel invalid input buffer.", __FUNCTION__);
+        sendFailure(kExecuteFinishJobChannel, &response);
+        return;
+    }
+    auto& in_buffer_record = in_buffer_record_it->second;
+    void *in_vaddr = in_buffer_record.vaddr;
+    img_c_type *in_image = (img_c_type *) in_vaddr;
+    /* lookup vaddr for output buffer */
+    auto out_buffer_record_it = mBufferMap.find(out_buffer_handle);
+    if (out_buffer_record_it == mBufferMap.end()) {
+        ALOGE("%s: easel invalid output buffer.", __FUNCTION__);
+        sendFailure(kExecuteFinishJobChannel, &response);
+        return;
+    }
+    auto& out_buffer_record = out_buffer_record_it->second;
+    void *out_vaddr = out_buffer_record.vaddr;
+    img_c_type *out_image = (img_c_type *) out_vaddr;
+    /* for now, just +1 from the input to the output buffer */
+    int x, y;
+    for (y = 0; y < in_height; ++y) {
+        for (x = 0; x < in_width; ++x) {
+            out_image[x + in_width * y] = in_image[x + in_width * y] + 1;
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(mClientLock);
+        response.set_status(::imx::IMX_SUCCESS);
+        mClient->send(kExecuteFinishJobChannel, response);
     }
 }
 

@@ -1192,6 +1192,17 @@ ImxError ImxExecuteJobAsyncWithTimeout(
 ImxError ImxExecuteJobWait(
     ImxJobHandle job /* modified */);
 
+/* Blocking call to execute the finish job, which is a mock-up for now.
+ * In a real job, this function should load IPU device configuration,
+ * starts the execution and waits for completion of the job.
+ * All late-bound configuration information (such as DRAM buffers for DMA
+ * transfers) must already be provided before invoking this function.
+ */
+ImxError ImxExecuteFinishJob(
+    ImxDeviceBufferHandle in_buffer_handle,
+    ImxDeviceBufferHandle out_buffer_handle /* modified */,
+    int in_width, int in_height, int *out_width, int *out_height);
+
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the MIPI flush to
  * complete.  If MIPI flush time exceeds timeout then IMX_TIMEOUT is returned.
  */

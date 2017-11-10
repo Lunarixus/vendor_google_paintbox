@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "GreyTestCommon.h"
+#include "FinishJobTest.h"
 
 namespace imx {
 
@@ -32,6 +33,19 @@ TEST(BasicTest, CopyGrey) {
     const int image_height = 19;
     ASSERT_EQ(grey_test(image_width, image_height, visa_string,
                         expected_image, expected_image), 0);
+}
+
+TEST(BasicTest, FinishJob) {
+  const int image_width = 4096;
+  const int image_height = 3072;
+  // Somewhat arbitrary test value.
+  // Uses both high and low bytes, but with different values in each.
+  const uint16_t test_value = 259;
+  auto input_image = [test_value](int, int) { return test_value; };
+  auto expected_image = [test_value](int, int) { return test_value + 1; };
+
+  ASSERT_EQ(finish_job_test(image_width, image_height,
+                            input_image, expected_image), 0);
 }
 
 }  // namespace imx

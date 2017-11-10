@@ -60,6 +60,14 @@ public:
         ImxDeviceBufferHandle buffer_handle, void** vaddr);
     ImxError unlockDeviceBuffer(ImxDeviceBufferHandle buffer_handle);
     ImxError executeJob(ImxJobHandle job_handle);
+    // Run (currently a mockup) finish job that takes as input an
+    // in_width x in_height image stored in the input buffer identified by
+    // in_buffer_handle. It produces an out_width x out_height image stored
+    // in the output buffer identified by out_buffer_handle
+    ImxError executeFinishJob(ImxDeviceBufferHandle in_buffer_handle,
+                              ImxDeviceBufferHandle out_buffer_handle,
+                              int in_width, int in_height,
+                              int* out_width, int* out_height);
 
 private:
     ImxError start();

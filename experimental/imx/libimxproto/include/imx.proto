@@ -293,3 +293,17 @@ message ExecuteJobRequest {
 message ExecuteJobResponse {
   optional ImxError status = 1;
 }
+
+// ImxExecuteFinishJob
+message ExecuteFinishJobRequest {
+  optional int64 in_buffer_handle = 1;
+  optional int64 out_buffer_handle = 2;
+  optional int32 width = 3;
+  optional int32 height = 4;
+}
+message ExecuteFinishJobResponse {
+  optional ImxError status = 1;
+  optional int32 width = 2;
+  optional int32 height = 3;
+}
+
