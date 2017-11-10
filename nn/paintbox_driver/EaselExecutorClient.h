@@ -1,26 +1,29 @@
 #ifndef PAINTBOX_EASEL_EXECUTOR_CLIENT_H
 #define PAINTBOX_EASEL_EXECUTOR_CLIENT_H
 
+#include <queue>
+
+#include "Conversion.h"
 #include "EaselComm2.h"
 #include "HalInterfaces.h"
 #include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
-
-#include <queue>
 
 namespace android {
 namespace nn {
 namespace paintbox_driver {
 
-// Model paired with related callback.
+// Model paired with related callback and bufferPools.
 struct ModelPair {
   const Model* model;
   std::function<void(const paintbox_nn::PrepareModelResponse&)> callback;
+  std::vector<paintbox_util::HardwareBufferPool> bufferPools;
 };
 
-// Request paired with related callback.
+// Request paired with related callback and bufferPools.
 struct RequestPair {
   const Request* request;
   std::function<void(const paintbox_nn::RequestResponse&)> callback;
+  std::vector<paintbox_util::HardwareBufferPool> bufferPools;
 };
 
 // Client of Easel executor.
@@ -64,6 +67,7 @@ class EaselExecutorClient {
   // State of EaselExecutor
   enum class State {
     INIT,        // Fresh start.
+    INITED,      // Finished initialization.
     PREPARING,   // Model sent to Easel.
     PREPARED,    // Easel finishes the model preparation, ready for execution.
     DESTROYING,  // Model is about to be destoryed on Easel.
