@@ -83,18 +83,6 @@ const Model& PaintboxPreparedModel::model() const {
     return mModel;
 }
 
-void PaintboxPreparedModel::asyncExecute(const Request& request,
-                                       const sp<IExecutionCallback>& callback) {
-    mClient->execute(request, [callback] (
-            const paintbox_nn::RequestResponse& response) {
-        ErrorStatus executionStatus = paintbox_util::convertProtoError(response.error());
-        Return<void> returned = callback->notify(executionStatus);
-        if (!returned.isOk()) {
-            LOG(ERROR) << " hidl callback failed to return properly: " << returned.description();
-        }
-    });
-}
-
 Return<ErrorStatus> PaintboxPreparedModel::execute(const Request& request,
                                                  const sp<IExecutionCallback>& callback) {
     VLOG(DRIVER) << "execute(" << toString(request) << ")";
@@ -107,7 +95,14 @@ Return<ErrorStatus> PaintboxPreparedModel::execute(const Request& request,
         return ErrorStatus::INVALID_ARGUMENT;
     }
 
-    asyncExecute(request, callback);
+    mClient->execute(request, [callback] (
+            const paintbox_nn::RequestResponse& response) {
+        ErrorStatus executionStatus = paintbox_util::convertProtoError(response.error());
+        Return<void> returned = callback->notify(executionStatus);
+        if (!returned.isOk()) {
+            LOG(ERROR) << " hidl callback failed to return properly: " << returned.description();
+        }
+    });
 
     return ErrorStatus::NONE;
 }

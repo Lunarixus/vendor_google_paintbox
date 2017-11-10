@@ -56,8 +56,6 @@ public:
     const Model& model() const;
 
 private:
-    void asyncExecute(const Request& request, const sp<IExecutionCallback>& callback);
-
     Model mModel;
     EaselExecutorClient* mClient;
 };
