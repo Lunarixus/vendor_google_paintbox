@@ -249,6 +249,24 @@ ImxError ImxClient::executeJob(ImxJobHandle job_handle) {
         imx::kExecuteJobChannel, request);
 }
 
+ImxError ImxClient::executeFinishJob(ImxDeviceBufferHandle in_buffer_handle,
+                                     ImxDeviceBufferHandle out_buffer_handle,
+                                     int in_width, int in_height,
+                                     int *out_width, int *out_height) {
+    imx::ExecuteFinishJobRequest request;
+    request.set_in_buffer_handle(reinterpret_cast<int64_t>(in_buffer_handle));
+    request.set_out_buffer_handle(reinterpret_cast<int64_t>(out_buffer_handle));
+    request.set_width(in_width);
+    request.set_height(in_height);
+    return sendAndWait<imx::ExecuteFinishJobResponse>(
+        imx::kExecuteFinishJobChannel, request,
+        [&] (const imx::ExecuteFinishJobResponse& response) {
+          *out_width = response.width();
+          *out_height = response.height();
+        }
+    );
+}
+
 ImxError ImxClient::start() {
     std::lock_guard<std::mutex> lock(mClientLock);
     mClient = EaselComm2::Comm::create(EaselComm2::Comm::Mode::CLIENT);

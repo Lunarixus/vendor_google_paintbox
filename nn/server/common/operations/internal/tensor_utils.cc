@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
-#define ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#include "tensor_utils.h"
 
-#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+#ifndef USE_NEON
+#if defined(__ARM_NEON__) || defined(__ARM_NEON)
+#define USE_NEON
+#endif  //  defined(__ARM_NEON__) || defined(__ARM_NEON)
+#endif  //  USE_NEON
 
-using ::paintbox_nn::Model;
-using ::paintbox_nn::Operand;
-using ::paintbox_nn::OperandLifeTime;
-using ::paintbox_nn::OperandType;
-using ::paintbox_nn::Operation;
-using ::paintbox_nn::Request;
-using ::paintbox_nn::RequestArgument;
-
-#endif // ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
+#ifdef USE_NEON
+#include "optimized/neon_tensor_utils.h"
+#else
+#include "reference/portable_tensor_utils.h"
+#endif  // USE_NEON

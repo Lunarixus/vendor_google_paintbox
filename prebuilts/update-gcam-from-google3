@@ -120,7 +120,7 @@ echo -e "\e[1;34m** Building libgcam library\e[00m"
 pushd ${GOOGLE3_PATH}
 
 # Generate PCG
-if [ ${FLAGS_generate_pcgs} = true ]; then
+if (( FLAGS_generate_pcgs )); then
   rm -rf ${TMP_PCG_FULL_PATH}
   GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
   if [ $? -ne 0 ]; then
@@ -130,7 +130,7 @@ if [ ${FLAGS_generate_pcgs} = true ]; then
 fi
 
 # Build libgcam
-if [ ${FLAGS_prod} = true ]; then
+if (( FLAGS_prod )); then
   prod=" --define prod=1 "
 fi
 blaze build $prod \
@@ -198,7 +198,7 @@ mkdir -p `dirname ${ANDROID_IMX_H_FULL_PATH}`
 cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 
 # Copy PCG
-if [ "${nopcg}" = false ]; then
+if (( FLAGS_generate_pcgs )); then
   mkdir -p `dirname ${ANDROID_PCG_FULL_PATH}`
   rm -f ${ANDROID_PCG_FULL_PATH}
   pushd ${TMP_PCG_FULL_PATH}

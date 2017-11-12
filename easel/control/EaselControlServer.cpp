@@ -368,7 +368,7 @@ int EaselControlServer::getLastEaselVsyncTimestamp(int64_t *timestamp) {
 
 EaselControlServer::ThermalCondition EaselControlServer::setClockMode(ClockMode mode)
 {
-    enum EaselThermalMonitor::Condition condition = thermalMonitor.getCondition();
+    enum EaselThermalMonitor::Condition condition = thermalMonitor.checkCondition();
     EaselClockControl::setMode((EaselClockControl::Mode)mode, condition);
     return (EaselControlServer::ThermalCondition)condition;
 }

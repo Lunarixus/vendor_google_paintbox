@@ -14,10 +14,17 @@ void convertHidlModel(const Model& inputModel, paintbox_nn::Model* outputModel);
 void convertHidlRequest(const Request& inputModel,
                         paintbox_nn::Request* outputRequest);
 
-// Converts HIDL memory to EaselComm2 hardware buffer.
+// The structure maintaining hardwarebuffer together with the mmapped memory
+// handle. memory needs to be keep alive during the time when mmapped virtual
+// address is needed.
+struct HardwareBufferPool {
+  EaselComm2::HardwareBuffer buffer;
+  android::sp<IMemory> memory;
+};
+
+// Converts HIDL memory to HardwareBufferPool.
 // Returns true if conversion is successful, otherwise false.
-bool mapPool(const hidl_memory& pool,
-             EaselComm2::HardwareBuffer* hardwareBuffer);
+bool mapPool(const hidl_memory& pool, HardwareBufferPool* bufferPool);
 
 // Converts the protobuffer error code to Android NN error code.
 ErrorStatus convertProtoError(paintbox_nn::ErrorStatus error);

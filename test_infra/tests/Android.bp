@@ -1,3 +1,4 @@
 subdirs = [
-	"EaselManager",
+    "EaselManager",
+    "NNDriver",
 ]

@@ -31,12 +31,6 @@ cc_library_static {
         "CpuExecutor.cpp",
         "OperationsUtils.cpp",
         "Utils.cpp",
-        "operations/Activation.cpp",
-        "operations/Concatenation.cpp",
-        "operations/Conv2D.cpp",
-        "operations/DepthwiseConv2D.cpp",
-        "operations/FullyConnected.cpp",
-        "operations/Pooling.cpp",
         "operations/SimpleMath.cpp",
     ],
     static_libs: [

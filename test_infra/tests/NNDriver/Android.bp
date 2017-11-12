@@ -1,0 +1,28 @@
+cc_test {
+    name: "NeuralNetworksOemTest",
+    srcs: [
+        "TestTrivialOem.cpp"
+    ],
+    shared_libs: [
+        "libandroid",
+        "libbase",
+        "libhidlbase",
+        "libhidltransport",
+        "libhidlmemory",
+        "liblog",
+        "libnativehelper",
+        "libneuralnetworks",
+        "libtextclassifier_hash",
+        "libutils",
+        "android.hardware.neuralnetworks@1.0",
+        "android.hidl.allocator@1.0",
+        "android.hidl.memory@1.0",
+    ],
+    static_libs: [
+        "libneuralnetworks_common",
+    ],
+    header_libs: [
+        "libneuralnetworks_private_headers",
+        "libneuralnetworks_generated_test_harness_headers",
+    ],
+}

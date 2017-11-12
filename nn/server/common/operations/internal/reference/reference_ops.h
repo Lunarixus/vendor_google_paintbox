@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
-#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -31,7 +31,8 @@
 #include "../common.h"
 #include "../types.h"
 
-namespace paintbox_nn {
+namespace android {
+namespace nn {
 namespace reference_ops {
 
 inline int32 MultiplyByQuantizedMultiplierSmallerThanOne(
@@ -158,8 +159,8 @@ inline void NdArrayDescsForElementwiseBroadcast(const Dims<N>& input0_dims,
 template <FusedActivationFunctionType Ac>
 void Conv(const float* input_data, const Dims<4>& input_dims,
           const float* filter_data, const Dims<4>& filter_dims,
-          const float* bias_data, const Dims<4>& bias_dims, int stride,
-          int pad_width, int pad_height, float* output_data,
+          const float* bias_data, const Dims<4>& bias_dims, int stride_width,
+          int stride_height, int pad_width, int pad_height, float* output_data,
           const Dims<4>& output_dims, float* im2col_data,
           const Dims<4>& im2col_dims) {
   (void)im2col_data;  // only used in optimized code.
@@ -180,8 +181,8 @@ void Conv(const float* input_data, const Dims<4>& input_dims,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           float total = 0.f;
           for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
             for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
@@ -218,8 +219,8 @@ template <FusedActivationFunctionType Ac>
 void Conv(const uint8* input_data, const Dims<4>& input_dims,
           int32 input_offset, const uint8* filter_data,
           const Dims<4>& filter_dims, int32 filter_offset,
-          const int32* bias_data, const Dims<4>& bias_dims, int stride,
-          int pad_width, int pad_height, int32 output_offset,
+          const int32* bias_data, const Dims<4>& bias_dims, int stride_width,
+          int stride_height, int pad_width, int pad_height, int32 output_offset,
           int32 output_multiplier, int output_shift,
           int32 output_activation_min, int32 output_activation_max,
           uint8* output_data, const Dims<4>& output_dims, uint8* im2col_data,
@@ -251,8 +252,8 @@ void Conv(const uint8* input_data, const Dims<4>& input_dims,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int out_channel = 0; out_channel < output_depth; ++out_channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           int32 acc = 0;
           for (int filter_y = 0; filter_y < filter_height; ++filter_y) {
             for (int filter_x = 0; filter_x < filter_width; ++filter_x) {
@@ -709,13 +710,25 @@ void Add(const float* input1_data, const Dims<4>& input1_dims,
   }
 }
 
+template <FusedActivationFunctionType Ac>
 inline void Add(int left_shift, const uint8* input1_data,
                 const Dims<4>& input1_dims, int32 input1_offset,
                 int32 input1_multiplier, int input1_shift,
                 const uint8* input2_data, const Dims<4>& input2_dims,
                 int32 input2_offset, int32 input2_multiplier, int input2_shift,
                 int32 output_offset, int32 output_multiplier, int output_shift,
+                int32 output_activation_min, int32 output_activation_max,
                 uint8* output_data, const Dims<4>& output_dims) {
+  static_assert(Ac == FusedActivationFunctionType::kNone ||
+                    Ac == FusedActivationFunctionType::kRelu ||
+                    Ac == FusedActivationFunctionType::kRelu6 ||
+                    Ac == FusedActivationFunctionType::kRelu1,
+                "");
+  DCHECK_LE(output_activation_min, output_activation_max);
+  if (Ac == FusedActivationFunctionType::kNone) {
+    DCHECK_EQ(output_activation_min, 0);
+    DCHECK_EQ(output_activation_max, 255);
+  }
   const int batches =
       MatchingArraySize(input1_dims, 3, input2_dims, 3, output_dims, 3);
   const int height =
@@ -745,7 +758,9 @@ inline void Add(int left_shift, const uint8* input1_data,
               MultiplyByQuantizedMultiplierSmallerThanOne(
                   raw_sum, output_multiplier, output_shift) +
               output_offset;
-          const int32 clamped_output = std::min(255, std::max(0, raw_output));
+          const int32 clamped_output =
+              std::min(output_activation_max,
+                       std::max(output_activation_min, raw_output));
           output_data[Offset(output_dims, c, x, y, b)] =
               static_cast<uint8>(clamped_output);
         }
@@ -792,6 +807,7 @@ void BroadcastAdd(const float* input1_data, const Dims<4>& input1_dims,
   }
 }
 
+template <FusedActivationFunctionType Ac>
 inline void BroadcastAdd(int left_shift, const uint8* input1_data,
                          const Dims<4>& input1_dims, int32 input1_offset,
                          int32 input1_multiplier, int input1_shift,
@@ -799,7 +815,19 @@ inline void BroadcastAdd(int left_shift, const uint8* input1_data,
                          int32 input2_offset, int32 input2_multiplier,
                          int input2_shift, int32 output_offset,
                          int32 output_multiplier, int output_shift,
-                         uint8* output_data, const Dims<4>& output_dims) {
+                         int32 output_activation_min,
+                         int32 output_activation_max, uint8* output_data,
+                         const Dims<4>& output_dims) {
+  static_assert(Ac == FusedActivationFunctionType::kNone ||
+                    Ac == FusedActivationFunctionType::kRelu ||
+                    Ac == FusedActivationFunctionType::kRelu6 ||
+                    Ac == FusedActivationFunctionType::kRelu1,
+                "");
+  DCHECK_LE(output_activation_min, output_activation_max);
+  if (Ac == FusedActivationFunctionType::kNone) {
+    DCHECK_EQ(output_activation_min, 0);
+    DCHECK_EQ(output_activation_max, 255);
+  }
   gemmlowp::ScopedProfilingLabel label("BroadcastAdd/8bit");
 
   NdArrayDesc<4> desc1;
@@ -838,8 +866,11 @@ inline void BroadcastAdd(int left_shift, const uint8* input1_data,
               MultiplyByQuantizedMultiplierSmallerThanOne(
                   raw_sum, output_multiplier, output_shift) +
               output_offset;
-          const int32 clamped_output = std::min(255, std::max(0, raw_output));
-          output_data[Offset(output_dims, c, x, y, b)] = clamped_output;
+          const int32 clamped_output =
+              std::min(output_activation_max,
+                       std::max(output_activation_min, raw_output));
+          output_data[Offset(output_dims, c, x, y, b)] =
+              static_cast<uint8>(clamped_output);
         }
       }
     }
@@ -909,12 +940,24 @@ void BroadcastMul(const float* input1_data, const Dims<4>& input1_dims,
   }
 }
 
+template <FusedActivationFunctionType Ac>
 inline void BroadcastMul(const uint8* input1_data, const Dims<4>& input1_dims,
                          int32 input1_offset, const uint8* input2_data,
                          const Dims<4>& input2_dims, int32 input2_offset,
-                         uint8* output_data, const Dims<4>& output_dims,
                          int32 output_offset, int32 output_multiplier,
-                         int output_shift) {
+                         int output_shift, int32 output_activation_min,
+                         int32 output_activation_max, uint8* output_data,
+                         const Dims<4>& output_dims) {
+  static_assert(Ac == FusedActivationFunctionType::kNone ||
+                    Ac == FusedActivationFunctionType::kRelu ||
+                    Ac == FusedActivationFunctionType::kRelu6 ||
+                    Ac == FusedActivationFunctionType::kRelu1,
+                "");
+  DCHECK_LE(output_activation_min, output_activation_max);
+  if (Ac == FusedActivationFunctionType::kNone) {
+    DCHECK_EQ(output_activation_min, 0);
+    DCHECK_EQ(output_activation_max, 255);
+  }
   gemmlowp::ScopedProfilingLabel label("BroadcastMul/8bit");
 
   NdArrayDesc<4> desc1;
@@ -944,8 +987,11 @@ inline void BroadcastMul(const uint8* input1_data, const Dims<4>& input1_dims,
               output_offset +
               MultiplyByQuantizedMultiplierSmallerThanOne(
                   input1_val * input2_val, output_multiplier, output_shift);
+          const int32 clamped_output =
+              std::min(output_activation_max,
+                       std::max(output_activation_min, unclamped_result));
           output_data[Offset(output_dims, c, x, y, b)] =
-              std::min(255, std::max(0, unclamped_result));
+              static_cast<uint8>(clamped_output);
         }
       }
     }
@@ -1153,7 +1199,8 @@ inline int NodeOffset(int b, int h, int w, int height, int width) {
 }
 
 template <FusedActivationFunctionType Ac>
-void AveragePool(const float* input_data, const Dims<4>& input_dims, int stride,
+void AveragePool(const float* input_data, const Dims<4>& input_dims,
+                 int stride_width, int stride_height,
                  int pad_width, int pad_height, int filter_width,
                  int filter_height, float* output_data,
                  const Dims<4>& output_dims) {
@@ -1167,8 +1214,8 @@ void AveragePool(const float* input_data, const Dims<4>& input_dims, int stride,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int channel = 0; channel < depth; ++channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           // Compute the boundaries of the filter region clamped so as to
           // ensure that the filter window fits in the input array.
           const int filter_x_start = std::max(0, -in_x_origin);
@@ -1200,7 +1247,8 @@ void AveragePool(const float* input_data, const Dims<4>& input_dims, int stride,
 }
 
 template <FusedActivationFunctionType Ac>
-void AveragePool(const uint8* input_data, const Dims<4>& input_dims, int stride,
+void AveragePool(const uint8* input_data, const Dims<4>& input_dims,
+                 int stride_width, int stride_height,
                  int pad_width, int pad_height, int filter_width,
                  int filter_height, int32 output_activation_min,
                  int32 output_activation_max, uint8* output_data,
@@ -1225,8 +1273,8 @@ void AveragePool(const uint8* input_data, const Dims<4>& input_dims, int stride,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int channel = 0; channel < depth; ++channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           // Compute the boundaries of the filter region clamped so as to
           // ensure that the filter window fits in the input array.
           const int filter_x_start = std::max(0, -in_x_origin);
@@ -1259,7 +1307,8 @@ void AveragePool(const uint8* input_data, const Dims<4>& input_dims, int stride,
 }
 
 template <FusedActivationFunctionType Ac>
-void L2Pool(const float* input_data, const Dims<4>& input_dims, int stride,
+void L2Pool(const float* input_data, const Dims<4>& input_dims,
+            int stride_width, int stride_height,
             int pad_width, int pad_height, int filter_width, int filter_height,
             float* output_data, const Dims<4>& output_dims) {
   const int batches = MatchingArraySize(input_dims, 3, output_dims, 3);
@@ -1272,8 +1321,8 @@ void L2Pool(const float* input_data, const Dims<4>& input_dims, int stride,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int channel = 0; channel < depth; ++channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           // Compute the boundaries of the filter region clamped so as to
           // ensure that the filter window fits in the input array.
           const int filter_x_start = std::max(0, -in_x_origin);
@@ -1306,7 +1355,8 @@ void L2Pool(const float* input_data, const Dims<4>& input_dims, int stride,
 }
 
 template <FusedActivationFunctionType Ac>
-void MaxPool(const float* input_data, const Dims<4>& input_dims, int stride,
+void MaxPool(const float* input_data, const Dims<4>& input_dims,
+             int stride_width, int stride_height,
              int pad_width, int pad_height, int filter_width, int filter_height,
              float* output_data, const Dims<4>& output_dims) {
   const int batches = MatchingArraySize(input_dims, 3, output_dims, 3);
@@ -1319,8 +1369,8 @@ void MaxPool(const float* input_data, const Dims<4>& input_dims, int stride,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int channel = 0; channel < depth; ++channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           // Compute the boundaries of the filter region clamped so as to
           // ensure that the filter window fits in the input array.
           const int filter_x_start = std::max(0, -in_x_origin);
@@ -1350,7 +1400,8 @@ void MaxPool(const float* input_data, const Dims<4>& input_dims, int stride,
 }
 
 template <FusedActivationFunctionType Ac>
-void MaxPool(const uint8* input_data, const Dims<4>& input_dims, int stride,
+void MaxPool(const uint8* input_data, const Dims<4>& input_dims,
+             int stride_width, int stride_height,
              int pad_width, int pad_height, int filter_width, int filter_height,
              int32 output_activation_min, int32 output_activation_max,
              uint8* output_data, const Dims<4>& output_dims) {
@@ -1376,8 +1427,8 @@ void MaxPool(const uint8* input_data, const Dims<4>& input_dims, int stride,
     for (int out_y = 0; out_y < output_height; ++out_y) {
       for (int out_x = 0; out_x < output_width; ++out_x) {
         for (int channel = 0; channel < depth; ++channel) {
-          const int in_x_origin = (out_x * stride) - pad_width;
-          const int in_y_origin = (out_y * stride) - pad_height;
+          const int in_x_origin = (out_x * stride_width) - pad_width;
+          const int in_y_origin = (out_y * stride_height) - pad_height;
           // Compute the boundaries of the filter region clamped so as to
           // ensure that the filter window fits in the input array.
           const int filter_x_start = std::max(0, -in_x_origin);
@@ -1844,6 +1895,7 @@ inline void ResizeBilinear(const float* input_data, const Dims<4>& input_dims,
 }
 
 }  // end namespace reference_ops
-}  // namespace paintbox_nn
+}  // namespace nn
+}  // namespace android
 
-#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
+#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_REFERENCE_REFERENCE_OPS_H_

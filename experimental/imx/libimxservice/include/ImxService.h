@@ -29,6 +29,7 @@ private:
     void unlockDeviceBuffer(
         const UnlockDeviceBufferRequest& request,
         const EaselComm2::Message& message);
+    void executeFinishJob(const ExecuteFinishJobRequest& request);
 
     void registerHandlers();
 

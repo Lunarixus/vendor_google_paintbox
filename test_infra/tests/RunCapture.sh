@@ -3,18 +3,52 @@
 usage() {
 cat << EOF
   Usage:
-  $0 [--loop {loop}] [--shot {shot}] [--interval {interval}] [--eng]
+  $0 [-s|--serial {serial_no}] [--loop {loop}] [--shot {shot}] [--interval {interval}] [--eng] [--ignore-photo-count]
+    -s|--serial             Set Android device serial number
     --loop      {loop}      How many loops to test
     --shot      {shot}      Shots per loop
     --interval  {interval}  intervals between shot in second
     --eng                   Use Eng build Google Camera App
+    --ignore-photo-count    Does not check number of jpeg files after each shot
 EOF
+}
+
+func_set_device_serial() {
+  export ANDROID_SERIAL="$1"
+  echo "Use serial number ${ANDROID_SERIAL}"
+}
+
+func_count_photo() {
+  adb shell find /sdcard/DCIM/Camera /sdcard/Pictures -name "*.jpg" | wc -l
+}
+
+func_quit_test() {
+  if [[ $1 -ne 0 ]]; then
+    local screenshot_filename=screenshot-`date +%F-%H-%M-%S`.png
+    echo "Saving ${screenshot_filename}"
+    adb shell screencap -p > ${screenshot_filename}
+    echo "Taking bugreport before exit..."
+    adb bugreport
+  fi
+
+  echo "There are $( func_count_photo ) photos."
+
+  echo "closing camera..."
+  adb shell am force-stop ${package_name}
+  sleep 1
+
+  echo "Lock device orientation to portrait"
+  adb shell settings put system user_rotation 0
+  exit $1
 }
 
 loop="1"
 shot="5"
 interval="4"
 package_name="com.google.android.GoogleCamera"
+num_old_photos="-1"
+num_new_photos="0"
+ignore_photo_count=false
 
 while [ $# -gt 0 ]; do
   arg="$1"
@@ -23,6 +57,11 @@ while [ $# -gt 0 ]; do
     "-h")
       usage
       exit 0
+      ;;
+    "-s" | "--serial")
+      arg="$1"
+      shift
+      func_set_device_serial $arg
       ;;
     "--loop")
       arg="$1"
@@ -42,6 +81,9 @@ while [ $# -gt 0 ]; do
     "--eng")
       package_name="com.google.android.GoogleCameraEng"
       ;;
+    "--ignore-photo-count")
+      ignore_photo_count=true
+      ;;
     *)
       usage
       exit 0
@@ -56,6 +98,9 @@ echo
 
 model="$(adb shell getprop ro.product.model)"
 echo "This is a $model device"
+
+# Delete old photos
+# adb shell "rm /sdcard/DCIM/Camera/*.jpg"
 
 # Prepare the device for the test
 adb root
@@ -84,6 +129,7 @@ sleep 2
 adb logcat -c
 
 echo "Loop camera open test for $loop times"
+echo "There are $( func_count_photo ) photos."
 
 c=1
 while [ $c -le $loop ]
@@ -98,7 +144,7 @@ if [[ $errorMsg == *"error"* ]]
   then
   echo "${red}Test failed!!!!!!!!!${reset}"
   adb bugreport
-  exit
+  exit 1
 fi
 
 # launch GoogleCamera app:
@@ -113,8 +159,16 @@ echo "take picture..."
 
 for i in `seq 1 $shot`;
 do
+  num_old_photos=$( func_count_photo )
   adb shell input keyevent 27
   sleep $interval
+  num_new_photos=$( func_count_photo )
+
+  if [[ $num_new_photos -le $num_old_photos ]] && [[ "$ignore_photo_count" = false ]]; then
+    echo "Not seeing new photos: old=$num_old_photos, new=$num_new_photos."
+    echo "Abort test."
+    func_quit_test 1
+  fi
 done
 
 
@@ -134,8 +188,16 @@ sleep 2
 echo "take picture..."
 for i in `seq 1 $shot`;
 do
+  num_old_photos=$( func_count_photo )
   adb shell input keyevent 27
   sleep $interval
+  num_new_photos=$( func_count_photo )
+
+  if [[ $num_new_photos -le $num_old_photos ]] && [[ "$ignore_photo_count" = false ]]; then
+    echo "Not seeing new photos: old=$num_old_photos, new=$num_new_photos."
+    echo "Abort test."
+    func_quit_test 1
+  fi
 done
 
 # Switch back camera recording
@@ -150,10 +212,7 @@ if [[ $model == *"taimen"* ]]
 fi
 sleep 2
 
-# exit GoogleCamera app
-echo "close camera..."
-adb shell am force-stop ${package_name}
-sleep 1
-
 ((c++))
 done
+
+func_quit_test 0

@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_
-#define PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_
+#ifndef ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_
+#define ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_
 
 #include "compatibility.h"
 
-namespace paintbox_nn {
+namespace android {
+namespace nn {
 
 enum class FusedActivationFunctionType { kNone, kRelu6, kRelu1, kRelu };
 
@@ -104,6 +105,7 @@ bool IsPackedWithoutStrides(const Dims<N>& dims) {
   return true;
 }
 
-}  // namespace paintbox_nn
+}  // namespace nn
+}  // namespace android
 
-#endif  // PAINTBOX_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_
+#endif  // ANDROID_ML_NN_COMMON_OPERATIONS_INTERNAL_TYPES_H_

@@ -160,7 +160,7 @@ void convertHidlRequest(const Request& inputRequest,
 // Ashmem hidl_memory will be unmapped in destructor.
 // TODO(cjluo): consider unmmap flow for mmap_fd type.
 bool mapPool(const hidl_memory& hidlMemory,
-             EaselComm2::HardwareBuffer* hardwareBuffer) {
+             HardwareBufferPool* bufferPool) {
   auto memType = hidlMemory.name();
   if (memType == "ashmem") {
     sp<IMemory> memory;
@@ -176,7 +176,8 @@ bool mapPool(const hidl_memory& hidlMemory,
       LOG(ERROR) << "Can't access shared memory.";
       return false;
     }
-    *hardwareBuffer = EaselComm2::HardwareBuffer(buffer, memory->getSize());
+    bufferPool->buffer = EaselComm2::HardwareBuffer(buffer, memory->getSize());
+    bufferPool->memory = memory;
     return true;
   } else if (memType == "mmap_fd") {
     size_t size = hidlMemory.size();
@@ -190,7 +191,8 @@ bool mapPool(const hidl_memory& hidlMemory,
       LOG(ERROR) << "Can't mmap the file descriptor.";
       return false;
     }
-    *hardwareBuffer = EaselComm2::HardwareBuffer(buffer, size);
+    bufferPool->buffer = EaselComm2::HardwareBuffer(buffer, size);
+    bufferPool->memory = nullptr;
   } else {
     LOG(ERROR) << "unsupported hidl_memory type";
     return false;

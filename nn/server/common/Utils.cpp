@@ -21,73 +21,70 @@
 
 #include <android-base/logging.h>
 
-namespace paintbox_nn {
+namespace android {
+namespace nn {
 
-const char* kOperationNames[ANEURALNETWORKS_NUMBER_OPERATION_TYPES] = {
-        "AVERAGE_POOL",
-        "CONCATENATION",
-        "CONV",
-        "DEPTHWISE_CONV",
-        "MAX_POOL",
-        "L2_POOL",
-        "DEPTH_TO_SPACE",
-        "SPACE_TO_DEPTH",
-        "LOCAL_RESPONSE_NORMALIZATION",
-        "SOFTMAX",
-        "RESHAPE",
-        "SPLIT",
-        "FAKE_QUANT",
-        "ADD",
-        "FULLY_CONNECTED",
-        "CAST",
-        "MUL",
-        "L2_NORMALIZATION",
-        "LOGISTIC",
-        "RELU",
-        "RELU6",
-        "RELU1",
-        "TANH",
-        "DEQUANTIZE",
-        "FLOOR",
-        "GATHER",
-        "RESIZE_BILINEAR",
-        "LSH_PROJECTION",
-        "LSTM",
-        "SVDF",
-        "RNN",
-        "N_GRAM",
-        "LOOKUP",
-};
+namespace {
 
-const char* getOperationName(OperationType type) {
-    uint32_t n = static_cast<uint32_t>(type);
-    nnAssert(n < ANEURALNETWORKS_NUMBER_OPERATION_TYPES);
-    return kOperationNames[n];
+template <typename EntryType, uint32_t entryCount, uint32_t entryCountOEM>
+EntryType tableLookup(const EntryType (&table)[entryCount],
+                      const EntryType (&tableOEM)[entryCountOEM],
+                      uint32_t code) {
+    if (code < entryCount) {
+        return table[code];
+    } else if (code >= kOEMCodeBase && (code - kOEMCodeBase) < entryCountOEM) {
+        return tableOEM[code - kOEMCodeBase];
+    } else {
+        nnAssert(!"tableLookup: bad code");
+        return EntryType();
+    }
 }
 
-const uint32_t kSizeOfDataType[ANEURALNETWORKS_NUMBER_DATA_TYPES]{
-        2, // ANEURALNETWORKS_FLOAT16
+};  // anonymous namespace
+
+const uint32_t kSizeOfDataType[]{
         4, // ANEURALNETWORKS_FLOAT32
-        1, // ANEURALNETWORKS_INT8
-        1, // ANEURALNETWORKS_UINT8
-        2, // ANEURALNETWORKS_INT16
-        2, // ANEURALNETWORKS_UINT16
         4, // ANEURALNETWORKS_INT32
         4, // ANEURALNETWORKS_UINT32
-        2, // ANEURALNETWORKS_TENSOR_FLOAT16
         4, // ANEURALNETWORKS_TENSOR_FLOAT32
-        1  // ANEURALNETWORKS_TENSOR_SIMMETRICAL_QUANT8
+        4, // ANEURALNETWORKS_TENSOR_INT32
+        1  // ANEURALNETWORKS_TENSOR_SYMMETRICAL_QUANT8
 };
+
+const bool kScalarDataType[]{
+        true,  // ANEURALNETWORKS_FLOAT32
+        true,  // ANEURALNETWORKS_INT32
+        true,  // ANEURALNETWORKS_UINT32
+        false, // ANEURALNETWORKS_TENSOR_FLOAT32
+        false, // ANEURALNETWORKS_TENSOR_INT32
+        false, // ANEURALNETWORKS_TENSOR_SYMMETRICAL_QUANT8
+};
+
+const uint32_t kSizeOfDataTypeOEM[]{
+        0, // ANEURALNETWORKS_OEM
+        1, // ANEURALNETWORKS_TENSOR_OEM_BYTE
+};
+
+const bool kScalarDataTypeOEM[]{
+        true,  // ANEURALNETWORKS_OEM
+        false, // ANEURALNETWORKS_TENSOR_OEM_BYTE
+};
+
 
 uint32_t sizeOfData(OperandType type, const std::vector<uint32_t>& dimensions) {
     int n = static_cast<int>(type);
-    nnAssert(n < ANEURALNETWORKS_NUMBER_DATA_TYPES);
 
-    uint32_t size = kSizeOfDataType[n];
+    uint32_t size = tableLookup(kSizeOfDataType, kSizeOfDataTypeOEM, n);
+
+    if (tableLookup(kScalarDataType, kScalarDataTypeOEM, n) == true) {
+        return size;
+    }
+
     for (auto d : dimensions) {
         size *= d;
     }
     return size;
 }
 
-} // namespace paintbox_nn
+} // namespace nn
+} // namespace android

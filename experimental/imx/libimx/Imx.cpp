@@ -68,3 +68,13 @@ ImxError ImxUnlockDeviceBuffer(ImxDeviceBufferHandle buffer_handle) {
 ImxError ImxExecuteJob(ImxJobHandle job_handle) {
     return gImxClient->executeJob(job_handle);
 }
+
+ImxError ImxExecuteFinishJob(ImxDeviceBufferHandle in_buffer_handle,
+                             ImxDeviceBufferHandle out_buffer_handle,
+                             int in_width, int in_height,
+                             int* out_width, int* out_height) {
+  return gImxClient->executeFinishJob(in_buffer_handle, out_buffer_handle,
+                                      in_width, in_height,
+                                      out_width, out_height);
+}
+

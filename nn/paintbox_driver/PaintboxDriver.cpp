@@ -47,8 +47,10 @@ Return<ErrorStatus> PaintboxDriver::prepareModel(const Model& model,
 
     CHECK_EQ(mClient.initialize(), 0);
 
-    sp<PaintboxPreparedModel> preparedModel = new PaintboxPreparedModel(model, &mClient);
-    mClient.prepareModel(model, [callback, preparedModel] (
+    PaintboxPreparedModel* preparedModel = new PaintboxPreparedModel(model, &mClient);
+
+    // Use the model copy of the prepared model, because it is preserved.
+    mClient.prepareModel(preparedModel->model(), [callback, preparedModel] (
             const paintbox_nn::PrepareModelResponse& response) {
         callback->notify(
                 paintbox_util::convertProtoError(response.error()), preparedModel);
@@ -75,6 +77,10 @@ int PaintboxDriver::run() {
 
 PaintboxPreparedModel::~PaintboxPreparedModel() {
     mClient->destroyModel(mModel);
+}
+
+const Model& PaintboxPreparedModel::model() const {
+    return mModel;
 }
 
 void PaintboxPreparedModel::asyncExecute(const Request& request,
