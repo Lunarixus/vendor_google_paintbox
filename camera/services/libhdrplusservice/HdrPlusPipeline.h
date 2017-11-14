@@ -185,6 +185,9 @@ private:
     status_t createStreamsLocked(const InputConfiguration &inputConfig,
             const std::vector<StreamConfiguration> &outputConfigs);
 
+    // Create mock capture when input buffer is from the client.
+    status_t createMockCapture();
+
     // Create blocks and stream routes with mApiLock held.
     status_t createBlocksAndStreamRouteLocked(const SensorMode *sensorMode);
 
@@ -251,6 +254,9 @@ private:
 
     // IMX memory allocate handle to allocate IMX buffers.
     ImxMemoryAllocatorHandle mImxMemoryAllocatorHandle;
+
+    // IMX IPU Device (mock device to setup easel side when data is from client)
+    ImxDeviceHandle mImxIpuDevice;
 
     // Whether or not profiling is enabled.
     bool mProfilingEnabled;

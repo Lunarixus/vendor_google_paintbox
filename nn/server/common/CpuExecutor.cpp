@@ -21,6 +21,7 @@
 #include "NeuralNetworks.h"
 #include "Operations.h"
 
+#include "log/log.h"
 #include <sys/mman.h>
 
 namespace android {
@@ -34,12 +35,12 @@ static bool setInfoAndAllocateIfNeeded(RunTimeOperandInfo* info, const Shape& sh
     if (info->lifetime == OperandLifeTime::MODEL_OUTPUT) {
         if (info->type != shape.type ||
             info->dimensions != shape.dimensions) {
-            LOG(ERROR) << "Invalid type or dimensions for model output";
+            ALOGE("Invalid type or dimensions for model output");
             return false;
         }
         if (info->type == OperandType::TENSOR_QUANT8_ASYMM &&
             (info->scale != shape.scale || info->zeroPoint != shape.offset)) {
-            LOG(ERROR) << "Invalid scale or zeroPoint for model output";
+            ALOGE("Invalid scale or zeroPoint for model output");
             return false;
         }
     }
@@ -62,7 +63,7 @@ static bool setInfoAndAllocateIfNeeded(RunTimeOperandInfo* info, const Shape& sh
 int CpuExecutor::run(const Model& model, const Request& request,
                      const std::vector<RunTimePoolInfo>& modelPoolInfos,
                      const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    LOG(DEBUG) << "CpuExecutor::run()";
+    ALOGI("CpuExecutor::run()");
 
     mModel = &model;
     mRequest = &request; // TODO check if mRequest is needed
@@ -77,13 +78,13 @@ int CpuExecutor::run(const Model& model, const Request& request,
 
     mModel = nullptr;
     mRequest = nullptr;
-    LOG(DEBUG) << "Completed run normally";
+    ALOGI("Completed run normally");
     return ANEURALNETWORKS_NO_ERROR;
 }
 
 bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& modelPoolInfos,
                                         const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    LOG(DEBUG) << "CpuExecutor::initializeRunTimeInfo";
+    ALOGI("CpuExecutor::initializeRunTimeInfo");
     const size_t count = mModel->operands().size();
     mOperands.resize(count);
 
@@ -154,8 +155,12 @@ bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& mode
             }
         }
     };
-    updateForArguments({mModel->inputindexes().begin(), mModel->inputindexes().begin()}, {mRequest->inputs().begin(), mRequest->inputs().end()});
-    updateForArguments({mModel->outputindexes().begin(), mModel->outputindexes().end()}, {mRequest->outputs().begin(), mRequest->outputs().end()});
+    updateForArguments(
+            {mModel->inputindexes().begin(), mModel->inputindexes().end()},
+            {mRequest->inputs().begin(), mRequest->inputs().end()});
+    updateForArguments(
+            {mModel->outputindexes().begin(), mModel->outputindexes().end()},
+            {mRequest->outputs().begin(), mRequest->outputs().end()});
 
     return true;
 }
@@ -176,12 +181,7 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
     }
 }
 
-namespace {
-
-}  // namespace
-
 int CpuExecutor::executeOperation(const Operation& operation) {
-    // LOG(DEBUG) << "CpuExecutor::executeOperation(" << toString(operation) << ")";
     const std::vector<uint32_t>& ins = {operation.inputs().begin(), operation.inputs().end()};
     const std::vector<uint32_t>& outs = {operation.outputs().begin(), operation.outputs().end()};
     bool success = false;
@@ -247,7 +247,7 @@ int CpuExecutor::executeOperation(const Operation& operation) {
     }
 
     if (!success) {
-        LOG(ERROR) << "OEM_OPERATION failed.";
+        ALOGE("OEM_OPERATION failed.");
         return ANEURALNETWORKS_OP_FAILED;
     }
 

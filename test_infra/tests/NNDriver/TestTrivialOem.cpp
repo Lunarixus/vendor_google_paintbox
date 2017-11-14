@@ -118,8 +118,7 @@ TEST_F(TrivialOEMTest, SingleOEMOperationTest) {
     ASSERT_EQ(execution.setOutput(0, actual, sizeof(Matrix3x4)), Result::NO_ERROR);
 
     ASSERT_EQ(execution.compute(), Result::NO_ERROR);
-    // TODO(cjluo): enable the result check.
-    // ASSERT_EQ(CompareMatrices(expected2, actual), 0);
+    ASSERT_EQ(CompareMatrices(expected2, actual), 0);
 }
 
 }  // end namespace

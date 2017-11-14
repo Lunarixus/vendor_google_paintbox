@@ -158,6 +158,10 @@ const bool kIgnoreContinuousCapturing = true;
 }  // namespace
 
 void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
+    // For input buffers coming from the client via notifyDmaInputBuffer(), there is nothing to do
+    // here.
+    if (!mIsMipiInput) return;
+
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
 
     if (kIgnoreContinuousCapturing) {
@@ -210,6 +214,10 @@ void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
 }
 
 void SourceCaptureBlock::notifyIpuProcessingDone() {
+    // For input buffers coming from the client via notifyDmaInputBuffer(), there is nothing to do
+    // here.
+    if (!mIsMipiInput) return;
+
     int32_t frameCounterId = kInvalidFrameCounterId;
     {
         std::unique_lock<std::mutex> lock(mFrameCounterLock);
