@@ -49,6 +49,7 @@ HdrPlusPipeline::HdrPlusPipeline(std::shared_ptr<MessengerToHdrPlusClient> messe
         mMessengerToClient(messengerToClient),
         mState(STATE_UNCONFIGURED),
         mImxMemoryAllocatorHandle(nullptr),
+        mImxIpuDevice(nullptr),
         mProfilingEnabled(false) {
 }
 
@@ -302,8 +303,19 @@ void HdrPlusPipeline::destroyLocked() {
     mCaptureResultBlock = nullptr;
 
     if (mImxMemoryAllocatorHandle != nullptr) {
-        ImxDeleteMemoryAllocator(mImxMemoryAllocatorHandle);
+        ImxError err = ImxDeleteMemoryAllocator(mImxMemoryAllocatorHandle);
+        if (err != IMX_SUCCESS) {
+            ALOGE("%s: Deleting ImxMemoryAllocator failed.", __FUNCTION__);
+        }
         mImxMemoryAllocatorHandle = nullptr;
+    }
+
+    if (mImxIpuDevice != nullptr) {
+        ImxError err = ImxDeleteDevice(mImxIpuDevice);
+        if (err != IMX_SUCCESS) {
+            ALOGE("%s: Deleting ImxIPUDevice failed.", __FUNCTION__);
+        }
+        mImxIpuDevice = nullptr;
     }
 
     mState = STATE_UNCONFIGURED;
@@ -345,7 +357,38 @@ status_t HdrPlusPipeline::createStreamsLocked(const InputConfiguration &inputCon
     return 0;
 }
 
+status_t HdrPlusPipeline::createMockCapture(){
+    ImxDeviceDescription deviceDescriptor{};
+    deviceDescriptor.core_resource_description_mode = IMX_NO_RESOURCES_DESCRIPTION;
+    deviceDescriptor.io_resource_description_mode = IMX_SPECIFIC_RESOURCES_DESCRIPTION;
+    const int kFrontCameraStreamId = 4;
+    const int kBackCameraStreamId = 0;
+    const int mockCameraType = 1;
+    int mipiInStreamId = mockCameraType ? kBackCameraStreamId : kFrontCameraStreamId;
+    int mipiInStreamCount = 1;
+    int * mipiOutStreams = nullptr;
+    int mipiOutStreamCount = 0;
+    deviceDescriptor.io_resource_description.specific_mipi_resources = {
+            &mipiInStreamId, mipiInStreamCount, mipiOutStreams, mipiOutStreamCount};
+    ImxError err = ImxGetDevice(&deviceDescriptor, &mImxIpuDevice);
+    if (err != IMX_SUCCESS) {
+        ALOGE("%s: Getting IMX device failed.", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    return 0;
+}
+
 status_t HdrPlusPipeline::createBlocksAndStreamRouteLocked(const SensorMode *sensorMode) {
+    // Create a mock version of capture service if data is from client side
+    if (sensorMode == nullptr) {
+        status_t res = createMockCapture();
+        if (res != 0) {
+            ALOGE("%s: Creating Mock Capture failed.", __FUNCTION__);
+            return -ENODEV;
+        }
+    }
+
     // Create an source capture block for capturing input streams.
     std::shared_ptr<SourceCaptureBlock> sourceCaptureBlock =
             SourceCaptureBlock::newSourceCaptureBlock(shared_from_this(), mMessengerToClient,
