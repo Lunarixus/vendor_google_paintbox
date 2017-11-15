@@ -24,5 +24,6 @@ cc_test {
     header_libs: [
         "libneuralnetworks_private_headers",
         "libneuralnetworks_generated_test_harness_headers",
+        "paintbox_nn_headers",
     ],
 }

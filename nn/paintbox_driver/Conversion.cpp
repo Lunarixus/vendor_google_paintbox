@@ -9,8 +9,8 @@
 
 namespace paintbox_util {
 
-using android::nn::getSizeFromInts;
 using android::sp;
+using android::nn::getSizeFromInts;
 
 namespace {
 
@@ -58,9 +58,25 @@ paintbox_nn::OperandLifeTime convertHidlOperandLifeTime(OperandLifeTime type) {
 
 }  // namespace
 
+paintbox_nn::OemModel getOemModel(const Model& model,
+                                  const Operation& operation) {
+  if (operation.type != OperationType::OEM_OPERATION) {
+    return paintbox_nn::OemModel::UNKNOWN_OEM_MDOEL;
+  }
+  CHECK(operation.inputs.size() >= 1);
+  const Operand& firstOperand = model.operands[operation.inputs[0]];
+  if (firstOperand.type != OperandType::INT32) {
+    return paintbox_nn::OemModel::UNKNOWN_OEM_MDOEL;
+  }
+  uint32_t offset = firstOperand.location.offset;
+  int32_t oemModel =
+      *(reinterpret_cast<const int32_t*>(model.operandValues.data() + offset));
+  return static_cast<paintbox_nn::OemModel>(oemModel);
+}
+
 void convertHidlModel(const Model& inputModel,
                       paintbox_nn::Model* outputModel) {
-  for (auto operand : inputModel.operands) {
+  for (auto& operand : inputModel.operands) {
     auto protoOperand = outputModel->add_operands();
     protoOperand->set_type(convertHidlOperandType(operand.type));
     for (auto dimension : operand.dimensions) {
@@ -80,13 +96,17 @@ void convertHidlModel(const Model& inputModel,
 
   for (auto operation : inputModel.operations) {
     auto protoOperation = outputModel->add_operations();
-    for (auto input : operation.inputs) {
-      protoOperation->add_inputs(input);
+    // i starts from 1 so we skip the oem model index in input.
+    for (size_t i = 1; i < operation.inputs.size(); i++) {
+      protoOperation->add_inputs(operation.inputs[i]);
     }
 
-    for (auto output : operation.outputs) {
-      protoOperation->add_outputs(output);
+    for (size_t i = 0; i < operation.outputs.size(); i++) {
+      protoOperation->add_outputs(operation.outputs[i]);
     }
+
+    protoOperation->set_oemmodel(
+        static_cast<int32_t>(getOemModel(inputModel, operation)));
   }
 
   for (auto inputIndex : inputModel.inputIndexes) {
@@ -159,8 +179,7 @@ void convertHidlRequest(const Request& inputRequest,
 // This function supports two hidl_memory types: ashmem and the mmap_fd.
 // Ashmem hidl_memory will be unmapped in destructor.
 // TODO(cjluo): consider unmmap flow for mmap_fd type.
-bool mapPool(const hidl_memory& hidlMemory,
-             HardwareBufferPool* bufferPool) {
+bool mapPool(const hidl_memory& hidlMemory, HardwareBufferPool* bufferPool) {
   auto memType = hidlMemory.name();
   if (memType == "ashmem") {
     sp<IMemory> memory;

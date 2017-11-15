@@ -18,6 +18,7 @@
 
 #include "PaintboxDriver.h"
 
+#include "Conversion.h"
 #include "HalInterfaces.h"
 #include "NeuralNetworksOEM.h"
 #include "Utils.h"
@@ -46,6 +47,8 @@ Return<void> PaintboxDriverOem::getCapabilities(getCapabilities_cb cb) {
     return Void();
 }
 
+// Paintbox Driver only supports OEM_OPERATION.
+// The first input operand must be OEM model type (index).
 Return<void> PaintboxDriverOem::getSupportedOperations(const Model& model,
                                                          getSupportedOperations_cb cb) {
     VLOG(DRIVER) << "getSupportedOperations()";
@@ -58,12 +61,16 @@ Return<void> PaintboxDriverOem::getSupportedOperations(const Model& model,
             const Operation& operation = model.operations[i];
             switch (operation.type) {
                 case OperationType::OEM_OPERATION: {
-                    const Operand& firstOperand = model.operands[operation.inputs[0]];
-                    if (firstOperand.type == OperandType::TENSOR_FLOAT32) {
-                        supported[i] = true;
+                        paintbox_nn::OemModel oemModel =
+                                paintbox_util::getOemModel(model, operation);
+                        switch (oemModel) {
+                            case paintbox_nn::OemModel::MATRIX_ADD:
+                                supported[i] = true;
+                                break;
+                            default: break;
+                        }
                     }
                     break;
-                }
                 default:
                     break;
             }

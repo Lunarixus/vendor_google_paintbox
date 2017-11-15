@@ -3,11 +3,18 @@
 
 #include "EaselComm2.h"
 #include "HalInterfaces.h"
+#include "OemModel.h"
 #include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
 
 namespace paintbox_util {
 
+// Gets the OemModel type from OEM operation.
+// Returns found OemModel, otherwise UNKNOWN_OEM_MDOEL.
+paintbox_nn::OemModel getOemModel(const Model& model,
+                                  const Operation& operation);
+
 // Converts HIDL Model to protobuffer Model type.
+// The OEM model type input will be ignored.
 void convertHidlModel(const Model& inputModel, paintbox_nn::Model* outputModel);
 
 // Converts HIDL Request to protobuffer Request type.

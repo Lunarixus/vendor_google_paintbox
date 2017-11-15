@@ -16,6 +16,7 @@
 
 cc_library_headers {
     name: "paintbox_nn_common_headers",
+    proprietary: true,
     host_supported: false,
     export_include_dirs: ["include"],
 }
@@ -23,16 +24,20 @@ cc_library_headers {
 cc_library_static {
     name: "paintbox_nn_common",
     defaults: ["neuralnetworks_defaults"],
+    proprietary: true,
     host_supported: false,
-    vendor_available: true,
     export_include_dirs: ["include"],
 
     srcs: [
         "CpuExecutor.cpp",
+        "oem/MatrixAddEngine.cpp",
+        "oem/OemOperationEngine.cpp",
+        "operations/SimpleMath.cpp",
         "OperationsUtils.cpp",
         "Utils.cpp",
-        "operations/SimpleMath.cpp",
     ],
+
+    local_include_dirs: ["oem"],
     static_libs: [
         "paintbox_nn_shared",
     ],
@@ -46,8 +51,8 @@ cc_library_static {
         "libgemmlowp",
         "libfixedpoint",
         "libeigen",
+        "paintbox_nn_headers",
     ],
-
 
     cflags: [
         "-Werror",

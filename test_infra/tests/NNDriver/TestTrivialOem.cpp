@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include "OemModel.h"
+
 using namespace android::nn::wrapper;
 
 namespace {
@@ -54,13 +56,17 @@ protected:
 void CreateSingleOEMOperation(android::nn::wrapper::Model* model) {
     android::nn::wrapper::OperandType matrixType(Type::TENSOR_FLOAT32, {3, 4});
     android::nn::wrapper::OperandType scalarType(Type::INT32, {});
+    android::nn::wrapper::OperandType oemModelType(Type::INT32, {});
+    int32_t oemModel = static_cast<int32_t>(paintbox_nn::OemModel::MATRIX_ADD);
     int32_t activation(ANEURALNETWORKS_FUSED_NONE);
+    auto select = model->addOperand(&oemModelType);
     auto a = model->addOperand(&matrixType);
     auto b = model->addOperand(&matrixType);
     auto c = model->addOperand(&matrixType);
     auto d = model->addOperand(&scalarType);
+    model->setOperandValue(select, &oemModel, sizeof(oemModel));
     model->setOperandValue(d, &activation, sizeof(activation));
-    model->addOperation(ANEURALNETWORKS_OEM_OPERATION, {a, b, d}, {c});
+    model->addOperation(ANEURALNETWORKS_OEM_OPERATION, {select, a, b, d}, {c});
     model->identifyInputsAndOutputs({a, b}, {c});
     ASSERT_TRUE(model->isValid());
     model->finish();

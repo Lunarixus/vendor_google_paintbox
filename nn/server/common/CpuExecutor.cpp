@@ -18,7 +18,9 @@
 
 #include "CpuExecutor.h"
 
+#include "MatrixAddEngine.h"
 #include "NeuralNetworks.h"
+#include "OemModel.h"
 #include "Operations.h"
 
 #include "log/log.h"
@@ -29,29 +31,29 @@ namespace nn {
 
 // Updates the RunTimeOperandInfo with the newly calculated shape.
 // Allocate the buffer if we need to.
-static bool setInfoAndAllocateIfNeeded(RunTimeOperandInfo* info, const Shape& shape) {
+bool RunTimeOperandInfo::setInfoAndAllocateIfNeeded(const Shape& shape) {
     // For user-provided model output operands, the parameters must match the Shape
     // calculated from the preparation step.
-    if (info->lifetime == OperandLifeTime::MODEL_OUTPUT) {
-        if (info->type != shape.type ||
-            info->dimensions != shape.dimensions) {
+    if (lifetime == OperandLifeTime::MODEL_OUTPUT) {
+        if (type != shape.type ||
+            dimensions != shape.dimensions) {
             ALOGE("Invalid type or dimensions for model output");
             return false;
         }
-        if (info->type == OperandType::TENSOR_QUANT8_ASYMM &&
-            (info->scale != shape.scale || info->zeroPoint != shape.offset)) {
+        if (type == OperandType::TENSOR_QUANT8_ASYMM &&
+            (scale != shape.scale || zeroPoint != shape.offset)) {
             ALOGE("Invalid scale or zeroPoint for model output");
             return false;
         }
     }
-    info->type = shape.type;
-    info->dimensions = shape.dimensions;
-    info->scale = shape.scale;
-    info->zeroPoint = shape.offset;
-    if (info->lifetime == OperandLifeTime::TEMPORARY_VARIABLE && info->buffer == nullptr) {
-        uint32_t length = sizeOfData(info->type, info->dimensions);
-        info->buffer = new uint8_t[length];
-        if (info->buffer == nullptr) {
+    type = shape.type;
+    dimensions = shape.dimensions;
+    scale = shape.scale;
+    zeroPoint = shape.offset;
+    if (lifetime == OperandLifeTime::TEMPORARY_VARIABLE && buffer == nullptr) {
+        uint32_t length = sizeOfData(type, dimensions);
+        buffer = new uint8_t[length];
+        if (buffer == nullptr) {
             return false;
         }
     }
@@ -182,77 +184,23 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
 }
 
 int CpuExecutor::executeOperation(const Operation& operation) {
-    const std::vector<uint32_t>& ins = {operation.inputs().begin(), operation.inputs().end()};
-    const std::vector<uint32_t>& outs = {operation.outputs().begin(), operation.outputs().end()};
-    bool success = false;
-
-    // Function to verify that the number of input and output parameters
-    // matches what is expected.  Also checks that all the parameters have
-    // values. This function is to be used only for operations that do not
-    // accept optional arguments.
-    // TODO Have a version that works for optional arguments.
-    auto allParametersPresent = [&ins, &outs, this](size_t requiredIns,
-                                                                size_t requiredOuts) -> bool {
-        auto verify = [this](size_t requiredCount, const std::vector<uint32_t>& indexes,
-                          const char* type) -> bool {
-            size_t actualCount = indexes.size();
-            if (actualCount != requiredCount) {
-                LOG(ERROR) << ": Invalid number of " << type << " operands. Got " << actualCount
-                           << " of " << requiredCount;
-                return false;
-            }
-            for (size_t i = 0; i < actualCount; i++) {
-                if (mOperands[indexes[i]].lifetime == OperandLifeTime::NO_VALUE) {
-                    LOG(ERROR) << " " << type
-                               << " operand " << i << " is required but missing.";
-                    return false;
-                }
-            }
-            return true;
-        };
-        return verify(requiredIns, ins, "in") && verify(requiredOuts, outs, "out");
-    };
-
-    // Assume OEM operation is Add for now
-    if (!allParametersPresent(3, 1)) {
-        return ANEURALNETWORKS_BAD_DATA;
-    }
-    const RunTimeOperandInfo& in1 = mOperands[ins[0]];
-    const RunTimeOperandInfo& in2 = mOperands[ins[1]];
-    int32_t activation = getScalarData<int32_t>(mOperands[ins[2]]);
-
-    RunTimeOperandInfo& out = mOperands[outs[0]];
-    Shape outShape = out.shape();
-
-    if (in1.type == OperandType::TENSOR_FLOAT32) {
-        success = addMulPrepare(in1.shape(), in2.shape(), &outShape) &&
-                  setInfoAndAllocateIfNeeded(&out, outShape) &&
-                  addFloat32(reinterpret_cast<const float*>(in1.buffer),
-                             in1.shape(),
-                             reinterpret_cast<const float*>(in2.buffer),
-                             in2.shape(),
-                             activation,
-                             reinterpret_cast<float*>(out.buffer),
-                             outShape);
-    } else if (in1.type == OperandType::TENSOR_QUANT8_ASYMM) {
-        success = addMulPrepare(in1.shape(), in2.shape(), &outShape) &&
-                  setInfoAndAllocateIfNeeded(&out, outShape) &&
-                  addQuant8(reinterpret_cast<const uint8_t*>(in1.buffer),
-                            in1.shape(),
-                            reinterpret_cast<const uint8_t*>(in2.buffer),
-                            in2.shape(),
-                            activation,
-                            reinterpret_cast<uint8_t*>(out.buffer),
-                            outShape);
+    int32_t oemModel = operation.oemmodel();
+    ALOGI("execute OEM model #%d", oemModel);
+    ResultCode res = ANEURALNETWORKS_NO_ERROR;
+    switch (static_cast<paintbox_nn::OemModel>(oemModel)) {
+        case paintbox_nn::OemModel::MATRIX_ADD: {
+            MatrixAddEngine engine;
+            res = engine.run(operation, &mOperands);
+            break;
+        }
+        default: {
+            ALOGE("OemModel #%d not supported", oemModel);
+            return ANEURALNETWORKS_BAD_DATA;
+        }
     }
 
-    if (!success) {
-        ALOGE("OEM_OPERATION failed.");
-        return ANEURALNETWORKS_OP_FAILED;
-    }
-
-    freeNoLongerUsedOperands(ins);
-    return ANEURALNETWORKS_NO_ERROR;
+    freeNoLongerUsedOperands({operation.inputs().begin(), operation.inputs().end()});
+    return res;
 }
 
 } // namespace nn

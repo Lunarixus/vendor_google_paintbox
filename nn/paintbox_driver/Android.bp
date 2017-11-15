@@ -26,6 +26,7 @@ cc_defaults {
     ],
     header_libs: [
         "libneuralnetworks_headers",
+        "paintbox_nn_headers",
     ],
     shared_libs: [
         "libbase",
