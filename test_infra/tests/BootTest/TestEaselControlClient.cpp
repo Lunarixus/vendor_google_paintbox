@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 #define PMIC_SYSFS_FILE_WAHOO      "/sys/devices/soc/c1b7000.i2c/i2c-9/9-0008/toggle_pon"
-#define PMIC_SYSFS_FILE_BLUECROSS  "/sys/devices/soc/a88000.i2c/i2c-0/0-0066/toggle_pon"
+#define PMIC_SYSFS_FILE_BLUECROSS  "/sys/devices/platform/soc/a88000.i2c/i2c-0/0-0066/toggle_pon"
 
 static int numIteration = 1;
 static int numSleepSecond = 1;

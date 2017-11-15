@@ -75,6 +75,7 @@ enum ControlState {
 EaselThermalMonitor thermalMonitor;
 static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg = {
     {"bcm15602_tz",    1, {60000, 70000, 80000}},
+    {"s2mpb04_tz",     1, {60000, 70000, 80000}},
     {"bd_therm",    1000, {45000, 50000, 55000}}, /* for taimen */
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
     {"mnh_lpddr",      1, {65000, 75000, 85000}},
@@ -589,15 +590,6 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
-                    clearActivatePending();
-                    stopWatchdog();
-                    sendDeactivateCommand();
-                    stopThermalMonitor();
-                    stopLogClient();
-                    teardownEaselConn();
-                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    stopKernelEventThread();
-                    break;
                 case ControlState::PARTIAL:
                 case ControlState::FAILED:
                 case ControlState::RESUMED:
