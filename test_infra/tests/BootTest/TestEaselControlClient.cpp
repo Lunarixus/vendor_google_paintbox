@@ -24,6 +24,9 @@ TEST(EaselBootTest, PmicPowerCycle) {
     char device[PROPERTY_VALUE_MAX];
     char str[32];
 
+    ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
+          numIteration, numSleepSecond);
+
     property_get("ro.hardware", device, "default");
     if ((strcmp(device, "walleye") == 0) ||
         (strcmp(device, "taimen") == 0)) {
@@ -34,7 +37,13 @@ TEST(EaselBootTest, PmicPowerCycle) {
     }
     ASSERT_GE(fd, 0) << "failed to open PMIC sysfs file (" << errno << ").";
 
-    ASSERT_GE(read(fd, str, 32), 0);
+    for (int i = 0; i < numIteration; i++) {
+        ASSERT_GE(read(fd, str, 32), 0);
+
+        if (numSleepSecond >= 0) {
+            sleep(numSleepSecond);
+        }
+    }
 }
 
 TEST(EaselBootTest, BootShutdownLoop) {
@@ -131,7 +140,6 @@ TEST(EaselBootTest, SuspendResumeLoop) {
         if (numSleepSecond >= 0) {
             sleep(numSleepSecond);
         }
-
     }
 
     easelControl.close();
