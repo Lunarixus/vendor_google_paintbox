@@ -363,10 +363,13 @@ status_t HdrPlusPipeline::createMockCapture(){
     deviceDescriptor.io_resource_description_mode = IMX_SPECIFIC_RESOURCES_DESCRIPTION;
     const int kFrontCameraStreamId = 4;
     const int kBackCameraStreamId = 0;
+    // TODO(b/65597969): read camera id from test payload and pass that from client to server. The
+    //                   hardcoded camera id used here is sufficient however for the hdr burst test
+    //                   case.
     const int mockCameraType = 1;
     int mipiInStreamId = mockCameraType ? kBackCameraStreamId : kFrontCameraStreamId;
     int mipiInStreamCount = 1;
-    int * mipiOutStreams = nullptr;
+    int *mipiOutStreams = nullptr;
     int mipiOutStreamCount = 0;
     deviceDescriptor.io_resource_description.specific_mipi_resources = {
             &mipiInStreamId, mipiInStreamCount, mipiOutStreams, mipiOutStreamCount};
