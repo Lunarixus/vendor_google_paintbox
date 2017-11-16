@@ -380,7 +380,6 @@ private:
     std::deque<Postview> mPostviews;
 
     std::thread mLoadPcgThread;
-    std::atomic<bool> mPcgLoaded;
 };
 
 } // namespace pbcamera
