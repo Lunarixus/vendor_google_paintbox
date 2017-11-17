@@ -27,18 +27,20 @@ TEST(EaselBootTest, PmicPowerCycle) {
     ALOGI("Start testing Easel Boot for %d cycles, staying %d secs each.",
           numIteration, numSleepSecond);
 
-    property_get("ro.hardware", device, "default");
-    if ((strcmp(device, "walleye") == 0) ||
-        (strcmp(device, "taimen") == 0)) {
-        fd = open(PMIC_SYSFS_FILE_WAHOO, O_RDONLY);
-    } else if ((strcmp(device, "blueline") == 0) ||
-               (strcmp(device, "crosshatch") == 0)) {
-        fd = open(PMIC_SYSFS_FILE_BLUECROSS, O_RDONLY);
-    }
-    ASSERT_GE(fd, 0) << "failed to open PMIC sysfs file (" << errno << ").";
-
     for (int i = 0; i < numIteration; i++) {
+        property_get("ro.hardware", device, "default");
+        if ((strcmp(device, "walleye") == 0) ||
+            (strcmp(device, "taimen") == 0)) {
+            fd = open(PMIC_SYSFS_FILE_WAHOO, O_RDONLY);
+        } else if ((strcmp(device, "blueline") == 0) ||
+                   (strcmp(device, "crosshatch") == 0)) {
+            fd = open(PMIC_SYSFS_FILE_BLUECROSS, O_RDONLY);
+        }
+        ASSERT_GE(fd, 0) << "failed to open PMIC sysfs file (" << errno << ").";
+
         ASSERT_GE(read(fd, str, 32), 0);
+
+        ASSERT_EQ(close(fd), 0) << "failed to close PMIC sysfs file (" << errno << ").";
 
         if (numSleepSecond >= 0) {
             sleep(numSleepSecond);
