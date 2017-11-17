@@ -34,6 +34,8 @@ std::once_flag loadPcgOnce;
 }  // namespace
 
 
+std::atomic<bool> gPcgLoaded(false);
+
 HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock> sourceCaptureBlock,
         bool skipTimestampCheck, int32_t cameraId,
         ImxMemoryAllocatorHandle imxMemoryAllocatorHandle,
@@ -43,8 +45,7 @@ HdrPlusProcessingBlock::HdrPlusProcessingBlock(std::weak_ptr<SourceCaptureBlock>
         mSourceCaptureBlock(sourceCaptureBlock),
         mSkipTimestampCheck(skipTimestampCheck),
         mCameraId(cameraId),
-        mImxMemoryAllocatorHandle(imxMemoryAllocatorHandle),
-        mPcgLoaded(false) {
+        mImxMemoryAllocatorHandle(imxMemoryAllocatorHandle) {
 }
 
 HdrPlusProcessingBlock::~HdrPlusProcessingBlock() {
@@ -124,7 +125,7 @@ bool HdrPlusProcessingBlock::isReady() {
         }
     }
 
-    if (!mPcgLoaded) return false;
+    if (!gPcgLoaded) return false;
 
     return true;
 }
@@ -178,7 +179,7 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
     std::call_once(loadPcgOnce, [&] {
         mLoadPcgThread = std::thread([&] {
             gcam::LoadPrecompiledGraphs();
-            mPcgLoaded = true;
+            gPcgLoaded = true;
         });
     });
 
