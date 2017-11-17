@@ -42,6 +42,8 @@ const char kCompiledGraphDir[] =
 const char kOutputDumpDir[] =
         "/data/nativetest/hdrplus_client_tests/dump/";
 
+const char kSkipConfigureServer[] = "persist.hdrplus_client_test.skip_configure_server";
+
 const char kDoNotPoweronEasel[] = "camera.hdrplus.donotpoweroneasel";
 
 const int32_t kInvalidFd = -1;
@@ -191,6 +193,9 @@ protected:
     // If test_mode is true, camera server will be set to test mode
     // otherwise functional mode.
     status_t configureCameraServer(bool test_mode) {
+        if (property_get_bool(kSkipConfigureServer, false))
+            return OK;
+
         status_t ret = property_set(kDoNotPoweronEasel, test_mode ? "1" : "0");
         if (ret != OK) {
             ALOGE("Could not set %s to 1", kDoNotPoweronEasel);
