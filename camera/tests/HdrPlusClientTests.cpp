@@ -121,6 +121,10 @@ protected:
     static const uint32_t kDefaultInputFormat = HAL_PIXEL_FORMAT_RAW10;
     static const uint32_t kDefaultNumInputBuffer = 1;
 
+    // Easel HDR+ will not pick a base frame of the same timestamp twice. Adding a timestamp offset
+    // for each request's input buffers to workaround the restriction.
+    static const int64_t kTimestampOffsetPerRequestNs = 1e9; // 1 seconds.
+
     // Constants for output configurations.
     const uint32_t kDefaultOutputFormats[2] = { HAL_PIXEL_FORMAT_YCrCb_420_SP,
                                                 HAL_PIXEL_FORMAT_RAW16 };
@@ -576,6 +580,7 @@ protected:
         int32_t rawWidth = entry.data.i32[0];
         int32_t rawHeight = entry.data.i32[1];
 
+        std::vector<pbcamera::CaptureRequest> submittedRequests;
 
         // TODO: support multiple outputs and other formats.
         ASSERT_EQ(outputFormats.size(), (uint32_t)1);
@@ -601,57 +606,60 @@ protected:
         // Configure default streams.
         ASSERT_EQ(configureStreams(), OK);
 
-        // Send input buffers and camera metadata.
-        // The burst input frame 0 is the most recent frame. We need to load the oldest frame first.
-        for (int32_t i = numBurstInputs - 1; i >= 0; i--) {
-            // Load buffer and metadata from files.
-            CameraMetadata frameMetadata;
-            ASSERT_EQ(burstInput.loadRaw10BufferAndMetadataFromFile(
-                    mInputStream->availableBuffers[0], mInputStream->bufferSizeBytes,
-                    &frameMetadata, i), OK);
-
-            // Get the timestamp of the frame from metadata
-            // Easel SOF timestamp = AP sensor timestamp + exposure time.
-            camera_metadata_entry entry = frameMetadata.find(ANDROID_SENSOR_TIMESTAMP);
-            ASSERT_EQ(entry.count, (uint32_t)1)
-                    << "Cannot find timestamp in metadata for frame " << i;
-            int64_t timestampNs = entry.data.i64[0];
-
-            entry = frameMetadata.find(ANDROID_SENSOR_EXPOSURE_TIME);
-            ASSERT_EQ(entry.count, (uint32_t)1)
-                    << "Cannot find exposure time in metadata for frame " << i;
-            int64_t exposureTimeNs = entry.data.i64[0];
-
-            // Send an input buffer
-            pbcamera::StreamBuffer inputBuffer = {};
-            inputBuffer.streamId = mInputStream->config.id;
-            inputBuffer.dmaBufFd = kInvalidFd;
-            inputBuffer.data = mInputStream->availableBuffers[0];
-            inputBuffer.dataSize = mInputStream->bufferSizeBytes;
-            mClient->notifyInputBuffer(inputBuffer, timestampNs + exposureTimeNs);
-
-            // Create and send a CameraMetadata
-            const camera_metadata_t* metadata = frameMetadata.getAndLock();
-            mClient->notifyFrameMetadata(numBurstInputs - 1 - i, *metadata);
-            frameMetadata.unlock(metadata);
-        }
-
-        CameraMetadata requestMetadata;
-
-        // Disable digital zoom by setting crop region to full active array.
-        entry = staticMetadata.find(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
-        ASSERT_EQ(entry.count, static_cast<uint32_t>(4)) << "Active array size has " <<
-                entry.count << " entries. (Expecting 4)";
-        int32_t cropRegion[4] = { 0, 0, entry.data.i32[2], entry.data.i32[3] };
-        requestMetadata.update(ANDROID_SCALER_CROP_REGION, cropRegion, 4);
-        int32_t aeExposureCompensation = 0;
-        requestMetadata.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION,
-                &aeExposureCompensation, 1);
-
-        std::vector<pbcamera::CaptureRequest> submittedRequests;
-
-        // Submit requests.
         for (uint32_t i = 0; i < numRequests; i++) {
+            // Send input buffers and camera metadata.
+            // The burst input frame 0 is the most recent frame. We need to load the oldest frame
+            // first.
+            for (int32_t j = numBurstInputs - 1; j >= 0; j--) {
+                // Load buffer and metadata from files.
+                CameraMetadata frameMetadata;
+                ASSERT_EQ(burstInput.loadRaw10BufferAndMetadataFromFile(
+                        mInputStream->availableBuffers[0], mInputStream->bufferSizeBytes,
+                        &frameMetadata, j), OK);
+
+                // Get the timestamp of the frame from metadata
+                // Easel SOF timestamp = AP sensor timestamp + exposure time.
+                camera_metadata_entry entry = frameMetadata.find(ANDROID_SENSOR_TIMESTAMP);
+                ASSERT_EQ(entry.count, (uint32_t)1)
+                        << "Cannot find timestamp in metadata for frame " << j;
+                int64_t timestampNs = entry.data.i64[0];
+
+                if (kTimestampOffsetPerRequestNs != 0) {
+                    timestampNs += (kTimestampOffsetPerRequestNs * i);
+                    ASSERT_EQ(frameMetadata.update(ANDROID_SENSOR_TIMESTAMP, &timestampNs, 1), 0);
+                }
+
+                entry = frameMetadata.find(ANDROID_SENSOR_EXPOSURE_TIME);
+                ASSERT_EQ(entry.count, (uint32_t)1)
+                        << "Cannot find exposure time in metadata for frame " << j;
+                int64_t exposureTimeNs = entry.data.i64[0];
+
+                // Send an input buffer
+                pbcamera::StreamBuffer inputBuffer = {};
+                inputBuffer.streamId = mInputStream->config.id;
+                inputBuffer.dmaBufFd = kInvalidFd;
+                inputBuffer.data = mInputStream->availableBuffers[0];
+                inputBuffer.dataSize = mInputStream->bufferSizeBytes;
+                mClient->notifyInputBuffer(inputBuffer, timestampNs + exposureTimeNs);
+
+                // Create and send a CameraMetadata
+                const camera_metadata_t* metadata = frameMetadata.getAndLock();
+                mClient->notifyFrameMetadata(numBurstInputs - 1 - j, *metadata);
+                frameMetadata.unlock(metadata);
+            }
+
+            CameraMetadata requestMetadata;
+
+            // Disable digital zoom by setting crop region to full active array.
+            entry = staticMetadata.find(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+            ASSERT_EQ(entry.count, static_cast<uint32_t>(4)) << "Active array size has " <<
+                    entry.count << " entries. (Expecting 4)";
+            int32_t cropRegion[4] = { 0, 0, entry.data.i32[2], entry.data.i32[3] };
+            requestMetadata.update(ANDROID_SCALER_CROP_REGION, cropRegion, 4);
+            int32_t aeExposureCompensation = 0;
+            requestMetadata.update(ANDROID_CONTROL_AE_EXPOSURE_COMPENSATION,
+                    &aeExposureCompensation, 1);
+
             // Prepare a request
             pbcamera::CaptureRequest request = {};
             request.id = i;
@@ -693,7 +701,6 @@ protected:
            }
         }
 
-        // TODO: Verify the content of the output buffers if possible.
         // TODO: Verify other combinations of output buffers.
 
         disconnectClient();
