@@ -12,20 +12,6 @@ namespace android {
 namespace nn {
 namespace paintbox_driver {
 
-// Model paired with related callback and bufferPools.
-struct ModelPair {
-  const Model* model;
-  std::function<void(const paintbox_nn::PrepareModelResponse&)> callback;
-  std::vector<paintbox_util::HardwareBufferPool> bufferPools;
-};
-
-// Request paired with related callback and bufferPools.
-struct RequestPair {
-  const Request* request;
-  std::function<void(const paintbox_nn::RequestResponse&)> callback;
-  std::vector<paintbox_util::HardwareBufferPool> bufferPools;
-};
-
 // Client of Easel executor.
 // It forwards the model and requests to Easel for NN execution.
 // Currently this client only support single outstanding model.
@@ -64,6 +50,20 @@ class EaselExecutorClient {
   void destroyModel(const Model& model);
 
  private:
+  // Model object with related callback and bufferPools.
+  struct ModelObject {
+    const Model* model;
+    std::function<void(const paintbox_nn::PrepareModelResponse&)> callback;
+    std::vector<paintbox_util::HardwareBufferPool> bufferPools;
+  };
+
+  // Request paired with related callback and bufferPools.
+  struct RequestObject {
+    const Request* request;
+    std::function<void(const paintbox_nn::RequestResponse&)> callback;
+    std::vector<paintbox_util::HardwareBufferPool> bufferPools;
+  };
+
   // State of EaselExecutor
   enum class State {
     INIT,        // Fresh start.
@@ -82,9 +82,9 @@ class EaselExecutorClient {
   std::unique_ptr<EaselComm2::Comm> mComm;
   std::mutex mExecutorLock;
   std::condition_variable mStateChanged;
-  State mState;                           // Guarded by mExecutorLock.
-  std::unique_ptr<ModelPair> mModel;      // Guarded by mExecutorLock.
-  std::queue<RequestPair> mRequestQueue;  // Guarded by mExecutorLock.
+  State mState;                             // Guarded by mExecutorLock.
+  std::unique_ptr<ModelObject> mModel;      // Guarded by mExecutorLock.
+  std::queue<RequestObject> mRequestQueue;  // Guarded by mExecutorLock.
 };
 
 }  // namespace paintbox_driver
