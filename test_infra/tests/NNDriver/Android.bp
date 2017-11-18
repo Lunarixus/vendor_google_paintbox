@@ -1,7 +1,9 @@
 cc_test {
     name: "NeuralNetworksOemTest",
     srcs: [
-        "TestTrivialOem.cpp"
+        "TestMobileNetBody.cpp",
+        "TestMobileNetBodyData.cpp",
+        "TestTrivialOem.cpp",
     ],
     shared_libs: [
         "libandroid",
