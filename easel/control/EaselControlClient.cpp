@@ -78,10 +78,6 @@ static const std::vector<struct EaselThermalMonitor::Configuration> thermalCfg =
     {"s2mpb04_tz",     1, {60000, 70000, 80000}},
     {"bd_therm",    1000, {45000, 50000, 55000}}, /* for taimen */
     {"back_therm",  1000, {45000, 50000, 55000}}, /* for muskie */
-    {"mnh_lpddr",      1, {65000, 75000, 85000}},
-    {"mnh_cpu",        1, {65000, 75000, 85000}},
-    {"mnh_ipu1",       1, {65000, 75000, 85000}},
-    {"mnh_ipu2",       1, {65000, 75000, 85000}},
 };
 
 EaselTimer watchdog;

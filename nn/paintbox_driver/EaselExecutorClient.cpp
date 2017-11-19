@@ -61,7 +61,7 @@ int EaselExecutorClient::prepareModel(
   });
 
   // Update mModel and mState.
-  mModel = std::make_unique<ModelPair>();
+  mModel = std::make_unique<ModelObject>();
   mModel->model = &model;
   mModel->callback = callback;
   mModel->bufferPools =
@@ -137,7 +137,7 @@ int EaselExecutorClient::execute(
       {&request, callback,
        std::vector<paintbox_util::HardwareBufferPool>(request.pools.size())});
 
-  RequestPair& pair = mRequestQueue.back();
+  RequestObject& object = mRequestQueue.back();
 
   for (size_t i = 0; i < request.pools.size(); i++) {
     auto& pool = request.pools[i];
@@ -145,7 +145,7 @@ int EaselExecutorClient::execute(
     CHECK(paintbox_util::mapPool(pool, &bufferPool));
     bufferPool.buffer.setId(i);
     LOG(INFO) << bufferPool.buffer.size();
-    pair.bufferPools[i] = bufferPool;
+    object.bufferPools[i] = bufferPool;
   }
 
   // Send the request object first.
@@ -156,7 +156,7 @@ int EaselExecutorClient::execute(
   for (int i = 0; i < protoRequest.inputpools().size(); i++) {
     int poolIndex = protoRequest.inputpools(i);
     const EaselComm2::HardwareBuffer& buffer =
-        pair.bufferPools[poolIndex].buffer;
+        object.bufferPools[poolIndex].buffer;
     LOG(ERROR) << "Sending pool" << poolIndex << " size" << buffer.size();
     res = mComm->send(EXECUTE, &buffer);
     if (res != 0) {

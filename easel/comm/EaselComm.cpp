@@ -27,7 +27,7 @@
 
 #include <log/log.h>
 
-#undef PROFILE_DMA
+#define PROFILE_DMA
 
 namespace {
 // Device file path
@@ -465,6 +465,9 @@ int EaselComm::receiveDMAImpl(const EaselMessage *msg, bool cancel) {
     struct easelcomm_kbuf_desc buf_desc;
 
 #ifdef PROFILE_DMA
+    ALOGD("%s: receiveDMA begin, size=%zu",
+          __FUNCTION__, msg->dma_buf_size);
+
     struct timespec begin, end;
     long diff_us;
     clock_gettime(CLOCK_MONOTONIC, &begin);
@@ -490,7 +493,7 @@ int EaselComm::receiveDMAImpl(const EaselMessage *msg, bool cancel) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     diff_us = (end.tv_sec - begin.tv_sec) * 1000000
             + (end.tv_nsec - begin.tv_nsec) / 1000;
-    ALOGI("%s: receiveDMA done in %ld us, size=%zu",
+    ALOGD("%s: receiveDMA done in %ld us, size=%zu",
           __FUNCTION__, diff_us, msg->dma_buf_size);
 #endif
 
