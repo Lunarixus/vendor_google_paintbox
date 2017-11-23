@@ -2,14 +2,16 @@
 
 usage() {
 cat << EOF
-  Usage:
-  $0 [-s|--serial {serial_no}] [--loop {loop}] [--shot {shot}] [--interval {interval}] [--eng] [--ignore-photo-count]
+  usage: $(basename $0) [-s|--serial {serial_no}] [--loop {loop}]
+                        [--shot {shot}] [--interval {interval}] [--eng]
+                        [--ignore-photo-count] [--verbose]
     -s|--serial             Set Android device serial number
     --loop      {loop}      How many loops to test
     --shot      {shot}      Shots per loop
     --interval  {interval}  intervals between shot in second
     --eng                   Use Eng build Google Camera App
     --ignore-photo-count    Does not check number of jpeg files after each shot
+    --verbose               Print log to console on taking every picture
 EOF
 }
 
@@ -49,6 +51,7 @@ package_name="com.google.android.GoogleCamera"
 num_old_photos="-1"
 num_new_photos="0"
 ignore_photo_count=false
+is_verbose=false
 
 while [ $# -gt 0 ]; do
   arg="$1"
@@ -83,6 +86,9 @@ while [ $# -gt 0 ]; do
       ;;
     "--ignore-photo-count")
       ignore_photo_count=true
+      ;;
+    "--verbose")
+      is_verbose=true
       ;;
     *)
       usage
@@ -160,6 +166,9 @@ echo "take picture..."
 for i in `seq 1 $shot`;
 do
   num_old_photos=$( func_count_photo )
+  if "$is_verbose" ; then
+    echo "  back camera shot $i"
+  fi
   adb shell input keyevent 27
   sleep $interval
   num_new_photos=$( func_count_photo )
@@ -189,6 +198,9 @@ echo "take picture..."
 for i in `seq 1 $shot`;
 do
   num_old_photos=$( func_count_photo )
+  if "$is_verbose" ; then
+    echo "  front camera shot $i"
+  fi
   adb shell input keyevent 27
   sleep $interval
   num_new_photos=$( func_count_photo )
