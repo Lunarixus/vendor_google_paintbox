@@ -19,7 +19,7 @@ FW_DATE := $$(date +'%Y%m%d.')
 
 # Set Easel firmware version number here (b/65286131)
 FW_MAJOR := '001'
-FW_MINOR := '000'
+FW_MINOR := '001'
 
 # TODO(cjluo): Add notice file before launch.
 
