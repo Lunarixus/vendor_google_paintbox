@@ -60,6 +60,35 @@ cc_binary {
     init_rc: ["easelmanagerd.rc"],
 }
 
+cc_library_static {
+    name: "libeaselmanager_client",
+    proprietary: true,
+    owner: "google",
+
+    local_include_dirs: ["include"],
+
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "ManagerClient.cpp",
+        "ManagerClientImpl.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libeaselmanager_aidl",
+        "liblog",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+    ],
+}
+
 cc_test {
     name: "easelmanager_client_example",
     proprietary: true,
@@ -70,9 +99,11 @@ cc_test {
     gtest: false,
 
     srcs: [
-        "ManagerClient.cpp",
-        "ManagerClientImpl.cpp",
         "ManagerClientExample.cpp",
+    ],
+
+    static_libs: [
+        "libeaselmanager_client",
     ],
 
     shared_libs: [
