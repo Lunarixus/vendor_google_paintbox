@@ -39,3 +39,34 @@ cc_binary {
         "-Wextra",
     ],
 }
+
+cc_test {
+    name: "easelmanager_client_tests",
+    proprietary: true,
+    owner: "google",
+
+    gtest: true,
+
+    srcs: [
+        "EaselManagerClientTests.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libeaselmanager_aidl",
+        "liblog",
+        "libutils",
+    ],
+
+    static_libs: [
+        "libeaselmanager_client",
+        "libgtest",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+    ],
+}
