@@ -57,6 +57,8 @@ struct RunTimeOperandInfo {
     Shape shape() const {
         return Shape{.type = type, .dimensions = dimensions, .scale = scale, .offset = zeroPoint};
     }
+
+    bool setInfoAndAllocateIfNeeded(const Shape& shape);
 };
 
 // Used to keep a pointer to each of the memory pools.

@@ -43,8 +43,10 @@ message Operand {
 
 // OperationType is removed as only OEM_OPERATION is supported
 message Operation {
-  repeated uint32 inputs = 2;
-  repeated uint32 outputs = 3;
+  repeated uint32 inputs = 1;
+  repeated uint32 outputs = 2;
+  // Oem Model index.
+  optional int32 oemModel = 3;
 }
 
 message Model {
