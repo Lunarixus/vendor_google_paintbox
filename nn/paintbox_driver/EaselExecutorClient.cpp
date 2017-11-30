@@ -112,6 +112,8 @@ void EaselExecutorClient::prepareModelHandler(
     // Update the state and callback to driver about preparation result.
     mState = State::PREPARED;
     mModel->callback(response);
+    // Clears the callback to release the PaintboxPrepareModel reference count.
+    mModel->callback = nullptr;
   }
 
   mStateChanged.notify_all();
@@ -144,7 +146,6 @@ int EaselExecutorClient::execute(
     paintbox_util::HardwareBufferPool bufferPool;
     CHECK(paintbox_util::mapPool(pool, &bufferPool));
     bufferPool.buffer.setId(i);
-    LOG(INFO) << bufferPool.buffer.size();
     object.bufferPools[i] = bufferPool;
   }
 
@@ -157,7 +158,6 @@ int EaselExecutorClient::execute(
     int poolIndex = protoRequest.inputpools(i);
     const EaselComm2::HardwareBuffer& buffer =
         object.bufferPools[poolIndex].buffer;
-    LOG(ERROR) << "Sending pool" << poolIndex << " size" << buffer.size();
     res = mComm->send(EXECUTE, &buffer);
     if (res != 0) {
       LOG(ERROR) << "Failed to send request pool, return code " << res;
