@@ -589,15 +589,6 @@ int switchState(enum ControlState nextState)
         case ControlState::SUSPENDED: {
             switch (state) {
                 case ControlState::ACTIVATED:
-                    clearActivatePending();
-                    stopWatchdog();
-                    sendDeactivateCommand();
-                    stopThermalMonitor();
-                    stopLogClient();
-                    teardownEaselConn();
-                    stateMgr.setState(EaselStateManager::ESM_STATE_OFF);
-                    stopKernelEventThread();
-                    break;
                 case ControlState::PARTIAL:
                 case ControlState::FAILED:
                 case ControlState::RESUMED:
