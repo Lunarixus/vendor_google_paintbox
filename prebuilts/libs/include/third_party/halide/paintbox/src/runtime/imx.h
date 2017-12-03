@@ -352,6 +352,22 @@ ImxError ImxGetDeviceDescription(
     ImxDeviceHandle device_handle  /* in */,
     ImxDeviceDescription *device_descr  /* modified */);
 
+/* The big red button.
+ *
+ * Caveats/restrictions:
+ *   - Only permitted on exclusively owned devices.
+ *   - Cancels queued jobs.
+ *   - Not thread safe, with the exception of calls to ImxWaitForCompletion
+ *     (which will return immediately with error code IMX_CANCEL).
+ *   - Not safe to use with ImxExecuteJobAsync unless the async job queue is
+ *     drained/reset with ImxWaitForJobQueueEmpty/ImxResetJobQueue.
+ *   - Loaded device configuration is invalidated, and must be reloaded.
+ *
+ * Please use responsibly.
+ */
+ImxError ImxResetDevice(
+    ImxDeviceHandle device_handle  /* in */);
+
 /* Sets the command line options (i.e. gFlags FLAG_... variables) for use
  * by IPU compiler, runtime (and simulator, if present).
  * options array contains a list of individual options, specified as
