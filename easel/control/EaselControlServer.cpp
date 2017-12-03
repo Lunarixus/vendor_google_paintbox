@@ -19,6 +19,7 @@
 
 #include "EaselClockControl.h"
 #include "EaselThermalMonitor.h"
+#include "EaselTimer.h"
 #include "easelcontrol.h"
 #include "easelcontrol_impl.h"
 #include "easelcomm.h"
@@ -47,20 +48,10 @@ std::mutex gServerLock;
 // true if easel_conn is opened
 bool gServerInitialized;
 
-// Thread to periodically send a heartbeat message to the client
-std::thread heartbeatThread;
-
-// Lock used for synchronizing the heartbeat thread with the application thread.
-std::mutex heartbeatMutex;
-
-// Condition used to notify heartbeat thread.
-std::condition_variable heartbeatCondition;
-
-// Flag for coordinating with the heartbeat thread, protected by heartbeatMutex
-bool heartbeatStop;
+EaselTimer heartbeat;
 
 // Latency between heartbeat messages
-const std::chrono::duration<int> kHeartbeatPeriod = std::chrono::seconds(1);
+const std::chrono::milliseconds kHeartbeatPeriod = std::chrono::milliseconds(1000);
 
 /*
  * The AP boottime clock value we received at the last SET_TIME command,
@@ -125,10 +116,14 @@ static int sendResetReqCommand()
     return ret;
 }
 
-static int sendHeartbeatCommand()
+static void sendHeartbeatMessage()
 {
-    EaselControlImpl::MsgHeader heartbeatMsg = { .command = EaselControlImpl::CMD_HEARTBEAT };
     EaselComm::EaselMessage msg;
+    EaselControlImpl::HeartbeatMsg heartbeatMsg;
+    static uint32_t seqNumber = 0;
+
+    heartbeatMsg.h.command = EaselControlImpl::CMD_HEARTBEAT;
+    heartbeatMsg.seqNumber = seqNumber++;
 
     msg.message_buf = &heartbeatMsg;
     msg.message_buf_size = sizeof(heartbeatMsg);
@@ -137,50 +132,6 @@ static int sendHeartbeatCommand()
     if (ret) {
         ALOGE("%s: failed to send heartbeat to Easel (%d)\n", __FUNCTION__, ret);
     }
-
-    return ret;
-}
-
-static void heartbeat()
-{
-    std::unique_lock<std::mutex> heartbeatLock(heartbeatMutex);
-    while (!heartbeatStop) {
-        heartbeatCondition.wait_for(heartbeatLock, kHeartbeatPeriod);
-
-        if (!heartbeatStop) {
-            sendHeartbeatCommand();
-        }
-    }
-}
-
-static int startHeartbeatThread()
-{
-    if (heartbeatThread.joinable()) {
-        ALOGE("%s: heartbeat is already running", __FUNCTION__);
-        return -EBUSY;
-    }
-
-    heartbeatStop = false;
-    heartbeatThread = std::thread(heartbeat);
-
-    return 0;
-}
-
-static int stopHeartbeatThread()
-{
-    if (!heartbeatThread.joinable()) {
-        ALOGE("%s: heartbeat is already stopped", __FUNCTION__);
-        return -ENODEV;
-    }
-
-    {
-        std::unique_lock<std::mutex> heartbeatLock(heartbeatMutex);
-        heartbeatStop = true;
-    }
-    heartbeatCondition.notify_all();
-    heartbeatThread.join();
-
-    return 0;
 }
 
 // Handle incoming messages from EaselControlClient.
@@ -194,16 +145,17 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
 
     switch(h->command) {
     case EaselControlImpl::CMD_ACTIVATE: {
-      EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
+        EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
 
         // Server will not set realtime on receiving CMD_ACTIVATE
         // Instead, we assume client will send another CMD_SET_TIME after
         // receiving this reply.
         easel_conn.sendReply(msg, EaselControlImpl::REPLY_ACTIVATE_OK, nullptr);
 
-        ret = startHeartbeatThread();
+        ret = heartbeat.start(kHeartbeatPeriod, sendHeartbeatMessage);
+
         if (ret) {
-            ALOGE("%s: failed to start heartbeat thread (%d)", __FUNCTION__, ret);
+            ALOGE("%s: failed to start heartbeat timer (%d)", __FUNCTION__, ret);
         }
 
         ret = thermalMonitor.start();
@@ -223,9 +175,9 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
             ALOGE("%s: failed to stop EaselThermalMonitor (%d)", __FUNCTION__, ret);
         }
 
-        ret = stopHeartbeatThread();
+        ret = heartbeat.stop();
         if (ret) {
-            ALOGE("%s: failed to stop heartbeat thread (%d)", __FUNCTION__, ret);
+            ALOGE("%s: failed to stop heartbeat timer (%d)", __FUNCTION__, ret);
         }
 
 
