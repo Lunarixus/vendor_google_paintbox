@@ -6,7 +6,9 @@ namespace pbcamera {
 namespace capture_service_consts {
 
 // Timeout for capture frame buffer factory.
-const uint32_t kCaptureFrameBufferFactoryTimeoutMs = 100;
+// IPU may require upto 2 frame time periods to complete the first capture.
+// Assuming max frame time period is 66ms, this number needs to be >= 132ms.
+const uint32_t kCaptureFrameBufferFactoryTimeoutMs = 150;
 
 // MIPI RAW10 data type.
 const uint32_t kMipiRaw10DataType = 0x2b;
