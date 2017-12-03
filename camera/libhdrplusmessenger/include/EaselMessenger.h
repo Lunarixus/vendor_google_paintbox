@@ -242,8 +242,12 @@ public:
      */
     virtual status_t connect(EaselMessengerListener &listener) = 0;
 
-    // Disconnect from the other EaselMessenger.
-    virtual void disconnect();
+    /*
+     * Disconnect from the other EaselMessenger.
+     *
+     * isErrorState indicates if the other side is in an error state.
+     */
+    virtual void disconnect(bool isErrorState = false);
 
     // Listener thread loop to handle receiving messages from the other EaselMessenger.
     void listenerThreadLoop();
