@@ -151,10 +151,18 @@ bool isGoodThermalCondition(EaselControlServer::ThermalCondition condition) {
     return (condition < EaselControlServer::ThermalCondition::Medium);
 }
 
+// Ignore continuous capturing in Easel (b/67652446)
+const bool kIgnoreContinuousCapturing = true;
+
 }  // namespace
 
 void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
     std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+
+    if (kIgnoreContinuousCapturing) {
+        ALOGI("%s: Ignore continuousCapturing (was %d)", __FUNCTION__, continuousCapturing);
+        continuousCapturing = false;
+    }
 
     {
         // Increment last requested frame counter ID so older frame counter ID will be ignored.
@@ -176,6 +184,11 @@ void SourceCaptureBlock::notifyIpuProcessingStart(bool continuousCapturing) {
             EaselControlServer::setClockMode(EaselControlServer::ClockMode::Functional);
         goodThermal = isGoodThermalCondition(newThermal);
         mClockMode = EaselControlServer::ClockMode::Functional;
+    }
+
+    if (kIgnoreContinuousCapturing) {
+        // Don't even touch DRAM controller settings if continuousCapturing ignored.
+        return;
     }
 
     // Do continuous capture only if we have good thermal condition.
