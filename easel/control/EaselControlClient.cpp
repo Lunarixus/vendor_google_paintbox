@@ -80,6 +80,8 @@ const std::chrono::milliseconds watchdogTimeout = std::chrono::milliseconds(2500
 
 } // anonymous namespace
 
+int stopWatchdog();
+
 /*
  * Determine severity
  *
@@ -110,12 +112,24 @@ static void reportError(enum EaselErrorReason reason) {
                 state = ControlState::PARTIAL;
             } else {
                 severity = EaselErrorSeverity::FATAL;
+                // Watchdog should not be stopped during timer callback. Since
+                // watchdog is a oneshot timer, we don't need to explicitly stop
+                // it.
+                if (reason != EaselErrorReason::WATCHDOG) {
+                    stopWatchdog();
+                }
                 state = ControlState::FAILED;
             }
 
         } else {
             // All errors are fatal in HDR+ mode
             severity = EaselErrorSeverity::FATAL;
+            // Watchdog should not be stopped during timer callback. Since
+            // watchdog is a oneshot timer, we don't need to explicitly stop
+            // it.
+            if (reason != EaselErrorReason::WATCHDOG) {
+                stopWatchdog();
+            }
             state = ControlState::FAILED;
         }
     }
@@ -534,7 +548,7 @@ int startWatchdog()
                              /*fireOnce=*/true);
 
     if (ret) {
-        ALOGE("%s: failed to start EaselWatchdog (%d)\n", __FUNCTION__, ret);
+        ALOGE("%s: failed to start watchdog (%d)\n", __FUNCTION__, ret);
     }
 
     return ret;
@@ -544,7 +558,7 @@ int stopWatchdog()
 {
     int ret = watchdog.stop();
     if (ret) {
-        ALOGE("%s: failed to stop EaselWatchdog (%d)\n", __FUNCTION__, ret);
+        ALOGE("%s: failed to stop watchdog (%d)\n", __FUNCTION__, ret);
     }
 
     return ret;
