@@ -179,6 +179,7 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
             ALOGE("%s: failed to stop heartbeat timer (%d)", __FUNCTION__, ret);
         }
 
+        usleep(1000);
 
         EaselControlServer::setClockMode(EaselControlServer::ClockMode::Bypass);
         break;
