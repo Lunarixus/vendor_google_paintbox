@@ -24,7 +24,7 @@ SourceCaptureBlock::SourceCaptureBlock(std::shared_ptr<MessengerToHdrPlusClient>
         PipelineBlock("SourceCaptureBlock", BLOCK_EVENT_TIMEOUT_MS),
         mMessengerToClient(messenger),
         mCaptureConfig(config),
-        mCaptureServicePaused(false),
+        mCaptureServicePaused(true),
         mClockMode(EaselControlServer::ClockMode::Max),
         mLastRequestedFrameCounterId(kInvalidFrameCounterId),
         mLastFinishedFrameCounterId(kInvalidFrameCounterId) {
@@ -71,6 +71,7 @@ status_t SourceCaptureBlock::createCaptureServiceLocked() {
 void SourceCaptureBlock::destroyCaptureServiceLocked() {
     mDequeueRequestThread = nullptr;
     mCaptureService = nullptr;
+    mCaptureServicePaused = true;
 }
 
 std::shared_ptr<SourceCaptureBlock> SourceCaptureBlock::newSourceCaptureBlock(
@@ -281,8 +282,6 @@ bool SourceCaptureBlock::doWorkLocked() {
         }
     }
 
-
-
     {
         std::unique_lock<std::mutex> lock(mFrameCounterLock);
         // If last requested frame counter ID is valid and it's the same as the last frame counter
@@ -352,6 +351,11 @@ status_t SourceCaptureBlock::flushLocked() {
     }
 
     return 0;
+}
+
+void SourceCaptureBlock::pauseCapture() {
+    std::unique_lock<std::mutex> lock(mSourceCaptureLock);
+    pauseCaptureServiceLocked();
 }
 
 void SourceCaptureBlock::removeTimedoutPendingOutputResult() {
