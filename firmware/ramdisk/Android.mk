@@ -19,7 +19,7 @@ FW_DATE := $$(date +'%Y%m%d.')
 
 # Set Easel firmware version number here (b/65286131)
 FW_MAJOR := '001'
-FW_MINOR := '000'
+FW_MINOR := '001'
 
 # TODO(cjluo): Add notice file before launch.
 
@@ -83,7 +83,8 @@ ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 	BIN_MODULES += \
 		$(call intermediates-dir-for,EXECUTABLES,imxserver)/imxserver
 	LIB_MODULES += \
-		$(call intermediates-dir-for,SHARED_LIBRARIES,libimxservice)/libimxservice.so
+		$(call intermediates-dir-for,SHARED_LIBRARIES,libimxservice)/libimxservice.so \
+		$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
 endif
 
 EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/

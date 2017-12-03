@@ -1,0 +1,27 @@
+// A very thin .so wrapping libeaselcomm with a c api.
+cc_defaults {
+    name: "libeaselcommcapi-defaults",
+    owner: "google",
+    export_include_dirs: ["include"],
+    cppflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+    srcs: [
+        "EaselCommCApi.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+        "libprotobuf-cpp-lite",
+        "libeaselcomm",
+    ],
+}
+
+cc_library_shared {
+    name: "libeaselcommcapi",
+    owner: "google",
+    defaults: ["libeaselcommcapi-defaults"],
+    vendor_available: true,
+}
