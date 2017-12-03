@@ -41,6 +41,12 @@ android::status_t PbTiClientRunner::activate() {
         return android::NO_INIT;
     }
 
+    res = mClient.activateEasel();
+    if (res != android::OK) {
+        ALOGE("%s: Easel is not activated.", __FUNCTION__);
+        return android::NO_INIT;
+    }
+
     res = mClient.freezeEaselState();
     if (res != android::OK) {
         ALOGE("%s: Easel state is not freezed.", __FUNCTION__);
