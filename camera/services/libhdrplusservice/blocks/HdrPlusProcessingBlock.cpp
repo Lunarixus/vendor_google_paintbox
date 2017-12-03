@@ -94,6 +94,15 @@ bool HdrPlusProcessingBlock::isReady() {
 
     {
         std::unique_lock<std::mutex> lock(mQueueLock);
+
+        auto pipeline = mPipeline.lock();
+        if (pipeline == nullptr) {
+            ALOGE("%s: Pipeline is destroyed.", __FUNCTION__);
+            return false;
+        }
+
+        checkOldInputsLocked(pipeline, /*returnOldInputs*/true);
+
         if (mInputQueue.size() < kGcamMinPayloadFrames) {
             ALOGW("Not enough input buffers: %zu", mInputQueue.size());
             return false;
@@ -113,6 +122,37 @@ void HdrPlusProcessingBlock::returnInputLocked(const std::shared_ptr<HdrPlusPipe
     }
 
     pipeline->inputDone(*input);
+}
+
+void HdrPlusProcessingBlock::checkOldInputsLocked(
+        const std::shared_ptr<HdrPlusPipeline> &pipeline, bool returnOldInputs) {
+    int64_t now;
+    status_t res = EaselControlServer::getApSynchronizedClockBoottime(&now);
+    if (res != 0) {
+        ALOGE("%s: Getting AP synchronized clock boot time failed.", __FUNCTION__);
+        return;
+    }
+
+    // Remove old inputs
+    if (!mSkipTimestampCheck) {
+        auto input = mInputQueue.begin();
+        while (input != mInputQueue.end()) {
+            if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
+                if (returnOldInputs) {
+                    ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
+                            input->metadata.frameMetadata->easelTimestamp, now);
+                    returnInputLocked(pipeline, &*input);
+                    input = mInputQueue.erase(input);
+                } else {
+                    ALOGW("%s: Found an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
+                            input->metadata.frameMetadata->easelTimestamp, now);
+                    input++;
+                }
+            } else {
+                input++;
+            }
+        }
+    }
 }
 
 bool HdrPlusProcessingBlock::doWorkLocked() {
@@ -170,27 +210,7 @@ bool HdrPlusProcessingBlock::doWorkLocked() {
             return false;
         }
 
-        int64_t now;
-        status_t res = EaselControlServer::getApSynchronizedClockBoottime(&now);
-        if (res != 0) {
-            ALOGE("%s: Getting AP synchronized clock boot time failed.", __FUNCTION__);
-            return true;
-        }
-
-        // Remove old inputs
-        if (!mSkipTimestampCheck) {
-            auto input = mInputQueue.begin();
-            while (input != mInputQueue.end()) {
-                if (now - input->metadata.frameMetadata->easelTimestamp > kOldInputTimeThresholdNs) {
-                    ALOGI("%s: Return an old input with time %" PRId64 " now %" PRId64, __FUNCTION__,
-                            input->metadata.frameMetadata->easelTimestamp, now);
-                    returnInputLocked(pipeline, &*input);
-                    input = mInputQueue.erase(input);
-                } else {
-                    input++;
-                }
-            }
-        }
+        checkOldInputsLocked(pipeline, /*returnOldInputs*/false);
 
         // If we have more inputs than we need, remove the oldest ones.
         while (mInputQueue.size() > kGcamMaxZslFrames) {

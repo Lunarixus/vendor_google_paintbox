@@ -268,6 +268,11 @@ private:
     // Return an input. Must be called with mQueueLock held.
     void returnInputLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline, Input *input);
 
+    // Check if there are any old inputs, and return old inputs if returnOldInputs is true. Must
+    // be called with mQueueLock held.
+    void checkOldInputsLocked(const std::shared_ptr<HdrPlusPipeline> &pipeline,
+            bool returnOldInputs);
+
     // Given an input crop resolution and output resolution, calculate the overall crop region that
     // has the same aspect ratio as the output resolution.
     status_t calculateCropRect(int32_t inputCropW, int32_t inputCropH,
