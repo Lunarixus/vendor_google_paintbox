@@ -245,12 +245,6 @@ int initializeServer() {
         return ret;
     }
 
-    ret = easel_conn.initialHandshake();
-    if (ret) {
-        ALOGE("%s: Failed to handshake with client (%d)", __FUNCTION__, ret);
-        return ret;
-    }
-
     easel_conn.startMessageHandlerThread(msgHandlerCallback);
     gServerInitialized = true;
     return ret;
