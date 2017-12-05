@@ -15,6 +15,7 @@
 #include <limits.h>
 #include <pthread.h>
 #include <pty.h>
+#include <regex>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1012,9 +1013,30 @@ static int server_send_exec_response(const char *output, int size, bool done, in
     return ret;
 }
 
+// Decides if request->cmd ends with '&'.
+// One or more ';' or ' ' are allowed even after '&'.
+// Returns: true    - the command should be run in background
+//          false   - the command should not be run in background
+static bool should_exec_cmd_in_background(ExecRequest *request) {
+    std::regex background_regex("&(;*| *)*$");
+
+    return std::regex_search(request->cmd, background_regex);
+}
+
 void server_exec_cmd(ExecRequest *request) {
-    auto pipe = popen(request->cmd, "r");
+
     int ret = -1;
+    if (should_exec_cmd_in_background(request)) {
+        ALOGD("begin to execute '%s' in background", request->cmd);
+        ret = system(request->cmd);
+        if (ret) {
+            ALOGE("failed to execute '%s' in background", request->cmd);
+        }
+        server_send_exec_response(nullptr, 0, true, ret);
+        return;
+    }
+
+    auto pipe = popen(request->cmd, "r");
     if (!pipe) {
         ALOGE("ezlsh: %s could not execute cmd %s\n",
                 __FUNCTION__, request->cmd);
