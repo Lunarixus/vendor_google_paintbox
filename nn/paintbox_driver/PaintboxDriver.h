@@ -27,10 +27,12 @@ namespace android {
 namespace nn {
 namespace paintbox_driver {
 
+class PaintboxPreparedModel;
+
 // Paintbox NN API driver implementation.
 class PaintboxDriver : public IDevice {
 public:
-    PaintboxDriver() : mName("paintbox") {}
+    PaintboxDriver() : mName("paintbox"), mPreparedModel(nullptr) {}
     ~PaintboxDriver() override {}
     Return<ErrorStatus> prepareModel(const Model& model,
                                      const sp<IPreparedModelCallback>& callback) override;
@@ -42,21 +44,24 @@ public:
 protected:
     std::string mName;
     EaselExecutorClient mClient;
+
+    wp<PaintboxPreparedModel> mPreparedModel;
 };
 
 class PaintboxPreparedModel : public IPreparedModel {
 public:
-    PaintboxPreparedModel(const Model& model, EaselExecutorClient* client)
-          : // Make a copy of the model, as we need to preserve it.
-            mModel(model), mClient(client) {}
+    PaintboxPreparedModel(const Model& model, EaselExecutorClient* client);
     ~PaintboxPreparedModel() override;
     bool initialize();
     Return<ErrorStatus> execute(const Request& request,
                                 const sp<IExecutionCallback>& callback) override;
-    const Model& model() const;
+    const Model* model();
+    // Destories the model, which will make all following execution not valid.
+    void destroyModel();
 
 private:
-    Model mModel;
+    std::mutex mModelLock;
+    std::unique_ptr<Model> mModel;  // GUARDED_BY(mModelLock)
     EaselExecutorClient* mClient;
 };
 

@@ -47,14 +47,30 @@ Return<ErrorStatus> PaintboxDriver::prepareModel(const Model& model,
 
     CHECK_EQ(mClient.initialize(), 0);
 
-    PaintboxPreparedModel* preparedModel = new PaintboxPreparedModel(model, &mClient);
+    {
+        // Temporarily allow new model preparation overriding old one.
+        // TODO(cjluo): This should be removed once we allow
+        // full concurrent model preparation.
+        sp<PaintboxPreparedModel> oldPreparedModel = mPreparedModel.promote();
+        if (oldPreparedModel != nullptr) {
+            LOG(WARNING) << "Old PaintboxPreparedModel still lives and will be overridden.";
+            oldPreparedModel->destroyModel();
+        }
+    }
 
-    // Use the model copy of the prepared model, because it is preserved.
-    mClient.prepareModel(preparedModel->model(), [callback, preparedModel] (
-            const paintbox_nn::PrepareModelResponse& response) {
-        callback->notify(
-                paintbox_util::convertProtoError(response.error()), preparedModel);
-    });
+    {
+        mPreparedModel = new PaintboxPreparedModel(model, &mClient);
+        sp<PaintboxPreparedModel> strongPreparedModel = mPreparedModel.promote();
+
+        // Use the model copy of the prepared model, because it is preserved.
+        const Model* model = strongPreparedModel->model();
+        CHECK(model != nullptr);
+        mClient.prepareModel(*model, [callback, strongPreparedModel] (
+                const paintbox_nn::PrepareModelResponse& response) {
+            callback->notify(
+                    paintbox_util::convertProtoError(response.error()), strongPreparedModel);
+        });
+    }
 
     return ErrorStatus::NONE;
 }
@@ -75,22 +91,43 @@ int PaintboxDriver::run() {
     return 1;
 }
 
-PaintboxPreparedModel::~PaintboxPreparedModel() {
-    mClient->destroyModel(mModel);
+PaintboxPreparedModel::PaintboxPreparedModel(const Model& model, EaselExecutorClient* client)
+      : mClient(client) {
+    // Make a copy of the model, as we need to preserve it.
+    mModel = std::make_unique<Model>();
+    *mModel = model;
 }
 
-const Model& PaintboxPreparedModel::model() const {
-    return mModel;
+PaintboxPreparedModel::~PaintboxPreparedModel() {
+    if (model() != nullptr) destroyModel();
+}
+
+const Model* PaintboxPreparedModel::model() {
+    std::lock_guard<std::mutex> lock(mModelLock);
+    return mModel.get();
+}
+
+void PaintboxPreparedModel::destroyModel() {
+    std::lock_guard<std::mutex> lock(mModelLock);
+    if (mModel == nullptr) return;
+    mClient->destroyModel(*mModel);
+    mModel = nullptr;
 }
 
 Return<ErrorStatus> PaintboxPreparedModel::execute(const Request& request,
                                                  const sp<IExecutionCallback>& callback) {
+    std::lock_guard<std::mutex> lock(mModelLock);
+    if (mModel == nullptr) {
+        LOG(ERROR) << "Could not execute on an already destroyed model.";
+        return ErrorStatus::GENERAL_FAILURE;
+    }
+
     VLOG(DRIVER) << "execute(" << toString(request) << ")";
     if (callback.get() == nullptr) {
         LOG(ERROR) << "invalid callback passed to execute";
         return ErrorStatus::INVALID_ARGUMENT;
     }
-    if (!validateRequest(request, mModel)) {
+    if (!validateRequest(request, *mModel)) {
         callback->notify(ErrorStatus::INVALID_ARGUMENT);
         return ErrorStatus::INVALID_ARGUMENT;
     }
