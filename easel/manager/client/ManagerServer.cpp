@@ -17,30 +17,30 @@ namespace android {
 namespace EaselManager {
 
 namespace {
-EaselManagerService::App convertApp(int32_t app) {
-  App appEnum = static_cast<App>(app);
-  switch (appEnum) {
+EaselManagerService::Service convertService(int32_t service) {
+  Service serviceEnum = static_cast<Service>(service);
+  switch (serviceEnum) {
     case PBSERVER:
       return EaselManagerService::PBSERVER;
-    case DUMMY_APP:
-      return EaselManagerService::DUMMY_APP;
-    case CRASH_APP:
-      return EaselManagerService::CRASH_APP;
+    case DUMMY_SERVICE:
+      return EaselManagerService::DUMMY_SERVICE;
+    case CRASH_SERVICE:
+      return EaselManagerService::CRASH_SERVICE;
     default:
-      LOG(FATAL) << "App " << app << " not defined";
+      LOG(FATAL) << "Service " << service << " not defined";
   }
 }
 
-App convertApp(EaselManagerService::App app) {
-  switch (app) {
+Service convertService(EaselManagerService::Service service) {
+  switch (service) {
     case EaselManagerService::PBSERVER:
       return PBSERVER;
-    case EaselManagerService::DUMMY_APP:
-      return DUMMY_APP;
-    case EaselManagerService::CRASH_APP:
-      return CRASH_APP;
+    case EaselManagerService::DUMMY_SERVICE:
+      return DUMMY_SERVICE;
+    case EaselManagerService::CRASH_SERVICE:
+      return CRASH_SERVICE;
     default:
-      LOG(FATAL) << "App " << app << " not defined";
+      LOG(FATAL) << "Service " << service << " not defined";
   }
 }
 
@@ -48,14 +48,14 @@ Error convertError(EaselManagerService::Error error) {
   switch (error) {
     case EaselManagerService::SUCCESS:
       return SUCCESS;
-    case EaselManagerService::APP_ALREADY_STARTED:
-      return APP_ALREADY_STARTED;
-    case EaselManagerService::APP_NOT_FOUND:
-      return APP_NOT_FOUND;
-    case EaselManagerService::APP_PROCESS_FAILURE:
-      return APP_PROCESS_FAILURE;
-    case EaselManagerService::APP_NOT_STARTED:
-      return APP_NOT_STARTED;
+    case EaselManagerService::SERVICE_ALREADY_STARTED:
+      return SERVICE_ALREADY_STARTED;
+    case EaselManagerService::SERVICE_NOT_FOUND:
+      return SERVICE_NOT_FOUND;
+    case EaselManagerService::SERVICE_PROCESS_FAILURE:
+      return SERVICE_PROCESS_FAILURE;
+    case EaselManagerService::SERVICE_NOT_STARTED:
+      return SERVICE_NOT_STARTED;
     default:
       LOG(FATAL) << "Error " << error << " not defined";
   }
@@ -104,8 +104,9 @@ ManagerServer::~ManagerServer() { powerOff(); }
 char const* ManagerServer::getServiceName() { return gEaselManagerService; }
 
 void ManagerServer::initialize() {
-  mComm->registerHandler(APP_STATUS, [&](const EaselComm2::Message& message) {
-    EaselManagerService::AppStatusResponse response;
+  mComm->registerHandler(SERVICE_STATUS,
+                         [&](const EaselComm2::Message& message) {
+    EaselManagerService::ServiceStatusResponse response;
     if (!message.toProto(&response)) {
       LOG(ERROR) << "Could not parse response.";
       return;
@@ -113,55 +114,57 @@ void ManagerServer::initialize() {
 
     std::lock_guard<std::mutex> lock(mManagerLock);
 
-    auto iter = mAppCallbackMap.find(convertApp(response.app()));
-    if (iter == mAppCallbackMap.end()) {
-      LOG(ERROR) << "Could not find app " << response.app();
+    auto iter = mServiceCallbackMap.find(convertService(response.service()));
+    if (iter == mServiceCallbackMap.end()) {
+      LOG(ERROR) << "Could not find service " << response.service();
       return;
     }
 
     if (response.error() != EaselManagerService::SUCCESS) {
-      iter->second->onAppError(convertError(response.error()));
+      iter->second->onServiceError(convertError(response.error()));
       // Immediately clears the callback if happen occurs.
-      // Client will not get any new updates about this app
-      // Until new callback registers with startApp call.
-      mAppCallbackMap.erase(iter);
+      // Client will not get any new updates about this service
+      // Until new callback registers with startService call.
+      mServiceCallbackMap.erase(iter);
     } else {
       if (response.status() == EaselManagerService::LIVE) {
-        LOG(INFO) << "App " << response.app() << " started";
-        iter->second->onAppStart();
+        LOG(INFO) << "Service " << response.service() << " started";
+        iter->second->onServiceStart();
       } else if (response.status() == EaselManagerService::EXIT) {
-        LOG(INFO) << "App " << response.app() << " stopped, exit " <<  response.exit();
-        iter->second->onAppEnd(response.exit());
-        mAppCallbackMap.erase(iter);
+        LOG(INFO) << "Service " << response.service()
+                  << " stopped, exit " <<  response.exit();
+        iter->second->onServiceEnd(response.exit());
+        mServiceCallbackMap.erase(iter);
       } else {
-        LOG(FATAL) << "App " << response.app()
+        LOG(FATAL) << "Service " << response.service()
                    << " unknown but no error reported";
       }
     }
 
-    if (mAppCallbackMap.empty()) {
+    if (mServiceCallbackMap.empty()) {
       powerOff();
     }
   });
 }
 
-binder::Status ManagerServer::startApp(int32_t app,
-                                       const sp<IAppStatusCallback>& callback,
-                                       int32_t* _aidl_return) {
-  LOG(INFO) << __FUNCTION__ << ": App " << app;
+binder::Status ManagerServer::startService(
+    int32_t service,
+    const sp<IServiceStatusCallback>& callback,
+    int32_t* _aidl_return) {
+  LOG(INFO) << __FUNCTION__ << ": Service " << service;
 
   std::lock_guard<std::mutex> lock(mManagerLock);
 
-  auto iter = mAppCallbackMap.find(app);
-  if (iter != mAppCallbackMap.end()) {
-    *_aidl_return = static_cast<int32_t>(APP_ALREADY_STARTED);
+  auto iter = mServiceCallbackMap.find(service);
+  if (iter != mServiceCallbackMap.end()) {
+    *_aidl_return = static_cast<int32_t>(SERVICE_ALREADY_STARTED);
     return binder::Status::ok();
   }
 
-  mAppCallbackMap[app] = callback;
+  mServiceCallbackMap[service] = callback;
 
-  EaselManagerService::StartAppRequest request;
-  request.set_app(convertApp(app));
+  EaselManagerService::StartServiceRequest request;
+  request.set_service(convertService(service));
 
   if (!mComm->connected()) {
     int res = powerOn();
@@ -171,26 +174,27 @@ binder::Status ManagerServer::startApp(int32_t app,
     }
   }
 
-  mComm->send(START_APP, request);
+  mComm->send(START_SERVICE, request);
 
   *_aidl_return = static_cast<int32_t>(SUCCESS);
 
   return binder::Status::ok();
 }
 
-binder::Status ManagerServer::stopApp(int32_t app, int32_t* _aidl_return) {
-  LOG(INFO) << __FUNCTION__ << ": App " << app;
+binder::Status ManagerServer::stopService(int32_t service,
+                                          int32_t* _aidl_return) {
+  LOG(INFO) << __FUNCTION__ << ": Service " << service;
 
   std::lock_guard<std::mutex> lock(mManagerLock);
 
-  auto iter = mAppCallbackMap.find(app);
-  if (iter != mAppCallbackMap.end()) {
-    EaselManagerService::StopAppRequest request;
-    request.set_app(convertApp(app));
-    mComm->send(STOP_APP, request);
+  auto iter = mServiceCallbackMap.find(service);
+  if (iter != mServiceCallbackMap.end()) {
+    EaselManagerService::StopServiceRequest request;
+    request.set_service(convertService(service));
+    mComm->send(STOP_SERVICE, request);
     *_aidl_return = static_cast<int32_t>(SUCCESS);
   } else {
-    *_aidl_return = static_cast<int32_t>(APP_NOT_STARTED);
+    *_aidl_return = static_cast<int32_t>(SERVICE_NOT_STARTED);
   }
 
   return binder::Status::ok();

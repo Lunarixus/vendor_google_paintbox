@@ -12,8 +12,9 @@ namespace EaselManager {
 class ManagerClientImpl : public ManagerClient {
  public:
   Error initialize() override;
-  Error startApp(App app, const sp<IAppStatusCallback>& callback) override;
-  Error stopApp(App app) override;
+  Error startService(Service service,
+                     const sp<IServiceStatusCallback>& callback) override;
+  Error stopService(Service service) override;
 
  private:
   sp<IManagerService> mService;

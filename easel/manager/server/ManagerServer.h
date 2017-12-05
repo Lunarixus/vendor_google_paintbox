@@ -6,8 +6,8 @@
 
 namespace EaselManagerService {
 
-// Easel side server that listens app management requests from Android AP
-// client.
+// Easel side server that listens app service management requests from Android
+// AP client.
 class ManagerServer {
  public:
   ManagerServer();

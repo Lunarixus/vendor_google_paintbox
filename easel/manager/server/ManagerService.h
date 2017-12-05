@@ -9,22 +9,23 @@
 
 namespace EaselManagerService {
 
-// App management implementation
+// Service management implementation
 class ManagerService {
  public:
-  ManagerService(std::function<void(const AppStatusResponse&)> statusCallback);
+  ManagerService(
+    std::function<void(const ServiceStatusResponse&)> statusCallback);
 
-  // Starts an app based on request and triggers statusCallback registered.
-  void startApp(const StartAppRequest& request);
-  // Stops an app based on request and triggers statusCallback registered.
-  void stopApp(const StopAppRequest& request);
+  // Starts a service based on request and triggers statusCallback registered.
+  void startService(const StartServiceRequest& request);
+  // Stops a service based on request and triggers statusCallback registered.
+  void stopService(const StopServiceRequest& request);
 
  private:
   std::mutex mServiceLock;
-  // Pre-registered App status update callback function.
-  std::function<void(const AppStatusResponse&)>
+  // Pre-registered service status update callback function.
+  std::function<void(const ServiceStatusResponse&)>
       mStatusCallback;                     // Guarded by mServiceLock
-  std::unordered_map<App, pid_t> mPidMap;  // Guarded by mServiceLock
+  std::unordered_map<Service, pid_t> mPidMap;  // Guarded by mServiceLock
 };
 
 }  // namespace EaselManagerService
