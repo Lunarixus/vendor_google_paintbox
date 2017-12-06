@@ -27,6 +27,7 @@ PRODUCT_PACKAGES += \
     libhdrplusclientimpl \
     libhdrplusmessenger \
     libeaselcomm \
+    libeaselcommcapi \
     libeaselcontrol
 
 # Neuralnetworks HAL
