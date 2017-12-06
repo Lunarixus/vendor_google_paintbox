@@ -9,41 +9,41 @@
 namespace paintbox_nn {
 
 EaselExecutorServer::EaselExecutorServer() {
-  mComm = EaselComm2::Comm::create(EaselComm2::Comm::Mode::SERVER);
+  mComm = std::unique_ptr<easel::Comm>(
+      easel::Comm::Create(easel::Comm::Type::SERVER));
   mState = State::INIT;
+
+  mPrepareModelHandler = std::make_unique<easel::FunctionHandler>(
+      [this](const easel::Message& message) { handlePrepareModel(message); });
+
+  mExecuteHandler = std::make_unique<easel::FunctionHandler>(
+      [this](const easel::Message& message) { handleExecute(message); });
+
+  mDestroyModelHandler = std::make_unique<easel::FunctionHandler>(
+      [this](const easel::Message& message) { handleDestroyModel(message); });
 }
 
 void EaselExecutorServer::start() {
   CHECK(mState == State::INIT);
 
-  mComm->registerHandler(
-      PREPARE_MODEL,
-      [&](const EaselComm2::Message& message) { handlePrepareModel(message); });
-
-  mComm->registerHandler(
-      DESTROY_MODEL,
-      [&](const EaselComm2::Message& message) { handleDestroyModel(message); });
-
-  mComm->registerHandler(EXECUTE, [&](const EaselComm2::Message& message) {
-    handleExecute(message);
-  });
-
-  mComm->openPersistent(EASEL_SERVICE_NN);
+  mComm->RegisterHandler(PREPARE_MODEL, mPrepareModelHandler.get());
+  mComm->RegisterHandler(EXECUTE, mExecuteHandler.get());
+  mComm->RegisterHandler(DESTROY_MODEL, mDestroyModelHandler.get());
+  mComm->OpenPersistent(easel::EASEL_SERVICE_NN, 0);
 }
 
-void EaselExecutorServer::handlePrepareModel(
-    const EaselComm2::Message& message) {
+void EaselExecutorServer::handlePrepareModel(const easel::Message& message) {
   ALOGI("received PrepareModel");
 
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
-  if (!message.hasPayload()) {
+  if (message.GetPayloadSize() <= 0) {
     // If it is a message with Model object.
     // Should be in destroyed state.
     CHECK(mState == State::INIT || mState == State::MODEL_DESTROYED);
     CHECK(mModel.pools.empty());
     CHECK(!mExecutorThread.joinable());
-    CHECK(message.toProto(&mModel.model));
+    CHECK(easel::MessageToProto(message, &mModel.model));
     ALOGI("PrepareModel done. model size %d pool size %d",
           mModel.model.ByteSize(), mModel.model.poolsizes().size());
     mState = State::MODEL_RECEIVED;
@@ -55,19 +55,20 @@ void EaselExecutorServer::handlePrepareModel(
     CHECK(mState == State::MODEL_RECEIVED);
 
     // If it is a message with pool that comes after Model:
-    int id = message.getPayload().id();
+    int id = message.GetPayloadId();
 
     CHECK_LT(id, mModel.model.poolsizes().size());
     // Check we have received the previous buffers.
     CHECK_EQ(mModel.pools.size(), static_cast<size_t>(id));
-    size_t inputSize = message.getPayload().size();
+    size_t inputSize = message.GetPayloadSize();
     CHECK_EQ(inputSize, mModel.model.poolsizes(id));
 
     // Receive input data.
-    EaselComm2::HardwareBuffer hardwareBuffer(inputSize, id);
-    CHECK(hardwareBuffer.valid());
-    CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
-    mModel.pools.push_back(hardwareBuffer);
+    std::unique_ptr<easel::HardwareBuffer> hardwareBuffer =
+        easel::AllocateHardwareBuffer(inputSize, id);
+    CHECK(hardwareBuffer != nullptr);
+    CHECK_EQ(mComm->ReceivePayload(message, hardwareBuffer.get()), 0);
+    mModel.pools.push_back(std::move(hardwareBuffer));
 
     // Send the response on the last buffer.
     if (id == mModel.model.poolsizes().size() - 1) {
@@ -80,27 +81,27 @@ void EaselExecutorServer::modelFullyReceived() {
   mState = State::MODEL_POOLS_RECEIVED;
   PrepareModelResponse response;
   response.set_error(NONE);
-  mComm->send(PREPARE_MODEL, response);
+  easel::SendProto(mComm.get(), PREPARE_MODEL, response, /*payload=*/nullptr);
 
   // Start the executor thread.
   mExecutorThread = std::thread([&] { executeRunThread(); });
 }
 
-void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
+void EaselExecutorServer::handleExecute(const easel::Message& message) {
   ALOGI("received Execute");
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
-  if (!message.hasPayload()) {
+  if (message.GetPayloadSize() <= 0) {
     CHECK(mState == State::MODEL_POOLS_RECEIVED ||
           mState == State::REQUEST_POOLS_RECEIVED);
 
     RequestPair pair;
-    CHECK(message.toProto(&pair.request));
+    easel::MessageToProto(message, &pair.request);
     ALOGI("request size %d pool size %d", pair.request.ByteSize(),
           pair.request.poolsizes().size());
     CHECK(pair.pools.empty());
     pair.pools.resize(pair.request.poolsizes().size());
-    mRequests.emplace(pair);
+    mRequests.push(std::move(pair));
     mState = State::REQUEST_RECEIVED;
 
     // If request does not need input pools, set to fully received state right
@@ -115,20 +116,21 @@ void EaselExecutorServer::handleExecute(const EaselComm2::Message& message) {
     auto& request = mRequests.back().request;
     auto& pools = mRequests.back().pools;
     // id is also the index of pools (not inputpools or outputpools).
-    int id = message.getPayload().id();
+    int id = message.GetPayloadId();
 
     CHECK_LT(id, static_cast<int>(request.poolsizes().size()));
     // TODO(cjluo): find a efficient way to check
     // 1) id is inside request.pools().
     // 2) we have received the previous buffers.
 
-    size_t inputSize = message.getPayload().size();
+    size_t inputSize = message.GetPayloadSize();
     CHECK_EQ(inputSize, request.poolsizes(id));
 
-    EaselComm2::HardwareBuffer hardwareBuffer(inputSize);
-    CHECK(hardwareBuffer.valid());
-    CHECK_EQ(mComm->receivePayload(message, &hardwareBuffer), 0);
-    pools[id] = hardwareBuffer;
+    std::unique_ptr<easel::HardwareBuffer> hardwareBuffer =
+        easel::AllocateHardwareBuffer(inputSize);
+    CHECK(hardwareBuffer->Valid());
+    CHECK_EQ(mComm->ReceivePayload(message, hardwareBuffer.get()), 0);
+    pools[id] = std::move(hardwareBuffer);
 
     // Set to request fully received state on last input buffer.
     int last = request.inputpools().size() - 1;
@@ -146,11 +148,11 @@ void EaselExecutorServer::requestFullyReceived() {
 namespace {
 void setRunTimePoolInfosFromHardwareBuffer(
     std::vector<android::nn::RunTimePoolInfo>* poolInfos,
-    std::vector<EaselComm2::HardwareBuffer>* pools) {
+    std::vector<std::unique_ptr<easel::HardwareBuffer>>* pools) {
   poolInfos->resize(pools->size());
   for (size_t i = 0; i < pools->size(); i++) {
     auto& poolInfo = (*poolInfos)[i];
-    poolInfo.buffer = static_cast<uint8_t*>((*pools)[i].vaddr());
+    poolInfo.buffer = static_cast<uint8_t*>((*pools)[i]->GetVaddrMutable());
   }
 }
 }  // namespace
@@ -172,10 +174,10 @@ void EaselExecutorServer::executeRunThread() {
     RequestPair& pair = mRequests.front();
     // Allocate empty output pools.
     for (size_t i = 0; i < pair.pools.size(); i++) {
-      if (!pair.pools[i].valid()) {
+      if (pair.pools[i] == nullptr) {
         size_t size = pair.request.poolsizes(i);
-        pair.pools[i] = EaselComm2::HardwareBuffer(size);
-        CHECK(pair.pools[i].valid());
+        pair.pools[i] = easel::AllocateHardwareBuffer(size);
+        CHECK(pair.pools[i]->Valid());
       }
     }
 
@@ -193,25 +195,23 @@ void EaselExecutorServer::executeRunThread() {
         n == ANEURALNETWORKS_NO_ERROR ? NONE : GENERAL_FAILURE;
 
     if (executionStatus == ErrorStatus::NONE) {
-      std::vector<EaselComm2::HardwareBuffer> hardwareBuffers;
       // Send output pools back to client.
       for (int outputIndex : pair.request.outputpools()) {
-        pair.pools[outputIndex].setId(outputIndex);
-        hardwareBuffers.push_back(pair.pools[outputIndex]);
+        pair.pools[outputIndex]->SetId(outputIndex);
+        mComm->Send(EXECUTE, pair.pools[outputIndex].get());
       }
-      mComm->send(EXECUTE, hardwareBuffers);
     }
 
     RequestResponse response;
     response.set_error(executionStatus);
-    mComm->send(EXECUTE, response);
+    SendProto(mComm.get(), EXECUTE, response, /*payload=*/nullptr);
 
     // Release allocated resource
     mRequests.pop();
   }
 }
 
-void EaselExecutorServer::handleDestroyModel(const EaselComm2::Message&) {
+void EaselExecutorServer::handleDestroyModel(const easel::Message&) {
   ALOGI("received DestoryModel");
 
   {
@@ -233,7 +233,7 @@ void EaselExecutorServer::handleDestroyModel(const EaselComm2::Message&) {
 
   TearDownModelResponse response;
   response.set_error(NONE);
-  mComm->send(DESTROY_MODEL, response);
+  easel::SendProto(mComm.get(), DESTROY_MODEL, response, /*payload=*/nullptr);
   mState = State::MODEL_DESTROYED;
 }
 

@@ -3,6 +3,7 @@
 #include "Conversion.h"
 #include "Utils.h"
 #include "android-base/logging.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
 
 #include <sys/mman.h>
 #include <set>
@@ -195,7 +196,7 @@ bool mapPool(const hidl_memory& hidlMemory, HardwareBufferPool* bufferPool) {
       LOG(ERROR) << "Can't access shared memory.";
       return false;
     }
-    bufferPool->buffer = EaselComm2::HardwareBuffer(buffer, memory->getSize());
+    bufferPool->buffer = easel::CreateHardwareBuffer(buffer, memory->getSize());
     bufferPool->memory = memory;
     return true;
   } else if (memType == "mmap_fd") {
@@ -210,7 +211,7 @@ bool mapPool(const hidl_memory& hidlMemory, HardwareBufferPool* bufferPool) {
       LOG(ERROR) << "Can't mmap the file descriptor.";
       return false;
     }
-    bufferPool->buffer = EaselComm2::HardwareBuffer(buffer, size);
+    bufferPool->buffer = easel::CreateHardwareBuffer(buffer, size);
     bufferPool->memory = nullptr;
   } else {
     LOG(ERROR) << "unsupported hidl_memory type";

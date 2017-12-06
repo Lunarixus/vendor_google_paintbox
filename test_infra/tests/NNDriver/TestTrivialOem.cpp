@@ -128,7 +128,7 @@ TEST_F(TrivialOEMTest, SingleOEMOperationTest) {
 }
 
 TEST_F(TrivialOEMTest, MultipleOEMOperationTest) {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 10; i++) {
         LOG(INFO) << "MultipleOEMOperationTest iteration " << i;
         android::nn::wrapper::Model modelAdd2;
         CreateSingleOEMOperation(&modelAdd2);
