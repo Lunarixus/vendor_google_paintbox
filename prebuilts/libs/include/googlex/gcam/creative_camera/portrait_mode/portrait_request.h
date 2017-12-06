@@ -62,6 +62,10 @@ struct GoudaRequest {
   // This field is not serialized.
   gcam::GcamPixelFormat output_format_primary;
 
+  // Higher numbers output more debug images. Negative numbers mean no debug
+  // images.
+  int debug_images_verbosity = 0;
+
   // A path at which to save the raw inputs to the GoudaProcessor. To skip
   // saving raw inputs, leave this string empty. This field is not serialized.
   std::string portrait_raw_path;

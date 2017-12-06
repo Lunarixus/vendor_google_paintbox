@@ -64,6 +64,13 @@ FaceInfo PixelRectToFaceInfo(
     const int h,
     const ImageRotation rotation_already_applied = ImageRotation::kNone);
 
+// Helper function that returns an updated FaceInfo struct to reflect a crop
+// applied to the underlying image.
+FaceInfo CropFaceInfo(const FaceInfo& face,
+                      const PixelRect& crop,
+                      int pre_crop_width,
+                      int pre_crop_height);
+
 }  // namespace gcam
 
 #endif  // GOOGLEX_GCAM_IMAGE_METADATA_FACE_INFO_H_

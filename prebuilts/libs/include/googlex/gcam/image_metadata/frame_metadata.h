@@ -202,9 +202,8 @@ struct OisPosition {
 // Metadata related to optical image stabilization (OIS). This contains
 // the lens position at several times during frame capture.
 // https://cs.corp.google.com/android/vendor/google/frameworks/camera/experimental2017/java/com/google/android/camera/experimental2017/ExperimentalKeys.java
-// See b/62091252 for upcoming API changes.
-// TODO(nealw): Update this struct when this API is updated during the 2017 MR1
-//   release.
+// TODO(timothybrooks): Update this struct when the API is updated in the
+// Android P release. See https://docs.google.com/document/d/1qB7XEGKZjEnK_yGfk3Cd_MLy1aW4pblotMxZz7qhsfA/edit?ts=59ee2273
 struct OisMetadata {
   // Time in nanoseconds at which the first row of the frame is exposed as
   // recorded by the CPU clock. All OIS timestamps are on the same clock.
