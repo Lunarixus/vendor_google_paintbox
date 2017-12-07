@@ -45,8 +45,6 @@ std::atomic_flag isActivatePending = ATOMIC_FLAG_INIT;  // initializes to false
 
 EaselLog::LogClient gLogClient;
 
-bool gHandshakeSuccessful;
-
 // Error callback registered by user
 easel_error_callback_t gErrorCallback;
 
@@ -412,20 +410,6 @@ void easelConnThread()
         return;
     }
 
-    ALOGI("%s: waiting for handshake\n", __FUNCTION__);
-    ret = easel_conn.initialHandshake();
-    if (ret) {
-        captureBootTrace();
-        if (ret == -ESHUTDOWN) {
-            ALOGD("%s: connection was closed during handshake", __FUNCTION__);
-        } else {
-            ALOGE("%s: Failed to handshake with server (%d)", __FUNCTION__, ret);
-            reportErrorAsync(EaselErrorReason::HANDSHAKE_FAIL);
-        }
-        return;
-    }
-    gHandshakeSuccessful = true;
-    ALOGI("%s: handshake done\n", __FUNCTION__);
     captureBootTrace();
 
     easel_conn.startMessageHandlerThread(msgHandlerCallback);
@@ -444,7 +428,6 @@ int setupEaselConn()
     if (conn_thread.joinable() || easel_conn.isConnected()) {
         return 0;
     }
-    gHandshakeSuccessful = false;
     conn_thread = std::thread(easelConnThread);
     return 0;
 }
@@ -453,7 +436,7 @@ int waitForEaselConn() {
     if (conn_thread.joinable()) {
         conn_thread.join();
     }
-    if (!easel_conn.isConnected() || !gHandshakeSuccessful) {
+    if (!easel_conn.isConnected()) {
         return -EIO;
     }
     return 0;
@@ -465,7 +448,6 @@ int teardownEaselConn()
         conn_thread.join();
     }
 
-    gHandshakeSuccessful = false;
     easel_conn.close();
 
     return 0;

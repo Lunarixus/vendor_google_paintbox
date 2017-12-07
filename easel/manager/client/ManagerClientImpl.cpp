@@ -20,18 +20,19 @@ Error ManagerClientImpl::initialize() {
   return SUCCESS;
 }
 
-Error ManagerClientImpl::startApp(App app,
-                                  const sp<IAppStatusCallback>& callback) {
+Error ManagerClientImpl::startService(Service service,
+                                  const sp<IServiceStatusCallback>& callback) {
   int32_t res;
   binder::Status status =
-      mService->startApp(static_cast<int32_t>(app), callback, &res);
+      mService->startService(static_cast<int32_t>(service), callback, &res);
   if (!status.isOk()) return BINDER_ERROR;
   return static_cast<Error>(res);
 }
 
-Error ManagerClientImpl::stopApp(App app) {
+Error ManagerClientImpl::stopService(Service service) {
   int32_t res;
-  binder::Status status = mService->stopApp(static_cast<int32_t>(app), &res);
+  binder::Status status =
+      mService->stopService(static_cast<int32_t>(service), &res);
   if (!status.isOk()) return BINDER_ERROR;
   return static_cast<Error>(res);
 }

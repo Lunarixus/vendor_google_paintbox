@@ -8,7 +8,7 @@ cc_library_shared {
     },
 
     srcs: [
-        "aidl/android/EaselManager/IAppStatusCallback.aidl",
+        "aidl/android/EaselManager/IServiceStatusCallback.aidl",
         "aidl/android/EaselManager/IManagerService.aidl",
     ],
 

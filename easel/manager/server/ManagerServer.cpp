@@ -13,20 +13,23 @@ namespace EaselManagerService {
 ManagerServer::ManagerServer() {
   mComm = EaselComm2::Comm::create(EaselComm2::Comm::Mode::SERVER);
   mService = std::make_unique<ManagerService>(
-      [&](AppStatusResponse response) { mComm->send(APP_STATUS, response); });
+      [&](ServiceStatusResponse response) {
+    mComm->send(SERVICE_STATUS, response);
+  });
 }
 
 void ManagerServer::run() {
-  mComm->registerHandler(START_APP, [&](const EaselComm2::Message& message) {
-    StartAppRequest request;
+  mComm->registerHandler(START_SERVICE,
+                         [&](const EaselComm2::Message& message) {
+    StartServiceRequest request;
     CHECK(message.toProto(&request));
-    mService->startApp(request);
+    mService->startService(request);
   });
 
-  mComm->registerHandler(STOP_APP, [&](const EaselComm2::Message& message) {
-    StopAppRequest request;
+  mComm->registerHandler(STOP_SERVICE, [&](const EaselComm2::Message& message) {
+    StopServiceRequest request;
     CHECK(message.toProto(&request));
-    mService->stopApp(request);
+    mService->stopService(request);
   });
 
   mComm->openPersistent(EASEL_SERVICE_MANAGER);

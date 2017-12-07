@@ -3,64 +3,67 @@
 #include "EaselManager.h"
 
 #include "android-base/logging.h"
-#include "android/EaselManager/BnAppStatusCallback.h"
+#include "android/EaselManager/BnServiceStatusCallback.h"
 
-// An example to use EaselManager start and stop an app.
+// An example to use EaselManager start and stop a service.
 
 namespace android {
 namespace EaselManager {
 
-// A mock app status callback that logs the status change.
-class AppStatusCallback : public BnAppStatusCallback {
+// A mock app service status callback that logs the status change.
+class ServiceStatusCallback : public BnServiceStatusCallback {
  public:
-  AppStatusCallback(App app) : mApp(app), mAppStart(false), mAppStop(false) {}
+  ServiceStatusCallback(Service service) : mService(service),
+                                           mServiceStart(false),
+                                           mServiceStop(false) {}
 
-  binder::Status onAppStart() override {
-    LOG(INFO) << __FUNCTION__ << ": App " << mApp << " started";
-    std::unique_lock<std::mutex> startLock(mAppStartLock);
-    mAppStart = true;
-    mAppStartCond.notify_one();
+  binder::Status onServiceStart() override {
+    LOG(INFO) << __FUNCTION__ << ": Service " << mService << " started";
+    std::unique_lock<std::mutex> startLock(mServiceStartLock);
+    mServiceStart = true;
+    mServiceStartCond.notify_one();
     return binder::Status::ok();
   }
 
-  binder::Status onAppEnd(int exit) override {
-    LOG(INFO) << __FUNCTION__ << ": App " << mApp << " stopped, exit " << exit;
-    std::unique_lock<std::mutex> stopLock(mAppStopLock);
-    mAppStop = true;
-    mAppStopCond.notify_one();
+  binder::Status onServiceEnd(int exit) override {
+    LOG(INFO) << __FUNCTION__ << ": Service " << mService
+                              << " stopped, exit " << exit;
+    std::unique_lock<std::mutex> stopLock(mServiceStopLock);
+    mServiceStop = true;
+    mServiceStopCond.notify_one();
     return binder::Status::ok();
   }
 
-  binder::Status onAppError(int32_t error) override {
-    LOG(INFO) << __FUNCTION__ << ": App " << mApp << " error " << error;
+  binder::Status onServiceError(int32_t error) override {
+    LOG(INFO) << __FUNCTION__ << ": Service " << mService << " error " << error;
     return binder::Status::ok();
   }
 
   void wait() {
     {
-      std::unique_lock<std::mutex> startLock(mAppStartLock);
-      mAppStartCond.wait(startLock, [&] { return mAppStart; });
+      std::unique_lock<std::mutex> startLock(mServiceStartLock);
+      mServiceStartCond.wait(startLock, [&] { return mServiceStart; });
     }
     {
-      std::unique_lock<std::mutex> stopLock(mAppStopLock);
-      mAppStopCond.wait(stopLock, [&] { return mAppStop; });
+      std::unique_lock<std::mutex> stopLock(mServiceStopLock);
+      mServiceStopCond.wait(stopLock, [&] { return mServiceStop; });
     }
   }
 
  private:
-  App mApp;
-  bool mAppStart;
-  bool mAppStop;
-  std::mutex mAppStartLock;
-  std::mutex mAppStopLock;
-  std::condition_variable mAppStartCond;
-  std::condition_variable mAppStopCond;
+  Service mService;
+  bool mServiceStart;
+  bool mServiceStop;
+  std::mutex mServiceStartLock;
+  std::mutex mServiceStopLock;
+  std::condition_variable mServiceStartCond;
+  std::condition_variable mServiceStopCond;
 };
 
 }  // namespace EaselManager
 }  // namespace android
 
-using android::EaselManager::AppStatusCallback;
+using android::EaselManager::ServiceStatusCallback;
 using android::EaselManager::ManagerClient;
 using android::sp;
 
@@ -68,18 +71,20 @@ int main() {
   std::unique_ptr<ManagerClient> client = ManagerClient::create();
   CHECK(client->initialize() == android::EaselManager::SUCCESS);
 
-  auto dummy_app = android::EaselManager::DUMMY_APP;
-  sp<AppStatusCallback> dummy_callback(new AppStatusCallback(dummy_app));
-  CHECK(client->startApp(dummy_app, dummy_callback) ==
+  auto dummy_service = android::EaselManager::DUMMY_SERVICE;
+  sp<ServiceStatusCallback> dummy_callback(
+      new ServiceStatusCallback(dummy_service));
+  CHECK(client->startService(dummy_service, dummy_callback) ==
         android::EaselManager::SUCCESS);
-  CHECK(client->stopApp(dummy_app) == android::EaselManager::SUCCESS);
-  // Wait for app to be stopped
+  CHECK(client->stopService(dummy_service) == android::EaselManager::SUCCESS);
+  // Wait for app service to be stopped
   dummy_callback->wait();
 
-  auto crash_app = android::EaselManager::CRASH_APP;
-  sp<AppStatusCallback> crash_callback(new AppStatusCallback(crash_app));
-  CHECK(client->startApp(crash_app, crash_callback) ==
+  auto crash_service = android::EaselManager::CRASH_SERVICE;
+  sp<ServiceStatusCallback> crash_callback(
+      new ServiceStatusCallback(crash_service));
+  CHECK(client->startService(crash_service, crash_callback) ==
         android::EaselManager::SUCCESS);
-  // Wait for app crash.
+  // Wait for app service crash.
   crash_callback->wait();
 }

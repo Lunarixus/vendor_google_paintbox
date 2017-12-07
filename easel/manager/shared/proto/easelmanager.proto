@@ -3,10 +3,10 @@ option optimize_for = LITE_RUNTIME;
 
 package EaselManagerService;
 
-enum App {
+enum Service {
   PBSERVER = 1;
-  DUMMY_APP = 10000;
-  CRASH_APP = 10001;
+  DUMMY_SERVICE = 10000;
+  CRASH_SERVICE = 10001;
 }
 
 enum Status {
@@ -17,24 +17,24 @@ enum Status {
 
 enum Error {
   SUCCESS = 1;
-  APP_ALREADY_STARTED = 2;
-  APP_NOT_FOUND = 3;
-  APP_PROCESS_FAILURE = 4;
-  APP_NOT_STARTED = 5;
+  SERVICE_ALREADY_STARTED = 2;
+  SERVICE_NOT_FOUND = 3;
+  SERVICE_PROCESS_FAILURE = 4;
+  SERVICE_NOT_STARTED = 5;
 }
 
-message StartAppRequest {
-  optional App app = 1;
+message StartServiceRequest {
+  optional Service service = 1;
 }
 
-message StopAppRequest {
-  optional App app = 1;
+message StopServiceRequest {
+  optional Service service = 1;
 }
 
-message AppStatusResponse {
-  optional App app = 1;
+message ServiceStatusResponse {
+  optional Service service = 1;
   optional Error error = 2;
   optional Status status = 3;
-  // exit value of the app, default 0.
+  // exit value of the service, default 0.
   optional int32 exit = 4;
 }

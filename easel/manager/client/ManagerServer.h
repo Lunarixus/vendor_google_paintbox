@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "android/EaselManager/BnManagerService.h"
-#include "android/EaselManager/IAppStatusCallback.h"
+#include "android/EaselManager/IServiceStatusCallback.h"
 
 #include "EaselComm2.h"
 
@@ -21,17 +21,18 @@ class ManagerServer : public BinderService<ManagerServer>,
   ManagerServer();
   ~ManagerServer();
   static char const* getServiceName();
-  binder::Status startApp(int32_t app, const sp<IAppStatusCallback>& callback,
-                          int32_t* _aidl_return) override;
-  binder::Status stopApp(int32_t app, int32_t* _aidl_return) override;
+  binder::Status startService(int32_t service,
+                              const sp<IServiceStatusCallback>& callback,
+                              int32_t* _aidl_return) override;
+  binder::Status stopService(int32_t service, int32_t* _aidl_return) override;
 
  private:
   int powerOn();
   void powerOff();
 
   std::mutex mManagerLock;
-  std::unordered_map<int32_t, sp<IAppStatusCallback>>
-      mAppCallbackMap;  // Guarded by mManagerLock;
+  std::unordered_map<int32_t, sp<IServiceStatusCallback>>
+      mServiceCallbackMap;  // Guarded by mManagerLock;
   std::unique_ptr<EaselComm2::Comm> mComm;
   std::thread mCommOpenThread;
 
