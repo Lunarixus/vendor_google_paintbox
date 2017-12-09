@@ -1,0 +1,10 @@
+#!/bin/sh
+
+EASEL_MANAGER="easelmanagerserver"
+
+while true; do
+  pidof ${EASEL_MANAGER} >/dev/null
+  if [[ $? -ne 0 ]] ; then
+    /system/bin/${EASEL_MANAGER}
+  fi
+done
