@@ -15,7 +15,6 @@
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/postview_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tuning.h"
-#include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_raw_finish/raw_finish.h"
 #include "googlex/gcam/image_io/image_saver.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"

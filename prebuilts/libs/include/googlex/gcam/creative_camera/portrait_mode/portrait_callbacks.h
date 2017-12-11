@@ -34,16 +34,6 @@ class GoudaProgressCallback {
 // `id` is a generic unique identifier and intentionally a signed int for Java
 // compatibility.
 //
-// `xmp_metadata_main` is a serialized XMPMeta to be embdded in the main XMP
-// section final jpeg produced by the client. This variable may be empty. If it
-// is not empty, it can be deserialized with the Adobe XMP toolkit in
-// //third_party/xmp_toolkit.
-//
-// `xmp_metadata_extended` is a serialized XMPMeta to be embdded in the extended
-// XMP section final jpeg produced by the client. This variable may be empty.
-// If it is not empty, it can be deserialized with the Adobe XMP toolkit in
-// //third_party/xmp_toolkit.
-//
 // `pixel_format` determines the precise pixel format and byte ordering in
 // `image`.
 //
@@ -57,15 +47,11 @@ class GoudaImageCallback {
 
   virtual void RgbReady(int64_t id, gcam::InterleavedImageU8* image,
                         gcam::GcamPixelFormat pixel_format,
-                        const std::string& description,
-                        const std::string& xmp_metadata_main,
-                        const std::string& xmp_metadata_extended) = 0;
+                        const std::string& description) = 0;
 
   virtual void YuvReady(int64_t id, gcam::YuvImage* image,
                         gcam::GcamPixelFormat pixel_format,
-                        const std::string& description,
-                        const std::string& xmp_metadata_main,
-                        const std::string& xmp_metadata_extended) = 0;
+                        const std::string& description) = 0;
 };
 
 // GoudaOutputFeaturesCallback's member functions are invoked just prior to the
