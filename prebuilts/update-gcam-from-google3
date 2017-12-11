@@ -150,10 +150,7 @@ if [ ! -r "${GOOGLE3_GCAM_OUT_TGZ_FULL}" ]; then
 fi
 
 #Build libeaselsystem
-blaze build \
-  --config=android_arm64 \
-  --define noproto=1 \
-  -c opt ${GOOGLE3_SYSTEM_TARGET_FULL_PATH}
+blaze build --config=android_arm64 -c opt ${GOOGLE3_SYSTEM_TARGET_FULL_PATH}
 
 pwd
 pwd

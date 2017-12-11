@@ -3,20 +3,26 @@
 
 #include <stddef.h>
 
-// Use "--define noproto=1" to avoid linking to google3 protobuf library.
-// This is to avoid google3(3.4) and Android platform(3.0) protobuf version
-// mismatch.
-// By default, EASEL_PROTO_SUPPORT is defined. If you build executable in
-// google3, You could always use protobuf API in easelcomm.
-#ifdef EASEL_PROTO_SUPPORT
+// net/proto2/public/message_lite.h (internal) is used for internal TAP testing.
+// google/protobuf/message_lite.h (open source) is used for production on
+// Android.
+// Two protobuf libraries cannot co-exist.
+// To use protobuf-lite on google3, Please use "option optimize_for =
+// LITE_RUNTIME;" in the .proto file. To compile protobuf library against
+// google/protobuf/message_lite.h, please use the portable_proto_library rule.
+#ifdef __ANDROID__
+#include <google/protobuf/message_lite.h>
+#else
 #include "net/proto2/public/message_lite.h"
-#endif  // EASEL_PROTO_SUPPORT
+#endif  // __ANDROID__
 
 namespace easel {
 
-#ifdef EASEL_PROTO_SUPPORT
+#ifdef __ANDROID__
+using ::google::protobuf::MessageLite;
+#else
 using proto2::MessageLite;
-#endif  // EASEL_PROTO_SUPPORT
+#endif  // __ANDROID__
 
 // Easel service identifiers registered by clients and servers to
 // route messages to each other.
@@ -126,13 +132,11 @@ class Message {
   static Message* Create(int channel_id,
                          const HardwareBuffer* payload = nullptr);
 
-#ifdef EASEL_PROTO_SUPPORT
   // Creates an Message with protobuf and an optional payload.
   // Caller is expected to take ownership of the allocated
   // Message object.
   static Message* Create(int channel_id, const MessageLite& proto,
                          const HardwareBuffer* payload = nullptr);
-#endif  // EASEL_PROTO_SUPPORT
 
   // Creates an Message with raw buffer and an optional payload.
   // Caller is expected to take ownership of the allocated
@@ -151,11 +155,9 @@ class Message {
 
   virtual ~Message();
 
-#ifdef EASEL_PROTO_SUPPORT
   // Converts the message to proto buffer.
   // Returns true if successful, otherwise empty string.
   virtual bool ToProto(MessageLite* proto) const = 0;
-#endif  // EASEL_PROTO_SUPPORT
 
   // Converts the message to a struct T
   // Returns pointer to T if successful otherwise nullptr.
@@ -173,10 +175,6 @@ class Message {
 
   // Returns the type of the message.
   virtual Type GetType() const = 0;
-
-  // Returns the id of the payload carried by the message.
-  // Default is 0.
-  virtual int GetPayloadId() const = 0;
 
   // Returns the body address of this message.
   virtual const void* GetBody() const = 0;
@@ -278,13 +276,11 @@ class Comm {
   virtual int Send(int channel_id, const void* body, size_t body_size,
                    const HardwareBuffer* payload) = 0;
 
-#ifdef EASEL_PROTO_SUPPORT
   // Sends a protobuf and an optional payload to the other side.
   // payload could be nullable.
   // Returns 0 if successful, otherwise the error code.
   virtual int Send(int channel_id, const MessageLite& proto,
                    const HardwareBuffer* payload) = 0;
-#endif  // EASEL_PROTO_SUPPORT
 
   // Sends a struct and an optional payload to the other side.
   // Returns 0 if successful, otherwise the error code.
