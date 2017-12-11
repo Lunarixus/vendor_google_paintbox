@@ -57,12 +57,13 @@ struct AwbInfo {
   //
   int color_temp = kColorTempUnknown;
 
-  // Gains for the 4 Bayer raw color channels, applied in a linear color space.
+  // Gains for the 4 color channels, applied in a linear (pre-gamma/tonemap)
+  //   color space.
   // Channel order here is: [R, Gr, Gb, B].
   float gains[4] = {0};
 
-  // The 3x3 color conversion matrix (CCM), mapping from sensor RGB to output
-  //   linear sRGB color space.
+  // The 3x3 color conversion matrix (CCM), mapping from sensor RGB to the
+  // output color space.
   // The values are stored row-major, so indices: (0,1,2) = first row; etc.
   float rgb2rgb[9] = {0};
 };

@@ -28,8 +28,8 @@ const int kMaxMakernoteSize = 65535;
 // Encodes image data to a JPG file, with support for grayscale (1 channel),
 // RGB (3 channels), or YUV (semiplanar, NV21 or NV12).
 //
-// By default, no EXIF data, XMP data or ICC profile will be written, unless the
-// optional 'exif_data' field is specified.
+// By default, no EXIF data or ICC profile will be written, unless the optional
+// 'exif_data' field is specified.
 bool WriteJpg(const std::string& filename, const InterleavedReadViewU8& image,
               int quality = kDefaultJpgQuality,
               const ExifMetadata* exif_data = nullptr);
@@ -43,8 +43,8 @@ bool WriteJpg(const std::string& filename, const YuvReadView& image,
 // size in bytes. The caller must free the memory later using
 // "free(out_buffer)".
 //
-// By default, no EXIF data, XMP data or ICC profile will be written, unless the
-// optional 'exif_data' field is specified.
+// By default, no EXIF data or ICC profile will be written, unless the optional
+// 'exif_data' field is specified.
 bool WriteJpgToMemory(uint8_t** out_buffer, uint32_t* out_buffer_size_bytes,
                       const InterleavedReadViewU8& image,
                       int quality = kDefaultJpgQuality,
@@ -57,20 +57,18 @@ bool WriteJpgToMemory(uint8_t** out_buffer, uint32_t* out_buffer_size_bytes,
 // DECODING FUNCTIONS:
 
 // Decodes a JPG image on disk.
-// Optionally decode EXIF and XMP metadata into ExifMetadata, if EXIF or XMP is
-//   found and a desination for this is provided by the caller.
+// Optionally decode EXIF metadata into ExifMetadata, if EXIF is found and a
+//   desination for this is provided by the caller.
 // NOTE: EXIF decoding is *extremely* limited. Only a few tags are parsed.
-// NOTE: XMP data is only read in as a binary blob.
 // Returns a null image on failure.
 InterleavedImageU8 DecodeJpgFromDisk(const std::string& filename,
                                      ExifMetadata* exif_metadata = nullptr);
 
 // Decodes a compressed JPG image in memory, to an uncompressed buffer
 //   in memory.
-// Optionally decode EXIF and XMP metadata into ExifMetadata, if EXIF or XMP is
-//   found and a desination for this is provided by the caller.
+// Optionally decode EXIF metadata into ExifMetadata, if EXIF is found and a
+//   desination for this is provided by the caller.
 // NOTE: EXIF decoding is *extremely* limited. Only a few tags are parsed.
-// NOTE: XMP data is only read in as a binary blob.
 // Returns a null image on failure.
 InterleavedImageU8 DecodeJpgFromMemory(const uint8_t* jpeg_blob_in_memory,
                                        const uint32_t jpeg_blob_byte_count,
