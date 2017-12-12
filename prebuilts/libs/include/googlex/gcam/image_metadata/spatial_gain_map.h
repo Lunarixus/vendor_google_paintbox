@@ -301,6 +301,18 @@ void ApplyBlsAndSgm(const SpatialGainMap& sgm,
                     int white_level,
                     const InterleavedWriteViewU16* img);
 
+// This version is specialized to apply the SGM to a pair of images.  Both
+//   images should be the same size.
+// Note that this function isn't highly optimized, and might be slow if applied
+//   to high-resolution images.  (In practice, we only use it for low-
+//   resolution images.)
+void ApplyBlsAndSgm(
+    const SpatialGainMap& sgm,
+    const float rgb_black_levels[3],
+    int white_level,
+    const InterleavedWriteViewU16* img1,
+    const InterleavedWriteViewU16* img2);
+
 }  // namespace gcam
 
 #endif  // GOOGLEX_GCAM_IMAGE_METADATA_SPATIAL_GAIN_MAP_H_

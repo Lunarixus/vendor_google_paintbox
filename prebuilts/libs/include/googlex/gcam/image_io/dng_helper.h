@@ -24,7 +24,6 @@ void GetFinalDngImageSize(const InterleavedReadViewU16& image,
 // Returns whether it succeeded.
 // If 'compress_output' is set to true, compresses the DNG contents using
 // lossless Huffman JPG.
-// TODO(nealw): Add XMP support to DNGs.
 bool WriteDng(const std::string& filename, const InterleavedReadViewU16& image,
               const ExifMetadata& exif_metadata, bool compress_output = false,
               const Context* context = nullptr);
@@ -70,15 +69,6 @@ RawImage ReadDngFromMemory(
     uint8_t* buffer, uint32_t buffer_size_bytes, ExifMetadata* exif_metadata,
     TImageSampleAllocator* custom_allocator = TImageDefaultSampleAllocator(),
     const Context* context = nullptr);
-
-// Reads metadata from an encoded DNG, respectively from a file on disk or
-// memory buffer. The metadata is read without loading the image, so this is
-// significantly faster than the ReadDng routines above.
-//
-// Returns false on failure.
-bool ReadDngMetadata(const std::string& filename, ExifMetadata* exif_metadata);
-bool ReadDngMetadataFromMemory(uint8_t* buffer, uint32_t buffer_size_bytes,
-                               ExifMetadata* exif_metadata);
 
 }  // namespace gcam
 

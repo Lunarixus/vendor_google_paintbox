@@ -36,11 +36,6 @@ class ImageSaver {
                    params.filename_suffix, gcam_version) {}
   void Clear();
 
-  std::string dest_folder() const { return dest_folder_; }
-  std::string filename_prefix() const { return filename_prefix_; }
-  std::string filename_suffix() const { return filename_suffix_; }
-  std::string gcam_version() const { return gcam_version_; }
-
   // Get the full path for saving a file, or the empty string if the stage
   //   should not be saved.
   // In the GetUniquePath() variant, the filename is prepended with a sequence

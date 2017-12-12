@@ -34,7 +34,7 @@ const float kMinDigitalZoomRatio = 1.02f;
 
 // Bundle of Gcam image metadata, used when reading/writing JPG or DNG images.
 // Both of these file formats encode metadata using a set of TIFF-style tags,
-// following the EXIF, TIFF/EP, XMP and DNG specifications.
+// following the EXIF, TIFF/EP, and DNG specifications.
 //
 // Not all Gcam metadata fields get written, nor are all Gcam metadata fields
 // populated when loading a JPG or DNG file. Helper functions are provided to
@@ -43,8 +43,7 @@ const float kMinDigitalZoomRatio = 1.02f;
 // References:
 //   http://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
 //   http://standardsproposals.bsigroup.com/Home/getPDF/567
-//   http://www.adobe.com/content/dam/Adobe/en/products/photoshop/pdfs/dng_spec_1.4.0.0.pdf
-//   https://wwwimages2.adobe.com/content/dam/Adobe/en/devnet/xmp/pdfs/XMP%20SDK%20Release%20cc-2016-08/XMPSpecificationPart3.pdf
+//   http://www.adobe.com/content/dam/Adobe/en/products/photoshop/pdfs/dng_spec_1.4.0.0.pdf  //NOLINT
 //
 struct ExifMetadata {
   ExifMetadata() { SetTimestampCurrent(); }
@@ -162,19 +161,6 @@ struct ExifMetadata {
 
   // Set the timestamp from the current time.
   void SetTimestampCurrent();
-
-  // Serialized XMP packets. It's the responsibility of the client to ensure
-  // that both XMP strings are valid. Writing XMP data is supported for JPG
-  // only.
-  //
-  // XMP data will be written if 'xmp_metadata_main' is not empty and less than
-  // 65502 bytes. Extended XMP data will be written if 'xmp_metadata_extended'
-  // is not empty and 'xmp_metadata_main' has a valid "xmpNote:HasExtendedXMP"
-  // field with value equal to the MD5 checksum of 'xmp_metadata_extended' as a
-  // 32 character hex string with all capital letters. The client is responsible
-  // for making sure this checksum is accurate.
-  std::string xmp_metadata_main = "";
-  std::string xmp_metadata_extended = "";
 };
 
 }  // namespace gcam

@@ -151,7 +151,7 @@ typedef ImxDeviceBuffer* ImxDeviceBufferHandle;
 typedef struct ImxNumberOfCoreResourcesDescription {
   int num_stps;
   int num_lbps;
-  int num_dma_channels;  // does not include those reserved for mipi streams
+  int num_dma_channels; // does not include those reserved for mipi streams
 } ImxNumberOfCoreResourcesDescription;
 
 /* A description of the specific resources requested for a device.
@@ -337,32 +337,16 @@ ImxError ImxGetDeviceWithOptions(
  *   - No description is returned for the resource group.
  *
  * IMX_SPECIFIC_RESOURCES_DESCRIPTION:
- *   This function has two behaviors based on input values for device_descr.
- *   If specific_<resource> array is NULL, then
- *     - Upon return, specific_<resource>_count will be set to the number of
- *       allocated <resource>s.
- *   Else
- *     - specific_<resource> arrays must be allocated by the caller.
- *     - For each specific_<resource> array, set specific_<resource>_count equal
- *       to the size of the array.
- *     - Upon return, the specific_<resource> arrays will be filled to the
- *       lesser of size of the array and the number of allocated <resource>s.
- *     - Upon return, specific_<resource>_count is set to the lesser of size of
- *       of the array and the number of allocated <resource>s.
- *     specific_<resource>_count will always be equal to the number of valid
- *     entries in the corresponding specific_<resource> array.
+ *   - specific_<resource> arrays must be allocated by the caller.
+ *   - For each specific_<resource> array, set specific_<resource>_count equal
+ *     to the size of the array.
+ *   - Upon return, the specific_<resource> arrays will be filled to the lesser
+ *     of the size of the array and the number of allocated <resource>s.
+ *   - Upon return, specific_<resource>_count is set to the number of allocated
+ *     <resource>s.
  *
  * The following device description fields are left unmodified:
  * resource_usage_mode, device_path, and [num_]simulator_options.
- *
- * A common pattern of usage is:
- *  1: call ImxGetDeviceDescription with specific_<resource> arrays set to NULL.
- *  2: allocate specific_<resource> arrays based on the returned
- *     specific_<resource>_count values.
- *  3: call ImxGetDeviceDescription with the allocated specific_<resource>
- *     arrays and corresponding specific_<resource>_count values.
- *  4. Upon return from step 3, device_descr will contain the ids of allocated
- *     resources.
  */
 ImxError ImxGetDeviceDescription(
     ImxDeviceHandle device_handle  /* in */,
@@ -381,7 +365,8 @@ ImxError ImxGetDeviceDescription(
  *
  * Please use responsibly.
  */
-ImxError ImxResetDevice(ImxDeviceHandle device_handle  /* in */);
+ImxError ImxResetDevice(
+    ImxDeviceHandle device_handle  /* in */);
 
 /* Sets the command line options (i.e. gFlags FLAG_... variables) for use
  * by IPU compiler, runtime (and simulator, if present).
@@ -477,8 +462,8 @@ typedef struct ImxShape {
   struct {
     ImxSizeKind kind;
     /* The following are only valid if kind is ACTUAL_SIZE or MAX_SIZE */
-    uint64_t extent;  // size of this dimension, including border pixels
-    int64_t min;  // minimum coordinate of the first pixel.
+    uint64_t extent; // size of this dimension, including border pixels
+    int64_t min; // minimum coordinate of the first pixel.
   } dim[IMX_DIM_MAX];          /* [0]=x, [1]=y, etc.
                         Same order applies in Halide and vISA */
 } ImxShape;
@@ -532,7 +517,7 @@ typedef struct ImxLateBufferConfig {
      * currently only stride[1] is allowed to be non-zero
      */
     uint64_t stride[IMX_DIM_MAX];
-  } plane[kImxMaxPlanes];  // TODO(dfinchel) do we use planes other than 0?
+  } plane[kImxMaxPlanes]; // TODO(dfinchel) do we use planes other than 0?
 } ImxLateBufferConfig;
 
 /* Creates graph with a program to be executed on IPU.
@@ -574,7 +559,7 @@ typedef enum {
   IMX_OPTION_SIMULATOR_DUMP_IMAGE = 1,
   IMX_OPTION_SIMULATOR_ENABLE_JIT = 2,
   IMX_OPTION_SIMULATOR_ENABLE_BINARY_PISA = 3,
-  IMX_OPTION_SIMULATOR_HW_CONFIG_FILE = 4,  // not used for graph compile
+  IMX_OPTION_SIMULATOR_HW_CONFIG_FILE = 4, // not used for graph compile
   IMX_OPTION_HISA = 5,
   IMX_OPTION_ENABLE_STRIPING = 6,
   IMX_kMaxCompileGraphOption  /* Internal use only */
@@ -906,12 +891,13 @@ typedef struct ImxGatherInfo {
   int fifo_id;
 } ImxGatherInfo;
 
-ImxError ImxDefaultCreateTransferNodeInfo(
-    ImxCreateTransferNodeInfo *info  /* out */);
+ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
 
 ImxError ImxCreateTransferNode(
     const ImxCreateTransferNodeInfo *info,
     ImxNodeHandle *node_handle_ptr);
+
+ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
 
 typedef struct ImxCreatePaddingNodeInfo {
   ImxShape padding_region;  /* Must be two-dimensional. */
@@ -927,7 +913,8 @@ ImxError ImxCreateTransferNodeWithGatherInfo(
     const ImxGatherInfo *gather_info,
     ImxNodeHandle *node_handle_ptr);
 
-ImxError ImxDeleteNode(ImxNodeHandle node_handle);
+ImxError ImxDeleteNode(
+    ImxNodeHandle node_handle);
 
 ImxError ImxCreateJob(
     ImxCompiledGraphHandle compiled_graph, /* in */
@@ -1131,7 +1118,8 @@ ImxError ImxLockDeviceBuffer(
  *
  * Not thread-safe; see general note on thread-safety above.
  */
-ImxError ImxUnlockDeviceBuffer(ImxDeviceBufferHandle buffer_handle);
+ImxError ImxUnlockDeviceBuffer(
+    ImxDeviceBufferHandle buffer_handle);
 
 /* Share: Makes the buffer ready to be shared with other user-space processes
  * and/or kernel. Note: This API is typically for sharing across processes;
@@ -1148,7 +1136,9 @@ ImxError ImxUnlockDeviceBuffer(ImxDeviceBufferHandle buffer_handle);
  *
  * Not thread-safe; see general note on thread-safety above.
  */
-ImxError ImxShareDeviceBuffer(ImxDeviceBufferHandle buffer_handle, int *fd);
+ImxError ImxShareDeviceBuffer(
+    ImxDeviceBufferHandle buffer_handle,
+    int *fd);
 
 /* Import: Creates a buffer handle for an imported buffer (which was shared by
  * another process). This API will create a new device buffer
@@ -1199,7 +1189,8 @@ ImxError ImxFinalizeBuffers(
  * All late-bound configuration information (such as DRAM buffers for DMA
  * transfers) must already be provided before invoking this function.
  */
-ImxError ImxExecuteJob(ImxJobHandle job /* modified */);
+ImxError ImxExecuteJob(
+    ImxJobHandle job /* modified */);
 
 /* Non-blocking call to execute the input job in a background thread.
  * The background thread loads IPU device configuration, starts the
@@ -1207,7 +1198,8 @@ ImxError ImxExecuteJob(ImxJobHandle job /* modified */);
  * All late-bound configuration information (such as DRAM buffers for DMA
  * transfers) must already be provided before invoking this function.
  */
-ImxError ImxExecuteJobAsync(ImxJobHandle job /* modified */);
+ImxError ImxExecuteJobAsync(
+    ImxJobHandle job /* modified */);
 
 /* Non-blocking call to execute the input job in a background thread.
  * The background thread loads IPU device configuration, starts the
@@ -1227,7 +1219,8 @@ ImxError ImxExecuteJobAsyncWithTimeout(
  *
  * Note: ImxExecuteJobWait must be paired with an ImxExecuteJobAsync.
  */
-ImxError ImxExecuteJobWait(ImxJobHandle job /* modified */);
+ImxError ImxExecuteJobWait(
+    ImxJobHandle job /* modified */);
 
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the MIPI flush to
  * complete.  If MIPI flush time exceeds timeout then IMX_TIMEOUT is returned.
@@ -1255,14 +1248,16 @@ ImxError ImxWaitForJobQueueOneItemCompletion(
  * If this function returns failure, no further items will be executed.
  * Please call ImxResetJobQueue and re-enqueue any further items.
  */
-ImxError ImxWaitForJobQueueEmpty(ImxDeviceHandle device_handle /* input */);
+ImxError ImxWaitForJobQueueEmpty(
+    ImxDeviceHandle device_handle /* input */);
 
 /* Waits for completion of current item in job queue and resets the queue.
  * All pending and completed items will be discarded.
  * Normally, this function should only be called if ImxWaitForJobQueueEmpty or
  * ImxWaitForJobQueueOneItemCompletion was unsuccessful.
  */
-ImxError ImxResetJobQueue(ImxDeviceHandle device_handle /* input */);
+ImxError ImxResetJobQueue(
+    ImxDeviceHandle device_handle /* input */);
 
 /* timeout_ns: elapsed time (in nanoseconds) to wait for the job to complete.
  * If job execution time exceeds timeout, the job is terminated and
@@ -1314,7 +1309,8 @@ ImxError ImxJobSetStpPcHistogramEnable(ImxJobHandle job, /* modified */
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
  */
-ImxError ImxLoadDeviceConfig(ImxJobHandle job  /* modified */);
+ImxError ImxLoadDeviceConfig(
+    ImxJobHandle job  /* modified */);
 
 /* Unloads previously loaded IPU configuration.
  *
@@ -1324,7 +1320,8 @@ ImxError ImxLoadDeviceConfig(ImxJobHandle job  /* modified */);
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
  */
-ImxError ImxUnloadDeviceConfig(ImxJobHandle job  /* modified */);
+ImxError ImxUnloadDeviceConfig(
+    ImxJobHandle job  /* modified */);
 
 /* Enqueues job for (eventual) execution. All late-bound parameters must be
  * finalized before calling this API. This function does not block.
@@ -1332,14 +1329,16 @@ ImxError ImxUnloadDeviceConfig(ImxJobHandle job  /* modified */);
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
  */
-ImxError ImxEnqueueJob(ImxJobHandle job  /* modified */);
+ImxError ImxEnqueueJob(
+    ImxJobHandle job  /* modified */);
 
 /* Waits for completion of the currently executing enqueued job. Blocking call!
  *
  * NOTE: Jobs with STP programs are currently not supported!
  * Please use ImxExecuteJob for such jobs.
  */
-ImxError ImxWaitForCompletion(ImxJobHandle job  /* modified */);
+ImxError ImxWaitForCompletion(
+    ImxJobHandle job  /* modified */);
 
 /* Waits for completion of the currently executing enqueued job. Blocking call!
  *
