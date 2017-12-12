@@ -50,24 +50,24 @@ inline std::unique_ptr<HardwareBuffer> AllocateHardwareBuffer(size_t size,
 // Helper function to create ping Message unique_ptr.
 inline std::unique_ptr<Message> CreateMessage(
     int channel_id, const HardwareBuffer* payload = nullptr) {
-  return std::unique_ptr<Message>(Message ::Create(channel_id, payload));
+  return std::unique_ptr<Message>(Message::Create(channel_id, payload));
 }
 
-#ifndef EASEL_NO_PROTO
+#ifdef EASEL_PROTO_SUPPORT
 // Helper function to create proto Message unique_ptr.
 inline std::unique_ptr<Message> CreateMessage(
     int channel_id, const MessageLite& proto,
     const HardwareBuffer* payload = nullptr) {
-  return std::unique_ptr<Message>(Message ::Create(channel_id, proto, payload));
+  return std::unique_ptr<Message>(Message::Create(channel_id, proto, payload));
 }
-#endif  // EASEL_NO_PROTO
+#endif  // EASEL_PROTO_SUPPORT
 
 // Helper function to create raw buffer Message unique_ptr.
 inline std::unique_ptr<Message> CreateMessage(
     int channel_id, const void* body, size_t size,
     const HardwareBuffer* payload = nullptr) {
   return std::unique_ptr<Message>(
-      Message ::Create(channel_id, body, size, payload));
+      Message::Create(channel_id, body, size, payload));
 }
 
 // Helper function to create struct Message unique_ptr.
