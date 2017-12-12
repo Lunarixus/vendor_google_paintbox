@@ -1,5 +1,0 @@
-cc_library_headers {
-    name: "libeaselsystem_utils",
-    vendor_available: true,
-    export_include_dirs: ["."],
-}
