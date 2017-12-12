@@ -3,3 +3,12 @@ cc_library_headers {
     vendor_available: true,
     export_include_dirs: ["libs/include"],
 }
+
+cc_prebuilt_library_shared {
+    name: "libeaselsystem",
+    proprietary: true,
+    export_include_dirs: ["libs/include"],
+    srcs = ["libs/libeaselsystem.so"],
+    // TODO(cjluo): Add support for 32bit version to support camera hal
+    compile_multilib = "64",
+}
