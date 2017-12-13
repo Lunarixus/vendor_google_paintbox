@@ -17,11 +17,12 @@ cc_binary {
     ],
     shared_libs: [
         "libbase",
-        "libeaselcomm",
+        "libeaselsystem",
         "liblog",
         "libprotobuf-cpp-lite",
     ],
     header_libs: [
         "libneuralnetworks_headers",
     ],
+    compile_multilib = "64",
 }

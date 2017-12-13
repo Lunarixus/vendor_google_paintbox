@@ -4,8 +4,9 @@
 #include <queue>
 
 #include "Conversion.h"
-#include "EaselComm2.h"
 #include "HalInterfaces.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
 #include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
 
 namespace android {
@@ -75,16 +76,20 @@ class EaselExecutorClient {
   };
 
   // EaselMessage handlers.
-  void prepareModelHandler(const EaselComm2::Message& message);
-  void executeHandler(const EaselComm2::Message& message);
-  void destroyModelHandler(const EaselComm2::Message& message);
+  void prepareModelHandler(const easel::Message& message);
+  void executeHandler(const easel::Message& message);
+  void destroyModelHandler(const easel::Message& message);
 
-  std::unique_ptr<EaselComm2::Comm> mComm;
+  std::unique_ptr<easel::Comm> mComm;
   std::mutex mExecutorLock;
   std::condition_variable mStateChanged;
   State mState;                             // Guarded by mExecutorLock.
   std::unique_ptr<ModelObject> mModel;      // Guarded by mExecutorLock.
   std::queue<RequestObject> mRequestQueue;  // Guarded by mExecutorLock.
+
+  std::unique_ptr<easel::FunctionHandler> mPrepareModelHandler;
+  std::unique_ptr<easel::FunctionHandler> mExecuteHandler;
+  std::unique_ptr<easel::FunctionHandler> mDestroyModelHandler;
 };
 
 }  // namespace paintbox_driver

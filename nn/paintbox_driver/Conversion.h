@@ -1,9 +1,9 @@
 #ifndef PAINTBOX_NN_CONVERSION_H
 #define PAINTBOX_NN_CONVERSION_H
 
-#include "EaselComm2.h"
 #include "HalInterfaces.h"
 #include "OemModel.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm.h"
 #include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
 
 namespace paintbox_util {
@@ -25,7 +25,7 @@ void convertHidlRequest(const Request& inputModel,
 // handle. memory needs to be keep alive during the time when mmapped virtual
 // address is needed.
 struct HardwareBufferPool {
-  EaselComm2::HardwareBuffer buffer;
+  std::unique_ptr<easel::HardwareBuffer> buffer;
   android::sp<IMemory> memory;
 };
 
