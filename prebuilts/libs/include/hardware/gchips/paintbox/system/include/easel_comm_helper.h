@@ -4,6 +4,12 @@
 #include <functional>
 #include <memory>
 
+// When protobuf is not supported in easelcomm,
+// Uses proto header from Android platform instead.
+#ifndef EASEL_PROTO_SUPPORT
+#include <google/protobuf/message_lite.h>
+#endif  // EASEL_PROTO_SUPPORT
+
 #include "hardware/gchips/paintbox/system/include/easel_comm.h"
 
 namespace easel {
@@ -53,15 +59,6 @@ inline std::unique_ptr<Message> CreateMessage(
   return std::unique_ptr<Message>(Message::Create(channel_id, payload));
 }
 
-#ifdef EASEL_PROTO_SUPPORT
-// Helper function to create proto Message unique_ptr.
-inline std::unique_ptr<Message> CreateMessage(
-    int channel_id, const MessageLite& proto,
-    const HardwareBuffer* payload = nullptr) {
-  return std::unique_ptr<Message>(Message::Create(channel_id, proto, payload));
-}
-#endif  // EASEL_PROTO_SUPPORT
-
 // Helper function to create raw buffer Message unique_ptr.
 inline std::unique_ptr<Message> CreateMessage(
     int channel_id, const void* body, size_t size,
@@ -81,6 +78,37 @@ inline std::unique_ptr<Message> CreateMessage(
 inline std::unique_ptr<Comm> CreateComm(Comm::Type type) {
   return std::unique_ptr<Comm>(Comm::Create(type));
 }
+
+#ifdef EASEL_PROTO_SUPPORT
+// Helper function to create proto Message unique_ptr.
+inline std::unique_ptr<Message> CreateMessage(
+    int channel_id, const MessageLite& proto,
+    const HardwareBuffer* payload = nullptr) {
+  return std::unique_ptr<Message>(Message::Create(channel_id, proto, payload));
+}
+#else
+// Provides protobuf support as inline function in Android.
+// This is to walk around the protobuf version mismatch between Android and
+// google3.
+using ::google::protobuf::MessageLite;
+
+// Helper function to send protobuf with libeaselsystem.so
+// Returns 0 if successful, otherwise error code.
+inline int SendProto(Comm* comm, int channel_id, const MessageLite& proto,
+                     const HardwareBuffer* payload = nullptr) {
+  size_t size = proto.ByteSize();
+  void* proto_buffer = malloc(size);
+  if (proto_buffer == nullptr) return -ENOMEM;
+  if (!proto.SerializeToArray(proto_buffer, size)) return -EINVAL;
+  return comm->Send(channel_id, proto_buffer, size, payload);
+}
+
+// Helper function to convert Message to protobuf in libeaselsystem.so
+// Returns true if successful, otherwise false.
+inline bool MessageToProto(const Message& message, MessageLite* proto) {
+  return proto->ParseFromArray(message.GetBody(), message.GetBodySize());
+}
+#endif  // EASEL_PROTO_SUPPORT
 
 }  // namespace easel
 
