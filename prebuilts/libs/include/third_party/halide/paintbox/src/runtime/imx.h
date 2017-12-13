@@ -891,13 +891,12 @@ typedef struct ImxGatherInfo {
   int fifo_id;
 } ImxGatherInfo;
 
-ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
+ImxError ImxDefaultCreateTransferNodeInfo(
+    ImxCreateTransferNodeInfo *info  /* out */);
 
 ImxError ImxCreateTransferNode(
     const ImxCreateTransferNodeInfo *info,
     ImxNodeHandle *node_handle_ptr);
-
-ImxCreateTransferNodeInfo ImxDefaultCreateTransferNodeInfo();
 
 typedef struct ImxCreatePaddingNodeInfo {
   ImxShape padding_region;  /* Must be two-dimensional. */
