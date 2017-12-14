@@ -31,7 +31,10 @@ cc_library_static {
     srcs: [
         "CpuExecutor.cpp",
         "oem/MatrixAddEngine.cpp",
+        "oem/MobileNetBodyEngine.cpp",
         "oem/OemOperationEngine.cpp",
+        "operations/Conv2D.cpp",
+        "operations/DepthwiseConv2D.cpp",
         "operations/SimpleMath.cpp",
         "OperationsUtils.cpp",
         "Utils.cpp",

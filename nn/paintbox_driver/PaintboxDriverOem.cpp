@@ -67,6 +67,9 @@ Return<void> PaintboxDriverOem::getSupportedOperations(const Model& model,
                             case paintbox_nn::OemModel::MATRIX_ADD:
                                 supported[i] = true;
                                 break;
+                            case paintbox_nn::OemModel::MOBILE_NET_BODY:
+                                supported[i] = true;
+                                break;
                             default: break;
                         }
                     }

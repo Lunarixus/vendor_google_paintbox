@@ -20,6 +20,7 @@ enum class OemModel : int32_t {
   PROD_MODEL_PLACEHOLDER = 0,
   // Test OEM models starts from here.
   MATRIX_ADD = 10000,
+  MOBILE_NET_BODY = 10001,
 };
 
 }  // namespace paintbox_nn

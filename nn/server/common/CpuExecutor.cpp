@@ -19,6 +19,7 @@
 #include "CpuExecutor.h"
 
 #include "MatrixAddEngine.h"
+#include "MobileNetBodyEngine.h"
 #include "NeuralNetworks.h"
 #include "OemModel.h"
 #include "Operations.h"
@@ -190,6 +191,11 @@ int CpuExecutor::executeOperation(const Operation& operation) {
     switch (static_cast<paintbox_nn::OemModel>(oemModel)) {
         case paintbox_nn::OemModel::MATRIX_ADD: {
             MatrixAddEngine engine;
+            res = engine.run(operation, &mOperands);
+            break;
+        }
+        case paintbox_nn::OemModel::MOBILE_NET_BODY: {
+            MobileNetBodyEngine engine;
             res = engine.run(operation, &mOperands);
             break;
         }
