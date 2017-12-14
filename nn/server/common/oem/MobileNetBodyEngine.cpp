@@ -40,9 +40,10 @@ MobileNetBodyEngine::~MobileNetBodyEngine() {}
 bool MobileNetBodyEngine::verify(
     const Operation& operation,
     const std::vector<RunTimeOperandInfo>& operands) {
-  bool success = (operation.inputs().size() == 1 + kNumLayers * 2);
-  success &= (operation.outputs().size() == 1);
+  bool success = (operation.inputs().size() == 1 + kNumLayers * 2) &&
+                 (operation.outputs().size() == 1);
 
+  // TOOD(cjluo): verify the operands too.
   return success;
 }
 
@@ -93,8 +94,7 @@ ResultCode MobileNetBodyEngine::execute(
                           paddings[2], paddings[3], stride[0], stride[0],
                           activation, tmpOutput, tmpOutputShape);
     for (int i = 1; i < kNumLayers - 2; i += 2) {
-      success =
-          success &&
+      success &=
           calculatePadding(tmpOutputShape, stride[i], filterShape[i], padding,
                            &paddings) &&
           depthwiseConvPrepare(tmpOutputShape, filterShape[i], biasShape[i],
@@ -117,11 +117,9 @@ ResultCode MobileNetBodyEngine::execute(
                       stride[i + 1], stride[i + 1], activation, tmpOutput,
                       tmpOutputShape);
     }
-    success =
-        success &&
+    success &=
         calculatePadding(tmpOutputShape, stride[kNumLayers - 2],
                          filterShape[kNumLayers - 2], padding, &paddings) &&
-
         depthwiseConvPrepare(tmpOutputShape, filterShape[kNumLayers - 2],
                              biasShape[kNumLayers - 2], padding, padding,
                              padding, padding, stride[kNumLayers - 2],
