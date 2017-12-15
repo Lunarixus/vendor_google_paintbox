@@ -25,7 +25,12 @@ enum Error {
   SERVICE_NOT_FOUND = 5,              // Easel could not find app service.
   SERVICE_PROCESS_FAILURE = 6,        // Could not start app service process.
   SERVICE_NOT_STARTED = 7,            // Could not started the app service.
-  EASEL_POWER_ERROR = 8,              // Could not poweron easel.
+  EASEL_POWER_ON_ERROR = 8,           // Could not poweron easel.
+  EASEL_POWER_OFF_ERROR = 9,          // Could not poweroff easel.
+  EASEL_RESUME_ERROR = 10,            // Could not resume easel.
+  EASEL_SUSPEND_ERROR = 11,           // Could not suspend easel.
+  EASEL_FATAL = 12,                   // Easel fatal errors.
+  EASEL_CONTROL_NO_INIT = 13,         // Easel control not opened.
 };
 
 // EaselManager client.
@@ -38,12 +43,24 @@ class ManagerClient {
 
   // Creates the default instance of ManagerClient.
   static std::unique_ptr<ManagerClient> create();
+
   // Initializes the ManagerClient, returns the error code.
   virtual Error initialize() = 0;
+
   // Starts the service and registeres the callback, returns the error code.
-  virtual Error startService(Service service, const sp<IServiceStatusCallback>& callback) = 0;
+  virtual Error startService(Service service,
+                             const sp<IServiceStatusCallback>& callback) = 0;
+
   // Stops the service, returns the error code.
   virtual Error stopService(Service service) = 0;
+
+  // Request to set Easel on suspend mode, returns zero for success or error
+  // code for failure.
+  virtual Error suspend(Service service) = 0;
+
+  // Resume Easel from suspend mode, returns zero for success or error code for
+  // failure.
+  virtual Error resume(Service service) = 0;
 
  protected:
   ManagerClient();
