@@ -10,7 +10,7 @@ namespace gcam {
 // Runtime API
 extern void LoadPrecompiledGraphs();
 
-// Provides an interface to the halide_ipu_acquire_ipu_device Halide IPU
+// Provides an interface to the halide_ipu_acquire_ipu_hw Halide IPU
 // Runtime API.
 // Currently, this acquires all IPU resources (STPs, DMA channels, LBPs).
 // It is an error to call this function multiple times without releasing IPU
@@ -19,7 +19,7 @@ extern void LoadPrecompiledGraphs();
 // increased leakage power. Acquiring takes around 100us for Easel.
 extern void AcquireIpuDevice();
 
-// Provides an interface to the halide_ipu_release_ipu_device Halide IPU
+// Provides an interface to the halide_ipu_release_ipu_hw Halide IPU
 // Runtime API.
 // Releases a previously acquired IPU device, if any. It is ok to call this
 // function without previously having acquired an IPU device (with a call to

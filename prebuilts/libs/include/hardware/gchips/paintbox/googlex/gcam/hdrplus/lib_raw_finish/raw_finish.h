@@ -10,7 +10,6 @@
 #include "googlex/gcam/image_metadata/awb_info.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
 #include "googlex/gcam/image_metadata/static_metadata.h"
-#include "googlex/gcam/tonemap/tonemap_yuv.h"
 
 namespace gcam {
 
@@ -89,7 +88,11 @@ InterleavedImageU8 FinishRaw(
     // Optional.
     SaveInfo* save,
     // Optional output.
-    int* synthetic_exposure_count = nullptr);
+    int* synthetic_exposure_count = nullptr,
+    // When running libgcam on the AP, offload the finish pipe to Easel.
+    // TODO(dfinchel) Combine this parameter with ExecuteOn into
+    // a ExecuteParams struct that includes ExecuteOn and ImxOffload options.
+    bool offload_finish_to_ipu = false);
 
 }  // namespace gcam
 

@@ -454,7 +454,6 @@ status_t HdrPlusProcessingBlock::fillGcamShotParams(gcam::ShotParams *shotParams
     shotParams->ae.crop.y1 = cropY1;
     shotParams->ae.payload_frame_orig_width = inputs[0].buffers[0]->getWidth();
     shotParams->ae.payload_frame_orig_height = inputs[0].buffers[0]->getHeight();
-    shotParams->ae.process_bayer_for_payload = true;
     shotParams->ae.exposure_compensation = mStaticMetadata->aeCompensationStep * expCompensation;
     shotParams->zsl = true;
     shotParams->resampling_method_override = gcam::ResamplingMethod::kRaisr;
@@ -1152,11 +1151,11 @@ status_t HdrPlusProcessingBlock::convertToGcamStaticMetadata(
     gcamMetadata->frame_raw_max_height = metadata->pixelArraySize[1];
     gcamMetadata->raw_bits_per_pixel = kGcamRawBitsPerPixel;
 
-    gcam::ColorCalibration colorCalibration[2];
+    gcam::DngColorCalibration colorCalibration[2];
     colorCalibration[0].illuminant =
-            static_cast<gcam::ColorCalibration::Illuminant>(metadata->referenceIlluminant1);
+            static_cast<gcam::DngColorCalibration::Illuminant>(metadata->referenceIlluminant1);
     colorCalibration[1].illuminant =
-            static_cast<gcam::ColorCalibration::Illuminant>(metadata->referenceIlluminant2);
+            static_cast<gcam::DngColorCalibration::Illuminant>(metadata->referenceIlluminant2);
     for (uint32_t i = 0; i < 9; i++) {
         colorCalibration[0].xyz_to_model_rgb[i] = metadata->colorTransform1[i];
         colorCalibration[0].model_rgb_to_device_rgb[i] = metadata->calibrationTransform1[i];
@@ -1164,8 +1163,8 @@ status_t HdrPlusProcessingBlock::convertToGcamStaticMetadata(
         colorCalibration[1].model_rgb_to_device_rgb[i] = metadata->calibrationTransform2[i];
     }
 
-    gcamMetadata->color_calibration.push_back(colorCalibration[0]);
-    gcamMetadata->color_calibration.push_back(colorCalibration[1]);
+    gcamMetadata->dng_color_calibration.push_back(colorCalibration[0]);
+    gcamMetadata->dng_color_calibration.push_back(colorCalibration[1]);
     gcamMetadata->white_level = metadata->whiteLevel;
     switch (metadata->colorFilterArrangement) {
         case ANDROID_SENSOR_INFO_COLOR_FILTER_ARRANGEMENT_RGGB:
@@ -1260,19 +1259,19 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
             (metadata->flashMode == ANDROID_FLASH_MODE_SINGLE ||
              metadata->flashMode == ANDROID_FLASH_MODE_TORCH) ?
             gcam::FlashMetadata::kOn : gcam::FlashMetadata::kOff;
-    gcamMetadata->wb_capture.color_temp = gcam::kColorTempUnknown;
+    gcamMetadata->wb.color_temp = gcam::kColorTempUnknown;
 
     // Remap Camera2 order {R, G_even, G_odd, B} to Gcam order {R, GR, GB, B}
     uint8_t cfa = mStaticMetadata->colorFilterArrangement;
     for (uint32_t i = 0; i < 4; i++) {
-        gcamMetadata->wb_capture.gains[i] =
+        gcamMetadata->wb.gains[i] =
                 metadata->colorCorrectionGains[getCameraChannelIndex(i, cfa)];
     }
 
     for (uint32_t i = 0; i < 9; i ++) {
-        gcamMetadata->wb_capture.rgb2rgb[i] = metadata->colorCorrectionTransform[i];
+        gcamMetadata->wb.rgb2rgb[i] = metadata->colorCorrectionTransform[i];
     }
-    gcamMetadata->wb_ideal = gcamMetadata->wb_capture;
+
     for (uint32_t i = 0; i < 3; i++) {
         gcamMetadata->neutral_point [i] = metadata->neutralColorPoint[i];
     }
@@ -1364,7 +1363,7 @@ status_t HdrPlusProcessingBlock::fillGcamFrameMetadata(std::shared_ptr<PayloadFr
     uint32_t smHeight = mStaticMetadata->shadingMapSize[1];
 
     frame->gcamSpatialGainMap = std::make_shared<gcam::SpatialGainMap>(smWidth, smHeight,
-            /*is_precise*/true);
+            /*is_precise*/true, /*has_extra_vignetting_applied*/false);
 
     if (metadata->lensShadingMap.size() != smHeight * smWidth * 4) {
         ALOGE("%s: Lens shading map has %lu entries. Expecting %u", __FUNCTION__,
@@ -1455,10 +1454,6 @@ status_t HdrPlusProcessingBlock::initGcam() {
     initParams.thread_count = kGcamThreadCounts;
     initParams.tuning_locked = kGcamTuningLocked;
     initParams.use_hexagon = false;
-    initParams.planning_to_provide_both_yuv_and_raw_for_metering = false;
-    initParams.planning_to_provide_both_yuv_and_raw_for_payload = false;
-    initParams.planning_to_process_bayer_for_metering = false;
-    initParams.planning_to_process_bayer_for_payload = true;
     initParams.max_full_metering_sweep_frames = kGcamFullMeteringSweepFrames;
     initParams.min_payload_frames = kGcamMinPayloadFrames;
     initParams.max_payload_frames = kGcamMaxPayloadFrames;
