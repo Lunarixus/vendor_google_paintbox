@@ -8,7 +8,6 @@
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/gcam_constants.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/shot_params.h"
 #include "hardware/gchips/paintbox/googlex/gcam/hdrplus/lib_gcam/tuning.h"
-#include "googlex/gcam/image/yuv.h"
 #include "googlex/gcam/image_metadata/client_exif_metadata.h"
 #include "googlex/gcam/image_metadata/frame_metadata.h"
 #include "googlex/gcam/image_metadata/spatial_gain_map.h"
@@ -47,25 +46,7 @@ class IShot {
 
   // Step 3: Start capturing the metering frames & feeding them into Gcam,
   // ideally, as the frames stream in.
-  //   ISP CONFIGURATION:
-  //     For capture, the ISP should be configured as follows:
-  //       (Note: These details apply to both metering & payload bursts.)
-  //       1. Manual exposure time (sensor)
-  //       2. Manual analog gain (sensor)
-  //       3. Manual digital gain (sensor / ISP)
-  //       4. Manual white balance parameters should be applied to the image,
-  //            in the ISP.  (The 4 channel gains and the 3x3 color matrix to
-  //            use, for each metering frame, are in the '.awb' member for
-  //            each frame in the returned BurstSpec.)
-  //       5. The LSC (lens shading correction) map that is applied to the image
-  //            (sgm) should be chosen by the ISP based on the manual white
-  //            balance parameters requested by Gcam for the frame -- not by
-  //            information from prior frames.
-  //       6. The ISP's auto white balance algorithm should still run on each
-  //            frame, in isolation (i.e. a zero-history/zero-damping mode),
-  //            and the results should be stored in 'Metadata::wb_ideal' for
-  //            that same exact frame, when you pass it to Gcam.
-  //   BLOCKING vs. NON-BLOCKING:
+  //   NON-BLOCKING:
   //     AddMeteringFrame() is non-blocking: it processes the metering
   //     frames in the background, asynchronously, on another thread.
   //     EndMeteringFrames() does block, however, until all of those
@@ -84,15 +65,6 @@ class IShot {
   //   CLEANUP:
   //     Gcam requires that non-null input image views be valid until
   //     image_release_callback (mandatory; set in InitParams) is called.
-  //   NV12 vs NV21:
-  //     For YUV metering frames, the format can be either NV12 (UVUV...) or
-  //     NV21 (VUVU...), but not a mixutre.
-  //   ISP CONFIGURATION:
-  //     AWB should (ideally) be in a zero-damping mode.  This means that
-  //     auto white balance analysis should, ideally, be done on each
-  //     frame, independently, without knowledge of prior frames.
-  //     (This is because the exposure time and gains of frames can vary
-  //     wildly, from shot to shot.)
   //   METADATA:
   //     Be sure to fill out both the 'wb_capture' and 'wb_ideal'
   //     members for each frame.  'wb_capture' should tell us what
@@ -122,7 +94,7 @@ class IShot {
   virtual void BeginMeteringFrames(
       const BurstSpec& metering_burst_spec) = 0;  // Required.
 
-  // - yuv_id and raw_id: These are unique IDs associated with each image. The
+  // - raw_id: This is a unique ID associated with raw each image. The
   //     client must ensure that memory associated remains valid until it
   //     receives a release callback for that image ID. IDs must be globally
   //     unique across all image types and be non-negative. The constant
@@ -130,18 +102,9 @@ class IShot {
   //     parameter can be invalid and will not receive a callback.
   virtual bool AddMeteringFrame(const FrameMetadata& metadata,
                                 // At least one of 'yuv' or 'raw' must be valid.
-                                int64_t yuv_id, const YuvWriteView& yuv,
                                 int64_t raw_id, const RawWriteView& raw,
                                 // May be invalid if raw != nullptr.
                                 const SpatialGainMap& sgm) = 0;
-
-  // Raw-only wrapper, for clients that don't need the old YUV pipeline.
-  inline bool AddMeteringFrame(const FrameMetadata& metadata, int64_t raw_id,
-                               const RawWriteView& raw,
-                               const SpatialGainMap& sgm) {
-    return AddMeteringFrame(metadata, kInvalidImageId, YuvWriteView(), raw_id,
-                            raw, sgm);
-  }
 
   virtual BurstSpec EndMeteringFrames(
       // This parameter is for internal use by Gcam.  Use the default value.
@@ -173,12 +136,6 @@ class IShot {
   //   CLEANUP:
   //     Gcam requires that non-null input image views be valid until
   //     image_release_callback (mandatory; set in InitParams) is invoked.
-  //   ISP CONFIGURATION:
-  //     AWB should (ideally) be in a zero-damping mode.  This means that
-  //     auto white balance analysis should, ideally, be done on each
-  //     frame, independently, without knowledge of prior frames.
-  //     (This is because the exposure time and gains of frames can vary
-  //     wildly, from shot to shot.)
   //   METADATA:
   //     Be sure to fill out both the 'wb_capture' and 'wb_ideal'
   //     members for each frame.  'wb_capture' should tell us what

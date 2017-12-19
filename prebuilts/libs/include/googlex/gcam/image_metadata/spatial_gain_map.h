@@ -36,10 +36,7 @@ namespace gcam {
 //   applied to the very edge pixels of the hi-res images, and the gains for
 //   all interior pixels in the hi-res image can be determined using bilinear
 //   (or better) interpolation of the values in the SpatialGainMap.  This is
-//   the interpretation used by our raw pipeline.  The YUV pipeline uses a
-//   slightly different interpretation (see the comments in the ResizeAndCrop()
-//   function for details), which is incorrect, but which we likely won't change
-//   because it would involve a costly retuning of other parameters.
+//   the interpretation used by our raw pipeline.
 // Data ordering:
 //   The values are stored interleaved (RGGB, RGGB...) and in row-major,
 //   reading order.  That means that value_[0..3] are the RGGB gains for the
@@ -53,9 +50,10 @@ class SpatialGainMap {
   static const int kNumCh = 4;  // RGGB.
 
   SpatialGainMap() = default;
-  SpatialGainMap(int w, int h, bool is_precise = false,
-                 bool has_extra_vignetting_applied = false);
-  explicit SpatialGainMap(const InterleavedReadViewF& gain_map);
+  SpatialGainMap(int w, int h, bool is_precise,
+                 bool has_extra_vignetting_applied);
+  SpatialGainMap(const InterleavedReadViewF& gain_map, bool is_precise,
+                 bool has_extra_vignetting_applied);
 
   SpatialGainMap(const SpatialGainMap& src) = default;
   SpatialGainMap(SpatialGainMap&& other) = default;
@@ -168,19 +166,11 @@ class SpatialGainMap {
   //   to crop the SGM in the same way that the images were cropped.
   // The "crop_" values should all be in the [0..1] range, with
   //   crop_x0 < crop_x1, and crop_y0 < crop_y1.
-  // Note that our YUV and raw pipelines have different interpretations of how
-  //   the values in the SGM should be applied (spatially) to the pixels of the
-  //   image; this means the SGMs will be cropped differently, in this function,
-  //   depending on which pipeline is calling the function.  Therefore, be sure
-  //   to pass in the actual value of 'process_bayer_for_payload' (even if this
-  //   SGM is for a metering frame).  For more details, see the implementation.
   // Returns a new SpatialGainMap.
-  // TODO(geiss): If we deprecate the YUV pipeline, remove this parameter.
   SpatialGainMap ResizeAndCrop(
       int new_width,
       int new_height,
-      NormalizedRect crop,
-      bool process_bayer_for_payload) const;
+      NormalizedRect crop) const;
 
   // Returns true if the LSC map values look good, or false if there are any
   // potential issues.  The (optional) return string (details) describes the
@@ -300,18 +290,6 @@ void ApplyBlsAndSgm(const SpatialGainMap& sgm,
                     const float rgb_black_levels[3],
                     int white_level,
                     const InterleavedWriteViewU16* img);
-
-// This version is specialized to apply the SGM to a pair of images.  Both
-//   images should be the same size.
-// Note that this function isn't highly optimized, and might be slow if applied
-//   to high-resolution images.  (In practice, we only use it for low-
-//   resolution images.)
-void ApplyBlsAndSgm(
-    const SpatialGainMap& sgm,
-    const float rgb_black_levels[3],
-    int white_level,
-    const InterleavedWriteViewU16* img1,
-    const InterleavedWriteViewU16* img2);
 
 }  // namespace gcam
 

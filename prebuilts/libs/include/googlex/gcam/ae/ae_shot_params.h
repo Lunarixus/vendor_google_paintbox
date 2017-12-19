@@ -31,40 +31,17 @@ HdrMode TextToHdrMode(const std::string& text);
 struct AeShotParams {
   bool Equals(const AeShotParams& other) const;
 
-  // Tells Gcam whether you want to process Bayer raw frames.
-  // If true, then be sure to pass in (at least) Bayer raw versions of the
-  //   frames; if false, be sure to pass in (at least) the YUV versions.
-  //   (If debugging or saving input, you might want to pass both in.)
-  // There is one flag to control this for metering, and another for the
-  //   payload.  (It is okay for them to differ; for example, you can meter
-  //   using raw, but process the payload as YUV.)
-  // This *can* deviate from the 'planning_to_process_bayer_*' values you used
-  //   in InitParams, but you should only do this when reprocessing
-  //   shots - not on a production device.  If this deviates, memory
-  //   estimation will be inaccurate, and warnings will issued saying so.
-  // Note that there are actually two sets of "process_bayer" flags in Gcam:
-  //   1. A pair for the actual shot (below).
-  //   2. A pair for memory estimation
-  //        (InitParams::planning_to_process_bayer_*).
-  bool process_bayer_for_metering = false;
-  bool process_bayer_for_payload = false;
-
   // The size of the payload frames that you will pass into Gcam, when you
   //   pass them in.
   // If you are manually handling digital zoom (which is generally NOT
   //   recommended) - by cropping frames, adjusting face locations and sizes,
   //   adjusting weighted metering areas, etc. - then the size here should
   //   reflect that crop, since it is done before the frame is passed to Gcam.
-  // If 'process_bayer_for_payload' in this struct is true:
+  // Requirements:
   //   1. These should be less than or equal to the
   //      payload_frame_raw_max_width/height values in the Tuning structure.
   //   2. These should exactly match the actual width & height of the
   //      *Bayer raw* payload frames you pass in for this shot.
-  // Otherwise:
-  //   1. These should exactly match the payload_frame_yuv_max_width/height
-  //      values in the Tuning structure.
-  //   2. These should exactly match the actual width & height of the
-  //      *YUV* payload frames you pass in for this shot.
   // If requirements 1 or 2 above are violated, then (respectively):
   //   1. Memory estimation will be incorrect, and warnings will be issued.
   //   2. Metering quality might be compromised, and warnings will be issued.

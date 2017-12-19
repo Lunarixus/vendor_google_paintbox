@@ -20,15 +20,15 @@ extern const char* const kStaticMetadataFilename;
 
 // Color calibration metadata, following the DNG spec. DNG files generally
 // include color calibration of this form for two different illuminants.
-struct ColorCalibration {
-  ColorCalibration() { Clear(); }
+struct DngColorCalibration {
+  DngColorCalibration() { Clear(); }
   void Clear() {
     illuminant = Illuminant::kUnknown;
     static const float kIdentity[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     memcpy(xyz_to_model_rgb,        kIdentity, sizeof(kIdentity));
     memcpy(model_rgb_to_device_rgb, kIdentity, sizeof(kIdentity));
   }
-  bool Equals(const ColorCalibration& other) const {
+  bool Equals(const DngColorCalibration& other) const {
     return illuminant == other.illuminant &&
            memcmp(xyz_to_model_rgb, other.xyz_to_model_rgb,
                   sizeof(xyz_to_model_rgb)) == 0 &&
@@ -87,6 +87,30 @@ struct ColorCalibration {
   //   this from the above, so we can safely skip this field.
 };
 
+// Color calibration metadata, following Qualcomm's format. This calibration
+// data is the result of per-unit factory calibration and is generally stored in
+// EEPROM memory.
+struct QcColorCalibration {
+  // Ratios of color channels, for a particular illuminant. Computed in
+  // black-corrected sensor RGB.
+  struct IlluminantData {
+    float rg_ratio = 0.0f;  // R/G ratio.
+    float bg_ratio = 0.0f;  // B/G ratio.
+  };
+
+  // White balance calibration data for a set of illuminants. The illuminants
+  // used for calibration vary between different device types (e.g. Nexus 6P
+  // vs. Google Pixel).
+  std::vector<IlluminantData> illuminant_data;
+
+  // Overall green imbalance.
+  float grgb_ratio = 0.0f;  // Gr/Gb ratio.
+
+  void SerializeToString(std::string* str, int indent_spaces) const;
+  bool DeserializeFromString(const char** str);
+  bool Equals(const QcColorCalibration& other) const;
+};
+
 // Metadata intrinsic to a given camera (a particular imaging sensor on a
 // device), that stays constant over all configurations of the camera, and is
 // known before taking any shots. This static metadata does not vary per frame,
@@ -97,7 +121,7 @@ struct ColorCalibration {
 // metadata also includes fields that can vary per *individual* camera (e.g.
 // the back camera on the unit with serial number 015DB75A1001900F), based on
 // per-unit factory calibration. One such example is the field
-// ColorCalibration::model_rgb_to_device_rgb.
+// DngColorCalibration::model_rgb_to_device_rgb.
 //
 // Static metadata is typically configured once and for all at Gcam pipeline
 // creation, for all cameras on a device, based on information provided by the
@@ -184,7 +208,7 @@ struct StaticMetadata {
   // The rectangles are defined in the coordinates of the full pixel array.
   std::vector<PixelRect> optically_black_regions;
 
-  // Maximum width and height of the frames, in YUV and raw format.
+  // Maximum width and height of raw frames.
   // For raw frames, the maximum dimensions may correspond to either the active
   //   pixel array (matching the dimensions specified by 'active_area'), or else
   //   the full pixel array ('pixel_array_width' by 'pixel_array_height'), which
@@ -192,9 +216,7 @@ struct StaticMetadata {
   // Sending a frame to Gcam that exceeds these dimensions is considered an
   //   error. These values are used to estimate memory usage, so they should
   //   not be higher than necessary.
-  int frame_yuv_max_width;   // For YUV frames.
-  int frame_yuv_max_height;
-  int frame_raw_max_width;   // For Bayer raw frames.
+  int frame_raw_max_width;
   int frame_raw_max_height;
 
   // Number of bits per pixel for a Bayer raw frame, or -1 for unknown.
@@ -206,11 +228,14 @@ struct StaticMetadata {
   float sensor_physical_width_mm;
   float sensor_physical_height_mm;
 
-  // Color calibrations for different illuminants.
+  // Color calibration for different illuminants, following the DNG spec.
   // Like the DNG spec, we support either one or two color calibrations. Two
   //   color calibrations is more typical, because it gives you something to
   //   interpolate between when adjusting color in post.
-  std::vector<ColorCalibration> color_calibration;
+  std::vector<DngColorCalibration> dng_color_calibration;
+
+  // Color calibration for different illuminants, following Qualcomm's format.
+  QcColorCalibration qc_color_calibration;
 
   // DEPRECATED: Black levels should be communicated to gcam with
   //   FrameMetadata::black_levels.

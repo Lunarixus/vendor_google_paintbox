@@ -156,33 +156,6 @@ struct InitParams {
   // payload frames passed into it.
   PayloadFrameCopyMode payload_frame_copy_mode;
 
-  // planning_to_process_bayer_*:
-  //   This tells Gcam whether you plan to have it process Bayer raw frames
-  //   (vs YUV frames), for the metering and payload frames, respectively.
-  //   For memory estimation purposes, Gcam will assume that you'll stick
-  //   to this, and that ShotParams::process_bayer will match this value,
-  //   for each shot; this is a requirement for Gcam's memory estimation
-  //   to work properly.  If this is violated - if you take a shot later where
-  //   ShotParams::process_bayer doesn't match this value - that's OK (when
-  //   debugging / reprocessing); you'll just see warnings telling you that
-  //   in this mixed-mode case, memory estimation is not valid.
-  // TODO(geiss): Find a way to (safely) suppress these warnings, but only
-  //   when we're *very* sure we know what we're doing.
-  // Note that there are actually two sets of "process_bayer" flags in Gcam:
-  //   1. A pair for the actual shot (ShotParams::process_bayer_*).
-  //   2. A pair for memory estimation (below).
-  bool planning_to_process_bayer_for_metering;
-  bool planning_to_process_bayer_for_payload;
-
-  // Indicates whether the caller is planning to pass in both the YUV and raw
-  // versions of all viewfinder & metering frames.  You must set this properly
-  // for memory estimation to work correctly.
-  bool planning_to_provide_both_yuv_and_raw_for_metering;
-  // Indicates whether the caller is planning to pass in both the YUV and raw
-  // versions of all payload frames.  You must set this properly for memory
-  // estimation to work correctly.
-  bool planning_to_provide_both_yuv_and_raw_for_payload;
-
   // Whether to allow processing of images from unknown devices. This flag
   // should be false in production. If the flag is true and we encounter an
   // unknown device, we log a warning and fall back to "uncalibrated" tuning.
