@@ -1,0 +1,65 @@
+cc_library_shared {
+    name: "libeaselcontrol",
+    vendor_available: true,
+    owner: "google",
+
+    export_include_dirs: ["include"],
+
+    header_libs: ["easel-kernel-headers"],
+    export_header_lib_headers: ["easel-kernel-headers"],
+
+    srcs: [
+        "EaselClockControl.cpp",
+        "EaselControlClient.cpp",
+        "EaselControlServer.cpp",
+        "EaselStateManager.cpp",
+        "EaselThermalMonitor.cpp",
+        "EaselTimer.cpp",
+        "ThermalZone.cpp",
+    ],
+
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libeaselcomm",
+    ],
+
+    static_libs: [
+        "logdclient",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+
+}
+
+cc_library_shared {
+    name: "libeaselcontrolservice",
+    proprietary: true,
+    owner: "google",
+
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "EaselClockControl.cpp",
+        "EaselControlServer.cpp",
+        "EaselThermalMonitor.cpp",
+        "EaselTimer.cpp",
+        "ThermalZone.cpp",
+    ],
+
+    shared_libs: [
+        "liblog",
+        "libeaselcomm",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+
+}

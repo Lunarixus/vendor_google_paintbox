@@ -1,0 +1,47 @@
+cc_binary {
+    name: "logd.easel",
+
+    srcs: [
+        "main.cpp",
+        "LogBufferEasel.cpp",
+        "LogEntry.cpp",
+    ],
+
+    shared_libs: [
+        "libsysutils",
+        "liblog",
+        "libcutils",
+        "libbase",
+        "libeaselcomm",
+    ],
+
+    static_libs: [
+        "liblogd",
+    ],
+
+    cflags: [
+        "-Werror",
+    ],
+}
+
+cc_library_static {
+    name: "logdclient",
+    vendor_available: true,
+    owner: "google",
+
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "LogClient.cpp",
+        "LogEntry.cpp",
+    ],
+
+    shared_libs: [
+        "liblog",
+        "libeaselcomm",
+    ],
+
+    cflags: [
+        "-Werror",
+    ],
+}
