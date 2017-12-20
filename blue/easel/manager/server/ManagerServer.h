@@ -1,7 +1,9 @@
 #ifndef PAINTBOX_MANAGER_SERVER_H
 #define PAINTBOX_MANAGER_SERVER_H
 
-#include "EaselComm2.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
+
 #include "ManagerService.h"
 
 namespace EaselManagerService {
@@ -15,8 +17,11 @@ class ManagerServer {
   void run();
 
  private:
-  std::unique_ptr<EaselComm2::Comm> mComm;
+  std::unique_ptr<easel::Comm> mComm;
   std::unique_ptr<ManagerService> mService;
+
+  std::unique_ptr<easel::FunctionHandler> mStartServiceStatusHandler;
+  std::unique_ptr<easel::FunctionHandler> mStopServiceStatusHandler;
 };
 
 }  // namespace EaselManagerService

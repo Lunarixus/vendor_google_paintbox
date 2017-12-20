@@ -51,6 +51,7 @@ cc_binary {
         "libbase",
         "libbinder",
         "libeaselcomm",
+        "libeaselsystem.blue",
         "libeaselmanager_aidl",
         "liblog",
         "libprotobuf-cpp-lite",
@@ -64,6 +65,8 @@ cc_binary {
     ],
 
     init_rc: ["easelmanagerd.rc"],
+
+    compile_multilib = "64",
 }
 
 cc_library_static {

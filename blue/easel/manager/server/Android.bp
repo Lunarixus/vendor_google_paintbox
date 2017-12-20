@@ -17,6 +17,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "libeaselcomm",
+        "libeaselsystem.blue",
         "liblog",
         "libprotobuf-cpp-lite",
     ],
@@ -26,4 +27,6 @@ cc_binary {
         "-Wall",
         "-Wextra",
     ],
+
+    compile_multilib = "64",
 }
