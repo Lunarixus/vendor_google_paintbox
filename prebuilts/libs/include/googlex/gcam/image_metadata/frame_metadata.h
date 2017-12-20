@@ -13,7 +13,6 @@
 #include "googlex/gcam/image_metadata/awb_info.h"
 #include "googlex/gcam/image_metadata/face_info.h"
 #include "googlex/gcam/image_metadata/flash.h"
-#include "googlex/gcam/tonemap/tonemap_yuv.h"
 
 namespace gcam {
 
@@ -202,9 +201,8 @@ struct OisPosition {
 // Metadata related to optical image stabilization (OIS). This contains
 // the lens position at several times during frame capture.
 // https://cs.corp.google.com/android/vendor/google/frameworks/camera/experimental2017/java/com/google/android/camera/experimental2017/ExperimentalKeys.java
-// See b/62091252 for upcoming API changes.
-// TODO(nealw): Update this struct when this API is updated during the 2017 MR1
-//   release.
+// TODO(timothybrooks): Update this struct when the API is updated in the
+// Android P release. See https://docs.google.com/document/d/1qB7XEGKZjEnK_yGfk3Cd_MLy1aW4pblotMxZz7qhsfA/edit?ts=59ee2273
 struct OisMetadata {
   // Time in nanoseconds at which the first row of the frame is exposed as
   // recorded by the CPU clock. All OIS timestamps are on the same clock.
@@ -308,8 +306,7 @@ struct FrameMetadata {
   float actual_analog_gain;
 
   // The total digital gain that has already been applied to the frame, not
-  //   including post-raw digital gain applied by the ISP. (We currently do not
-  //   support YUV input frames that have such post-raw gain applied.)
+  //   including post-raw digital gain applied by the ISP.
   // Be sure to set this to match what was ACTUALLY done by the ISP / sensor
   //   -- in case it is different from the value that Gcam requested
   //   (in FrameRequest).
@@ -360,28 +357,13 @@ struct FrameMetadata {
   // For the gains, the channel order is [R, Gr, Gb, B].
   // The CCM's map from sensor RGB to sRGB, as in Camera2, regardless of the
   //   ultimate output color space.
-  // There are two sets of WB information:
-  //   - One set for the actual WB applied to the image that this metadata
-  //     represents.
-  //   - One set representing the ideal WB that would have been applied.
-  // Most of the time, these are one and the same. For legacy systems (e.g.
-  //   Glass), there is a distinction. When capturing a burst on those systems,
-  //   "older" WB is applied to a frame at capture time.  Meanwhile, in
-  //   parallel, fresh AWB is computed from the [raw] frame.  Both of these
-  //   results come in at around the same time: the finished frame (but with
-  //   potentially 'off' WB gains), and the 'ideal' WB gains that would have
-  //   been used (had they magically been known earlier).  During gcam's
-  //   processing, we can convert the image back to linear and apply the
-  //   difference, so that we end up with the ideal WB.
-  AwbInfo wb_capture;  // Corresponds to the actual captured image.
-  AwbInfo wb_ideal;    // 'Better' information, computed post-capture.
+  AwbInfo wb;
 
   // Estimated neutral color point in native sensor RGB color space. Typically
   //   produced by an AWB algorithm. Defaults to (1, 1, 1). Scale is ignored,
   //   so (1, 1, 1) is equivalent to (100, 100, 100).
   // In practice, this is generally equal to the component-wise reciprocal of
-  //   the gains reported in wb_capture.gains or wb_ideal.gains, after averaging
-  //   the Gr and Gb channels.
+  //   the gains reported in wb.gains, after averaging the Gr and Gb channels.
   // Ignored entirely if you custom white-balance a DNG in post.
   float neutral_point[3];
 
@@ -407,15 +389,6 @@ struct FrameMetadata {
   //   is arbitrary; Gcam only cares about the relative differences between
   //   timestamps.
   int64_t timestamp_ns;   // Start-of-exposure, in nanoseconds.
-
-  // The tonemapping curve applied to the frame, or as close as possible to the
-  //   nonlinear/nonglobal transforms actually used. For raw images, this curve
-  //   is what would have been applied if the frame were processed.
-  // This field must be filled out if a YUV image is included in the frame the
-  //   metadata refers to, in order to describe how the YUV image was
-  //   tonemapped.  If only a raw image is provided, filling out the field is
-  //   optional.
-  Tonemap tonemap;
 
   // Indicates whether or not the sensor black level offset was force-locked
   //   for this frame (to whatever it was for the previous sensor frame).
@@ -547,11 +520,8 @@ void SerializeBurstMetadata(const std::vector<FrameMetadata>& burst_metadata,
 // Otherwise, the length of the vector must match the number of frames in the
 //   burst, and the bits of burst metadata extracted from the string will be
 //   layered on top of the existing contents.
-// The optional 'legacy_tonemap' parameter indicates whether the metadata is old
-//   enough that the tonemapping curve is expected to be invalid.
 bool DeserializeBurstMetadata(const char** str,
-                              std::vector<FrameMetadata>* burst_metadata,
-                              bool* legacy_tonemap);  // Output, optional.
+                              std::vector<FrameMetadata>* burst_metadata);
 
 // Log the color temperature and white balance gains, both captured and ideal,
 //   for the given frames.

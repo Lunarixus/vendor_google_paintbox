@@ -153,7 +153,8 @@ $(LOCAL_BUILT_MODULE): EASEL_PCG := prebuilt/data/paintbox/compiled_graph/
 # Max size of Easel ramdisk, to limit boot time
 # (sanitized builds are slightly larger)
 ifeq ($(filter address,$(SANITIZE_TARGET)),)
-    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 40894464
+    # TODO(b/70849830): Reduce this limit size once libimageprocessor.so is dynamically linked
+    $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 45351531
 else
     $(LOCAL_BUILT_MODULE): EASEL_RAMDISK_SIZE := 45088768
 endif

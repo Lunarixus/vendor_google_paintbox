@@ -25,7 +25,6 @@
 #include "googlex/gcam/image_proc/resampling_method.h"
 #include "googlex/gcam/image_proc/row_artifacts.h"
 #include "googlex/gcam/image_raw/raw.h"
-#include "googlex/gcam/tonemap/tonemap_yuv.h"
 
 namespace gcam {
 
@@ -62,14 +61,22 @@ class SmoothKeyValueMap {
  public:
   SmoothKeyValueMap() {}
 
-  // Construct a smooth key-value map from an initializer list of key-value
-  // pairs. The pairs should be sorted.
-  SmoothKeyValueMap(std::initializer_list<std::pair<float, T>> pairs)
+  // Construct a smooth key-value map from a vector of key-value pairs.
+  // The pairs should be sorted.
+  SmoothKeyValueMap(std::vector<std::pair<float, T>> pairs)
       : map_(pairs) {
     // To implement lookups, we need the keys to be sorted. They should be
     // sorted already for this to make sense at all.
     std::sort(map_.begin(), map_.end(), KeyValueLess);
   }
+
+  // Construct a smooth key-value map from an initializer list of key-value
+  // pairs. The pairs should be sorted.
+  SmoothKeyValueMap(std::initializer_list<std::pair<float, T>> pairs)
+      : SmoothKeyValueMap(std::vector<std::pair<float, T>>(pairs)) {}
+
+  // Returns a const reference to the underlying key-value map
+  const std::vector<std::pair<float, T>>& GetMap() const { return map_; }
 
   // Perform a linearly interpolated lookup into this map. If the map is empty,
   // this returns a default constructed T. If key is outside the range defined
@@ -420,23 +427,13 @@ struct RawFinishParams {
   IccProfile icc_profile;
 };
 
-// This struct houses a subset of the parameters for capture, and is limited
-//   to the subset that we need to tune differently, when capturing for the
-//   YUV vs. raw pipelines.
-// Each device_code has one of these for the YUV pipeline, and one for the
-//   raw pipeline.  You should select between them using
-//   ShotParams::process_bayer_for_payload.
+// This struct houses a subset of the parameters for capture.
 struct CaptureParams {
   // The default values assume raw payload processing.
-  CaptureParams() { SetDefaults(/*process_bayer_for_payload=*/true); }
+  CaptureParams() { SetDefaults(); }
 
   bool Check() const;
-  void SetDefaults(bool process_bayer_for_payload);
-
-  // When true, in some HDR scenes, Gcam will capture a single *true* long
-  // exposure, for improved color accuracy in the dark parts of the scene, at a
-  // cost of one fewer short exposure and an extra processing step (in Finish).
-  bool capture_true_long_exposure;
+  void SetDefaults();
 
   // In non-ZSL mode, determines whether the sensor is allowed to apply digital
   //   gain to raw payload frames.  (Does not apply to ZSL mode, where the
@@ -521,7 +518,6 @@ struct CaptureParams {
   //   guidelines for that limit.
   float max_hdr_ratio;  // Should be > 1.
 
-  // *** The YUV pipeline ignores this member. ***
   // In the raw pipeline (only), this value controls the ratio between the
   //   variance of the noise in a single captured frame (at the time it goes
   //   into merge - i.e. after analog and digital gains are applied, but before
@@ -595,10 +591,6 @@ struct Tuning {
 
   // Input-oriented data:
   // -------------------------------------
-  // (Note: We exclude the NoiseModel for YUV images here because it
-  //  usually comes from a file, whereas - at least for reprocessing -
-  //  the stuff here can usually be generated from just a device_code
-  //  (when known).)
 
   // This tells Gcam how sensitive your device's camera module is to light,
   //   when capturing an image with minimal (usually no) gain.
@@ -653,25 +645,10 @@ struct Tuning {
   // sensor.
   SensorRowArtifacts sensor_row_artifacts;
 
-  // The input (forward) tonemapping curves.
-  // The client must use these curves when capturing *metering or payload*
-  //   frames.
-  // The client is free to use different curves when capturing *viewfinder*
-  //   frames (that are fed into Gcam), which will likely be different,
-  //   as long as they are reported to Gcam::AddViewfinderFrame().
-  //
-  // **** The client should not modify these fields directly.      ****
-  // **** Instead, only set the input tonemapping curves through   ****
-  // **** calls to SetInputTonemap(), below.                       ****
-  TonemapFloat input_tonemap_float;  // Control points in [0,1] x [0,1].
-  Tonemap      input_tonemap;        // LUT from 10 bits to 8 bits.
-  RevTonemap   input_rev_tonemap;    // LUT from 8 bits to 10 bits.
-
   // 2. Capture-oriented parameters:
   // -------------------------------------
 
-  // Parameters that affect the capture of a YUV or raw payload, respectively.
-  CaptureParams yuv_payload_capture_params;
+  // Parameters that affect the capture of a raw payload.
   CaptureParams raw_payload_capture_params;
 
   // The max analog gain that Gcam *should use*.
@@ -723,10 +700,7 @@ struct Tuning {
   // This model controls how Gcam balances the use of longer exposure times
   //   vs. higher gain.
   // This applies to payload frames only.
-  // There are two such models, for a given device; the selection of which one
-  //   will be used is based on ShotParams::process_bayer_for_payload.
-  TetModel yuv_payload_tet_model;   // TetModel for YUV payloads.
-  TetModel raw_payload_tet_model;   // TetModel for raw payloads.
+  TetModel raw_payload_tet_model;
 
   // Determines the number of frames at the beginning of the payload burst
   //   that are deemed 'untrustworthy' and should (ideally) be excluded from
@@ -772,8 +746,7 @@ struct Tuning {
 
   // Additional vignetting used to adjust the vendor-provided SpatialGainMap,
   //   when processing raw images. This makes the corners in the final result
-  //   relatively darker, and the effect is taken into account by AE. (It has no
-  //   effect when processing YUV images.)
+  //   relatively darker, and the effect is taken into account by AE.
   // This vignetting applies universally, to *all* scenes.
   // By contrast, the vignetting specified in
   //   RawFinishParams::extra_finish_vignetting is a function of SNR and is
@@ -810,7 +783,6 @@ struct Tuning {
   bool              suppress_hot_pixels;
   RawMergeParams    raw_merge_params;
   RawFinishParams   raw_finish_params;
-  ColorSatParams    output_color_sat_yuv;
 
   // If true, then we will ignore any black (optically shielded) pixels
   //   specified in StaticMetadata (or their overrides in
@@ -848,61 +820,24 @@ struct Tuning {
   // needed.
   float           max_raw_sensor_gain;
 
-  // 4. Initialization functions:
-  // -------------------------------------
-
-  // Pass in the actual tonemapping (gamma) curve used by the ISP here,
-  //   specified either as a set of floating point control points, or
-  //   as a lookup table mapping 10-bit linear input to 8-bit tonemapped
-  //   output. If a floating point tonemapping curve is provided, the client
-  //   must also specify a rounding method to use (down, nearest, up) when
-  //   converting to an integer lookup table.
-  // Ideally, the client got this curve by calling one of the helper
-  //   functions, like GenGcamTonemap() or GenGcamNexus5TonemapFloat(), and
-  //   also passed the same curve to the camera HAL.
-  // Each of the SetInputTonemap() initialization functions populate both
-  //   representations of the input tonemapping curve, and generate the
-  //   corresponding reverse tonemapping curve as well:
-  //
-  //     input_tonemap_float - floating point control points
-  //     input_tonemap       - 10-bit to 8-bit lookup table
-  //     input_rev_tonemap   - 8-bit to 10-bit lookup table (reverse)
-  //
-  //   In the version of SetInputTonemap() that takes Tonemap& as input,
-  //   input_tonemap_float will be constructed densely, with one value for
-  //   each index in Tonemap.
-  bool SetInputTonemap(const TonemapFloat& input_tonemap_float,
-                       const GcamRoundingMethod rounding_method);
-  bool SetInputTonemap(const Tonemap& input_tonemap);
-
   // For Gcam's internal use.
   inline float GetMinTet() const { return GetMinExposureTimeMs(); }
-  inline float GetMaxTet(bool process_bayer_for_payload) const {
-    float max_overall_gain = GetMaxOverallGain(process_bayer_for_payload);
+  inline float GetMaxTet() const {
+    float max_overall_gain = GetMaxOverallGain();
     return max_exposure_time_ms * max_overall_gain;
   }
-  float GetMaxTet(const ShotParams& shot_params) const;
 
-  inline const ColorSatParams& GetColorSatAdj(bool raw) const {
-    if (raw) {
-      return raw_finish_params.saturation;
-    } else {
-      return output_color_sat_yuv;
-    }
+  inline const ColorSatParams& GetColorSatAdj() const {
+    return raw_finish_params.saturation;
   }
 
-  inline float GetMaxOverallGain(bool process_bayer_for_payload) const {
-    return GetCaptureParams(process_bayer_for_payload).max_overall_gain;
+  inline float GetMaxOverallGain() const {
+    return GetCaptureParams().max_overall_gain;
   }
-  float GetMaxOverallGain(const ShotParams& shot_params) const;
 
-  inline const CaptureParams& GetCaptureParams(
-      bool process_bayer_for_payload) const {
-    return process_bayer_for_payload
-        ? raw_payload_capture_params
-        : yuv_payload_capture_params;
+  inline const CaptureParams& GetCaptureParams() const {
+    return raw_payload_capture_params;
   }
-  const CaptureParams& GetCaptureParams(const ShotParams& shot_params) const;
 };
 
 // Gets tuning for the given device code and sensor ID.

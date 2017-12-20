@@ -4,6 +4,8 @@
 // This header is part of the public Gcam API; try not to include any headers
 // unnecessarily, since any included headers also become part of the API.
 
+#include <string>
+
 namespace gcam {
 
 enum class GcamPixelFormat {
@@ -20,8 +22,8 @@ enum class GcamPixelFormat {
   kCount
 };
 
-const char* ToText(GcamPixelFormat format);
-GcamPixelFormat TextToGcamPixelFormat(const char* text);
+std::string ToText(GcamPixelFormat format);
+GcamPixelFormat TextToGcamPixelFormat(const std::string& text);
 
 inline bool IsYuv(GcamPixelFormat format) {
   return (format == GcamPixelFormat::kNv12 || format == GcamPixelFormat::kNv21);

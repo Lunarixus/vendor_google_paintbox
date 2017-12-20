@@ -3,6 +3,7 @@
 
 #include <binder/BinderService.h>
 
+#include <utils/Mutex.h>
 #include <thread>
 #include <unordered_map>
 
@@ -10,6 +11,7 @@
 #include "android/EaselManager/IServiceStatusCallback.h"
 
 #include "EaselComm2.h"
+#include "easelcontrol.h"
 
 namespace android {
 namespace EaselManager {
@@ -25,21 +27,55 @@ class ManagerServer : public BinderService<ManagerServer>,
                               const sp<IServiceStatusCallback>& callback,
                               int32_t* _aidl_return) override;
   binder::Status stopService(int32_t service, int32_t* _aidl_return) override;
+  binder::Status suspend(int32_t service, int32_t* _aidl_return) override;
+  binder::Status resume(int32_t service, int32_t* _aidl_return) override;
 
  private:
   int powerOn();
   void powerOff();
 
-  std::mutex mManagerLock;
-  std::unordered_map<int32_t, sp<IServiceStatusCallback>>
-      mServiceCallbackMap;  // Guarded by mManagerLock;
-  std::unique_ptr<EaselComm2::Comm> mComm;
-  std::thread mCommOpenThread;
-
   // Initializes the binder server and easelcomm client.
   // Called in constructor because the object is statically initialized in
   // easelmanagerd.cpp.
   void initialize();
+
+  bool isServiceStarted(int32_t service);
+
+  // Use Easel control lib to suspend Easel.
+  int suspendInternal();
+
+  // Return true if all services requested to set Easel to suspend mode.
+  bool areAllServicesSuspend();
+
+  // Notify all services that Easel has fatal error.
+  void notifyAllServicesFatal();
+
+  enum EaselStateControlRequest {
+    SUSPEND = 1,
+    RESUME = 2,
+  };
+
+  struct ServiceInfo {
+    EaselStateControlRequest stateRequest;
+    sp<IServiceStatusCallback> serviceCallback;
+  };
+
+  std::mutex mManagerLock;
+  std::unordered_map<int32_t, ServiceInfo>
+      mServiceInfoMap;  // Guarded by mManagerLock;
+  std::unique_ptr<EaselComm2::Comm> mComm;
+  std::thread mCommOpenThread;
+
+  Mutex mEaselControlLock;
+
+  // Easel control client. Protected by mEaselControlLock.
+  EaselControlClient mEaselControl;
+
+  // If Easel control client is opened. Protected by mEaselControlLock.
+  bool mEaselControlOpened;
+
+  // If Easel is resumed. Protected by mEaselControlLock.
+  bool mEaselResumed;
 };
 
 }  // namespace EaselManager
