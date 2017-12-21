@@ -1,0 +1,56 @@
+cc_library_shared {
+    name: "libhdrplusservice",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "libhdrplusservice/blocks/CaptureResultBlock.cpp",
+        "libhdrplusservice/blocks/HdrPlusProcessingBlock.cpp",
+        "libhdrplusservice/blocks/PipelineBlock.cpp",
+        "libhdrplusservice/blocks/SourceCaptureBlock.cpp",
+        "libhdrplusservice/HdrPlusPipeline.cpp",
+        "libhdrplusservice/HdrPlusService.cpp",
+        "libhdrplusservice/PipelineBuffer.cpp",
+        "libhdrplusservice/PipelineStream.cpp",
+    ],
+
+    shared_libs: [
+        "libeaselsystem",
+        "libeaselcomm",
+        "libeaselcontrol",
+        "libgcam",
+        "libhdrplusmessenger",
+        "liblog",
+        "libimageprocessor",
+    ],
+
+    header_libs: [
+        "libsystem_headers",
+    ],
+
+    include_dirs: [
+        "system/media/camera/include",
+    ],
+
+    local_include_dirs: [
+        "libhdrplusservice",
+        "libhdrplusservice/blocks",
+    ],
+
+    export_include_dirs: ["include"],
+    export_shared_lib_headers: [
+        "libeaselcontrol",
+        "libhdrplusmessenger",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        // These are needed to ignore warnings from third_party/halide/halide/src/runtime/HalideBuffer.h
+        "-Wno-missing-field-initializers",
+        "-Wno-unused-parameter",
+    ],
+
+    compile_multilib = "64",
+}
