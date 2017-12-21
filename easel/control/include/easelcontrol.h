@@ -26,6 +26,8 @@
 #include <functional>
 #include <stdint.h>
 
+#include "easelcomm.h"
+
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
@@ -65,7 +67,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int open();
+    int open(EaselService service_id = EASEL_SERVICE_SYSCTRL);
     /*
      * Temporary for TCP/IP-based mock.  Connects to the default easelcontrol
      * port on the named host.
@@ -186,7 +188,7 @@ public:
      *
      * Returns zero for success or -1 for failure.
      */
-    int open();
+    int open(EaselService service_id = EASEL_SERVICE_SYSCTRL);
     /*
      * Close the easelcontrol connection.
      */

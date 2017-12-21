@@ -40,6 +40,8 @@ EaselStateManager stateMgr;
 
 std::thread conn_thread;
 
+EaselService serviceId;
+
 // Indicate an activate commmand is pending
 std::atomic_flag isActivatePending = ATOMIC_FLAG_INIT;  // initializes to false
 
@@ -402,7 +404,7 @@ void easelConnThread()
     }
 
     ALOGI("%s: Opening easel_conn", __FUNCTION__);
-    ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
+    ret = easel_conn.open(serviceId);
     if (ret) {
         ALOGE("%s: Failed to open easelcomm connection (%d)", __FUNCTION__, ret);
         captureBootTrace();
@@ -813,7 +815,9 @@ void EaselControlClient::registerErrorCallback(easel_error_callback_t f) {
     gErrorCallback = std::move(f);
 }
 
-int EaselControlClient::open() {
+int EaselControlClient::open(EaselService service_id) {
+    serviceId = service_id;
+
     int ret = 0;
 
     ALOGD("%s\n", __FUNCTION__);

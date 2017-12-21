@@ -232,14 +232,14 @@ void msgHandlerCallback(EaselComm::EaselMessage* msg) {
 }
 
 /* Open our EaselCommServer object if not already. */
-int initializeServer() {
+int initializeServer(EaselService service_id = EASEL_SERVICE_SYSCTRL) {
     int ret = 0;
     std::lock_guard<std::mutex> lk(gServerLock);
 
     if (gServerInitialized)
         return ret;
 
-    ret = easel_conn.open(EASEL_SERVICE_SYSCTRL);
+    ret = easel_conn.open(service_id);
     if (ret) {
         ALOGE("%s: failed to open easel_conn (%d)", __FUNCTION__, ret);
         return ret;
@@ -286,10 +286,10 @@ void printWaferId()
 
 } // anonymous namespace
 
-int EaselControlServer::open() {
+int EaselControlServer::open(EaselService service_id) {
     int ret;
 
-    ret = initializeServer();
+    ret = initializeServer(service_id);
     if (ret) {
         return ret;
     }
