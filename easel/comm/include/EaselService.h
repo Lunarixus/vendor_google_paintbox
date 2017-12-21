@@ -24,6 +24,8 @@ enum EaselService {
   EASEL_SERVICE_MANAGER,
   // Easel Imx Service
   EASEL_SERVICE_IMX,
+  // Easel manager system control
+  EASEL_SERVICE_MANAGER_SYSCTRL,
   // Max service ID
   EASEL_SERVICE_MAX = EASELCOMM_SERVICE_COUNT - 1,
 };
