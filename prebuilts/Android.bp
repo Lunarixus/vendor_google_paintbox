@@ -7,8 +7,36 @@ cc_library_headers {
 cc_prebuilt_library_shared {
     name: "libeaselsystem",
     proprietary: true,
+    owner: "google",
     export_include_dirs: ["libs/include"],
     srcs = ["libs/libeaselsystem.so"],
     // TODO(cjluo): Add support for 32bit version to support camera hal
     compile_multilib = "64",
+    strip: {
+        keep_symbols: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "libgcam",
+    proprietary: true,
+    owner: "google",
+    export_include_dirs: ["libs/include"],
+    srcs = ["libs/libgcam.so"],
+    compile_multilib = "64",
+    strip: {
+        keep_symbols: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "libimageprocessor",
+    proprietary: true,
+    owner: "google",
+    export_include_dirs: ["libs/include"],
+    srcs = ["libs/libimageprocessor.so"],
+    compile_multilib = "64",
+    strip: {
+        keep_symbols: true,
+    },
 }
