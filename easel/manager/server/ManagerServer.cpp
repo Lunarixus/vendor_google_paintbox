@@ -1,4 +1,4 @@
-#define LOG_TAG "EaselManagerServcer"
+#define LOG_TAG "EaselManagerServer"
 
 #include "ManagerServer.h"
 
