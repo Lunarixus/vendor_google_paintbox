@@ -43,8 +43,8 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/ \
     $(LOCAL_PATH)/include \
     hardware/libhardware/include \
-    hardware/google/easel/camera/include \
-    hardware/google/easel/camera/libhdrplusclient/include \
+    hardware/google/easel/amber/camera/include \
+    hardware/google/easel/amber/camera/libhdrplusclient/include \
     hardware/qcom/camera/msm8998/QCamera2/HAL3 \
     system/core/include \
     system/media/camera/include \

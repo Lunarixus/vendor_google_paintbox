@@ -30,7 +30,7 @@ LOCAL_HEADER_LIBRARIES := \
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
 
 LOCAL_C_INCLUDES += \
-    hardware/google/easel/camera/include \
+    hardware/google/easel/amber/camera/include \
     system/media/camera/include \
     vendor/google_paintbox/camera/include \
     vendor/google_paintbox/camera/services/include

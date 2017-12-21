@@ -36,12 +36,12 @@ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcomm
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
-    hardware/google/easel/camera/include \
+    hardware/google/easel/amber/camera/include \
     vendor/google_paintbox/camera/include
 
 LOCAL_EXPORT_C_INCLUDE_DIRS += \
     $(LOCAL_PATH)/include \
-    hardware/google/easel/camera/include \
+    hardware/google/easel/amber/camera/include \
     vendor/google_paintbox/camera/include
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
