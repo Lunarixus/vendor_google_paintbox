@@ -1,0 +1,8 @@
+cc_binary {
+    name: "gen_init_cpio",
+    host_supported: true,
+    srcs: [
+        "gen_init_cpio.c",
+    ],
+    cflags: ["-Wall", "-Wextra", "-Werror",],
+}
