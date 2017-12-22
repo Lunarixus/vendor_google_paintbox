@@ -1,9 +1,3 @@
-subdirs = [
-    "paintbox_driver",
-    "server",
-    "shared",
-]
-
 cc_library_headers {
     name: "paintbox_nn_headers",
     host_supported: false,

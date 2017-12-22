@@ -5,7 +5,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "vendor/google_paintbox/easel/manager/shared/proto/easelmanager.pb.h"
+#include "vendor/google_paintbox/blue/easel/manager/shared/proto/easelmanager.pb.h"
 
 namespace EaselManagerService {
 

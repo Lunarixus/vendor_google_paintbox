@@ -17,7 +17,7 @@
 #ifndef ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
 #define ANDROID_ML_NN_COMMON_HAL_INTERFACES_H
 
-#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+#include "vendor/google_paintbox/blue/nn/shared/proto/types.pb.h"
 
 using ::paintbox_nn::Model;
 using ::paintbox_nn::Operand;
