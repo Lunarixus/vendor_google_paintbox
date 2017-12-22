@@ -45,7 +45,6 @@ cc_binary {
         "libbase",
         "libbinder",
         "libeaselcomm",
-        "libeaselcontrol",
         "libeaselmanager_aidl",
         "liblog",
         "libprotobuf-cpp-lite",

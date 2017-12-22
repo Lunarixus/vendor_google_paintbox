@@ -20,20 +20,4 @@ interface IManagerService {
    * @param service service to stop.
    */
   int stopService(int service);
-
-  /**
-   * Request to set Easel to suspend mode.
-   * Returns zero for success or error code for failure.
-   *
-   * @param service service to request suspend.
-   */
-  int suspend(int service);
-
-  /**
-   * Resume Easel from suspend mode.
-   * Returns zero for success or error code for failure.
-   *
-   * @param service service to request suspend.
-   */
-  int resume(int service);
 }
