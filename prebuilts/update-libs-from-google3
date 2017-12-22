@@ -45,7 +45,7 @@ GOOGLE3_SYSTEM_TARGET="libeaselsystem.so"
 GOOGLE3_SYSTEM_OUT_SO="${GOOGLE3_SYSTEM_TARGET}"
 GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
 GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
-GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessor.so"
+GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessoreasel.so"
 GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
 GOOGLE3_SYSTEM_INCLUDE="hardware/gchips/paintbox/system/include"
 GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/generate_all_pbserver_pcgs.sh"
@@ -152,7 +152,6 @@ fi
 #Build libeaselsystem
 blaze build \
   --config=android_arm64 \
-  --define noproto=1 \
   -c opt ${GOOGLE3_SYSTEM_TARGET_FULL_PATH}
 
 pwd
