@@ -59,7 +59,7 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice)/libeaselcontrolservice.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice.amber)/libeaselcontrolservice.amber.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
@@ -203,7 +203,7 @@ $(LOCAL_BUILT_MODULE): \
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
-	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.so
+	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
 	@chmod +w $(dir $@)/$(EASEL_LIB)/*
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*

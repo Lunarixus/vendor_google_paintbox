@@ -17,7 +17,7 @@ cc_library_shared {
     shared_libs: [
         "libeaselsystem",
         "libeaselcomm",
-        "libeaselcontrol",
+        "libeaselcontrol.amber",
         "libgcam",
         "libhdrplusmessenger",
         "liblog",
@@ -39,7 +39,7 @@ cc_library_shared {
 
     export_include_dirs: ["include"],
     export_shared_lib_headers: [
-        "libeaselcontrol",
+        "libeaselcontrol.amber",
         "libhdrplusmessenger",
     ],
 

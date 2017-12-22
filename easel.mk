@@ -28,7 +28,7 @@ PRODUCT_PACKAGES += \
     libhdrplusmessenger \
     libeaselcomm \
     libeaselcommcapi \
-    libeaselcontrol
+    libeaselcontrol.amber
 
 # Neuralnetworks HAL
 # PRODUCT_PACKAGES += \

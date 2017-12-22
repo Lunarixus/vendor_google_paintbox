@@ -15,7 +15,7 @@ cc_library_shared {
         "libhdrplusmessenger",
         "liblog",
         "libutils",
-        "libeaselcontrol",
+        "libeaselcontrol.amber",
         "libeaselcomm",
     ],
 
@@ -34,7 +34,7 @@ cc_library_shared {
     export_include_dirs: [
         "include",
     ],
-    export_shared_lib_headers: ["libeaselcontrol"],
+    export_shared_lib_headers: ["libeaselcontrol.amber"],
 
     cflags: ["-Wall", "-Wextra", "-Werror",],
 }
