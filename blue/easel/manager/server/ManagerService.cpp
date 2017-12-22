@@ -45,7 +45,15 @@ bool fileExist(const char* path) {
 
 ManagerService::ManagerService(
     std::function<void(const ServiceStatusResponse&)> statusCallback)
-    : mStatusCallback(statusCallback) {}
+    : mStatusCallback(statusCallback) {
+  // Opening Easel Control
+  int res = mEaselControl.open(EASEL_SERVICE_MANAGER_SYSCTRL);
+  if (res != 0) {
+    LOG(ERROR) << __FUNCTION__ << ": Opening Easel Control failed: "
+               << strerror(-errno) << " (" << errno << ").";
+    mEaselControl.close();
+  }
+}
 
 void ManagerService::startService(const StartServiceRequest& request) {
   Service service = request.service();
