@@ -33,23 +33,12 @@ PREBUILT_BIN_MODULES := \
 	$(EASEL_RAMDISK_SRC_DIR)/toybox \
 	$(EASEL_RAMDISK_SRC_DIR)/sh
 
-SCRIPT_MODULES := \
-	$(EASEL_RAMDISK_SRC_DIR)/easelmanager.init
+SCRIPT_MODULES :=
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
-	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
 	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
-	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel \
-	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver \
-	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
-
-ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-	BIN_MODULES += \
-		$(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh \
-		$(call intermediates-dir-for,EXECUTABLES,easeldummyapp)/easeldummyapp \
-		$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
-endif
+	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
@@ -59,11 +48,8 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice.amber)/libeaselcontrolservice.amber.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblzma)/liblzma.so \
@@ -78,16 +64,46 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
 
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
+
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-	LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
+BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh
+LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
 endif
 
-INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
-ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-	INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
-	LIB_MODULES += \
-		$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
+# Amber config
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+BIN_MODULES += \
+	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
+
+LIB_MODULES += \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice.amber)/libeaselcontrolservice.amber.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so
 endif
+# End of amber config
+
+# Blue config
+ifeq ($(TARGET_EASEL_VARIANT), blue)
+SCRIPT_MODULES += \
+	$(EASEL_RAMDISK_SRC_DIR)/easelmanager.init
+
+BIN_MODULES += \
+	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
+	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver
+
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+BIN_MODULES += \
+	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp)/easeldummyapp \
+	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
+
+LIB_MODULES += \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
+endif
+
+endif
+# End of blue config
 
 EASEL_PCG_DIR := $(EASEL_ROOT)/prebuilts/compiled_graph/
 
@@ -203,7 +219,7 @@ $(LOCAL_BUILT_MODULE): \
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
-	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
+	-mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
 	@chmod +w $(dir $@)/$(EASEL_LIB)/*
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*
