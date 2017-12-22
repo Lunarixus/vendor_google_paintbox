@@ -1,0 +1,57 @@
+cc_binary {
+    name: "ezlsh",
+    proprietary: true,
+    owner: "google",
+
+    host_supported: false,
+
+    srcs: ["ezlsh.cpp"],
+
+    shared_libs: [
+        "libeaselcomm",
+        "liblog",
+    ],
+
+    static_libs: ["logdclient"],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG"
+    ],
+}
+
+cc_binary {
+    name: "ezltmon",
+    proprietary: true,
+    owner: "google",
+
+    host_supported: false,
+
+    srcs: ["ezltmon.cpp"],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG"
+    ],
+}
+
+cc_binary {
+    name: "ezlspi",
+    proprietary: true,
+    owner: "google",
+
+    host_supported: false,
+
+    srcs: ["ezlspi.cpp"],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-UNDEBUG"
+    ],
+}
