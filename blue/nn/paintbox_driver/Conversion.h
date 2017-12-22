@@ -4,7 +4,7 @@
 #include "HalInterfaces.h"
 #include "OemModel.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm.h"
-#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+#include "vendor/google_paintbox/blue/nn/shared/proto/types.pb.h"
 
 namespace paintbox_util {
 

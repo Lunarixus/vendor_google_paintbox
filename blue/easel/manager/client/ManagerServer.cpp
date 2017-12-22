@@ -11,7 +11,7 @@
 
 #include "EaselManager.h"
 #include "EaselManagerCommon.h"
-#include "vendor/google_paintbox/easel/manager/shared/proto/easelmanager.pb.h"
+#include "vendor/google_paintbox/blue/easel/manager/shared/proto/easelmanager.pb.h"
 
 namespace android {
 namespace EaselManager {

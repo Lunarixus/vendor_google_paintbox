@@ -3,7 +3,7 @@
 
 #include "hardware/gchips/paintbox/system/include/easel_comm.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
-#include "vendor/google_paintbox/nn/shared/proto/types.pb.h"
+#include "vendor/google_paintbox/blue/nn/shared/proto/types.pb.h"
 
 #include <mutex>
 #include <queue>
