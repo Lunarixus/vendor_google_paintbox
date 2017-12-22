@@ -15,8 +15,6 @@ class ManagerClientImpl : public ManagerClient {
   Error startService(Service service,
                      const sp<IServiceStatusCallback>& callback) override;
   Error stopService(Service service) override;
-  Error suspend(Service service) override;
-  Error resume(Service service) override;
 
  private:
   sp<IManagerService> mService;
