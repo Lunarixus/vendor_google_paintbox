@@ -1,0 +1,40 @@
+cc_library_shared {
+    name: "libhdrplusclientimpl",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "ApEaselMetadataManager.cpp",
+        "EaselManagerClientImpl.cpp",
+        "HdrPlusClientImpl.cpp",
+    ],
+
+    shared_libs: [
+        "libcamera_metadata",
+        "libcutils",
+        "libhdrplusmessenger",
+        "liblog",
+        "libutils",
+        "libeaselcontrol",
+        "libeaselcomm",
+    ],
+
+    static_libs: [
+        "android.hardware.camera.common@1.0-helper",
+    ],
+
+    header_libs: [
+        "libhardware_headers",
+    ],
+
+    include_dirs: [
+        "hardware/qcom/camera/msm8998/QCamera2/HAL3/",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+    export_shared_lib_headers: ["libeaselcontrol"],
+
+    cflags: ["-Wall", "-Wextra", "-Werror",],
+}

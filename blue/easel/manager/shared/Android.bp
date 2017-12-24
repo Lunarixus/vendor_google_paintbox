@@ -1,0 +1,16 @@
+cc_library_static {
+    name: "easelmanager_shared",
+    vendor_available: true,
+    srcs: [
+        "proto/easelmanager.proto",
+    ],
+    cflags: ["-Wall", "-Werror"],
+    proto: {
+        type: "lite",
+        export_proto_headers: true,
+    },
+    shared_libs: [
+        "libprotobuf-cpp-lite",
+    ],
+    export_include_dirs: ["include"],
+}

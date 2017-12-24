@@ -1,0 +1,40 @@
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package EaselManagerService;
+
+enum Service {
+  PBSERVER = 1;
+  DUMMY_SERVICE = 10000;
+  CRASH_SERVICE = 10001;
+}
+
+enum Status {
+  UNKNOWN = 0;
+  LIVE = 1;
+  EXIT = 2;
+}
+
+enum Error {
+  SUCCESS = 1;
+  SERVICE_ALREADY_STARTED = 2;
+  SERVICE_NOT_FOUND = 3;
+  SERVICE_PROCESS_FAILURE = 4;
+  SERVICE_NOT_STARTED = 5;
+}
+
+message StartServiceRequest {
+  optional Service service = 1;
+}
+
+message StopServiceRequest {
+  optional Service service = 1;
+}
+
+message ServiceStatusResponse {
+  optional Service service = 1;
+  optional Error error = 2;
+  optional Status status = 3;
+  // exit value of the service, default 0.
+  optional int32 exit = 4;
+}

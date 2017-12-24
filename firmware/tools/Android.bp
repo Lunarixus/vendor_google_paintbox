@@ -1,0 +1,7 @@
+cc_binary_host {
+    name: "gen_init_cpio",
+    srcs: [
+        "gen_init_cpio.c",
+    ],
+    cflags: ["-Wall", "-Wextra", "-Werror",],
+}

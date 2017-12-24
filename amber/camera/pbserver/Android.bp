@@ -1,0 +1,23 @@
+cc_binary {
+    name: "pbserver",
+    proprietary: true,
+    owner: "google",
+
+    host_supported: false,
+
+    srcs: [
+        "pbserver.cpp",
+    ],
+
+    shared_libs: [
+        "libhdrplusservice",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+
+    compile_multilib = "64",
+}

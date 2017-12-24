@@ -25,7 +25,9 @@ FW_MINOR := '001'
 
 include $(BUILD_SYSTEM)/base_rules.mk
 
-EASEL_RAMDISK_SRC_DIR := vendor/google_paintbox/firmware/ramdisk
+EASEL_ROOT := $(LOCAL_PATH)/../../
+
+EASEL_RAMDISK_SRC_DIR := $(EASEL_ROOT)/firmware/ramdisk
 
 PREBUILT_BIN_MODULES := \
 	$(EASEL_RAMDISK_SRC_DIR)/toybox \
@@ -83,18 +85,15 @@ endif
 INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 	INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
-	BIN_MODULES += \
-		$(call intermediates-dir-for,EXECUTABLES,imxserver)/imxserver
 	LIB_MODULES += \
-		$(call intermediates-dir-for,SHARED_LIBRARIES,libimxservice)/libimxservice.so \
 		$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
 endif
 
-EASEL_PCG_DIR := vendor/google_paintbox/prebuilts/compiled_graph/
+EASEL_PCG_DIR := $(EASEL_ROOT)/prebuilts/compiled_graph/
 
 PCG_MODULE := $(EASEL_PCG_DIR)/pcg.tar
 
-EASEL_RAMDISK_TOOL_DIR := vendor/google_paintbox/firmware/tools/
+EASEL_RAMDISK_TOOL_DIR := $(EASEL_ROOT)/firmware/tools/
 
 GEN_CPIO := $(HOST_OUT_EXECUTABLES)/gen_init_cpio
 GEN_INITRAMFS_LIST := $(EASEL_RAMDISK_TOOL_DIR)/gen_initramfs_list.sh

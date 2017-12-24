@@ -1,0 +1,46 @@
+Gcam version: 1.0.158471162
+Build timestamp: Built on Jun 8 2017 18:53:29 (1496973209)
+AE training fingerprint: 0x024047fc
+ZSL shot: Yes
+Orig. payload aspect ratio: 1.330
+Desired final aspect ratio: 1.330
+Digital zoom:  No   (1.00x)
+Smart Metering disabled: No
+Weighted metering area count: 1
+max_payload_frames: 7
+Set zsl_rough_base_frame_index_ to 0.
+Payload burst: 9 ZSL frames provided; 9 valid.
+WARNING: Payload frame 5 of 9 had unexpected duration. Exposure time was 0.3 ms with 33.3 ms readout; expected 33.3 ms frame duration, but actual duration was 66.7 ms.
+ZSL base frame candidate count: 4
+Base frame index: 1
+Base frame underexposure (post-raw gain): 1.00
+Faces detected: No
+base frame current TET:   0.282
+base frame exposure time: 0.256 ms
+base frame analog gain:   1.100
+base frame digital gain:  1.000 (so far)
+shot_min_tet: 0.282 (from base frame)
+shot_max_tet: 7.222 (from max_post_capture_gain)
+AE results (from base frame):
+  ideal HDR ratio = 1.13
+  final HDR ratio = 1.13
+  AE(short): conf 13.9, original tet 0.35, final tet 0.35
+  AE(long): conf 7.4, original tet 0.39, final tet 0.39
+  predicted_image_brightness: 157.4
+  log_scene_brightness: 6.41
+  fraction_of_pixels_from_long_exposure: 0.64
+Further global digital gain of 1.242x will be applied.
+Releasing 3 unneeded payload frames.
+Finish will use 2 synthetic exposures.
+Time-to-postview: 0.503 seconds.
+Discarded (blurry) frame 0 out of 9 total frames (6 valid).
+Discarded (blurry) frame 5 out of 9 total frames (5 valid).
+Found 0 potential hot pixels
+Merge frame count: 4
+Base frame SNR: 27.7546
+Merging 4 frames of 4032 x 3024 resolution, tile size 16, gain 16
+Merged frame SNR (estimate): 55.5093
+Merged 4 frames.
+Estimated black level adjustments: 0 0 0 0
+Finish will use 2 synthetic exposures.
+Success.

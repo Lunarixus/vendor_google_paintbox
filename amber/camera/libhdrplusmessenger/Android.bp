@@ -1,0 +1,28 @@
+cc_library_shared {
+    name: "libhdrplusmessenger",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "EaselMessenger.cpp",
+        "MessengerToHdrPlusClient.cpp",
+        "MessengerListenerFromHdrPlusClient.cpp",
+        "MessengerToHdrPlusService.cpp",
+        "MessengerListenerFromHdrPlusService.cpp",
+    ],
+
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libeaselcomm",
+    ],
+
+    header_libs: [
+        "libhdrplusclient_headers",
+    ],
+
+    export_include_dirs: ["include"],
+    export_header_lib_headers: ["libhdrplusclient_headers"],
+
+    cflags: ["-Wall", "-Wextra", "-Werror",],
+}

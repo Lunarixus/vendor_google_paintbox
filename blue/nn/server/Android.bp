@@ -1,0 +1,23 @@
+cc_binary {
+    name: "nnserver",
+    proprietary: true,
+    srcs: [
+        "EaselExecutorServer.cpp",
+        "main.cpp",
+    ],
+    cflags: ["-Wall", "-Werror", "-Wextra"],
+    static_libs: [
+        "paintbox_nn_common",
+        "paintbox_nn_shared",
+    ],
+    shared_libs: [
+        "libbase",
+        "libeaselsystem",
+        "liblog",
+        "libprotobuf-cpp-lite",
+    ],
+    header_libs: [
+        "libneuralnetworks_headers",
+    ],
+    compile_multilib = "64",
+}
