@@ -85,7 +85,7 @@ class EaselManagerClientTests : public ::testing::Test {
 };
 
 TEST_F(EaselManagerClientTests, TestDummyService) {
-  auto dummy_service = android::EaselManager::DUMMY_SERVICE;
+  auto dummy_service = android::EaselManager::DUMMY_SERVICE_1;
   // when app is mocked to exit on easel, "exit" is expected to be "SIGTERM",
   // which matches the exit code set in "dummy_app.cpp".
   sp<ServiceStatusCallback> dummy_callback(
@@ -106,6 +106,27 @@ TEST_F(EaselManagerClientTests, TestCrashService) {
             android::EaselManager::SUCCESS);
   // Wait for app service crash.
   crash_callback->wait();
+}
+
+TEST_F(EaselManagerClientTests, TestStartMultiServices) {
+  auto dummy_service_1 = android::EaselManager::DUMMY_SERVICE_1;
+  sp<ServiceStatusCallback> dummy_callback_1(
+  new ServiceStatusCallback(dummy_service_1, SIGTERM));
+  auto dummy_service_2 = android::EaselManager::DUMMY_SERVICE_2;
+  sp<ServiceStatusCallback> dummy_callback_2(
+  new ServiceStatusCallback(dummy_service_2, SIGTERM));
+
+  ASSERT_EQ(client->startService(dummy_service_1, dummy_callback_1),
+            android::EaselManager::SUCCESS);
+  ASSERT_EQ(client->startService(dummy_service_2, dummy_callback_2),
+            android::EaselManager::SUCCESS);
+  ASSERT_EQ(client->stopService(dummy_service_1),
+            android::EaselManager::SUCCESS);
+  ASSERT_EQ(client->stopService(dummy_service_2),
+            android::EaselManager::SUCCESS);
+  // Wait for app service to be stopped
+  dummy_callback_1->wait();
+  dummy_callback_2->wait();
 }
 
 int main(int argc, char **argv) {

@@ -95,7 +95,8 @@ BIN_MODULES += \
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += \
-	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp)/easeldummyapp \
+	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp1)/easeldummyapp1 \
+	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp2)/easeldummyapp2 \
 	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
 
 LIB_MODULES += \

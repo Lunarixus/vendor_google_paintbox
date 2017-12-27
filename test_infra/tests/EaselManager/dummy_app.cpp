@@ -1,4 +1,6 @@
-#define LOG_TAG "easeldummyapp"
+#define STR(s) #s
+#define STR2(s) STR(s)
+#define LOG_TAG "easeldummyapp" STR2(DUMMY_APP)
 
 #include <signal.h>
 
@@ -14,7 +16,7 @@ int main() {
   action.sa_handler = termHandler;
   sigaction(SIGTERM, &action, nullptr);
 
-  LOG(INFO) << "Dummy app starting...";
+  LOG(INFO) << "Dummy app " << DUMMY_APP << " starting...";
   pause();
   exit(0);
 }

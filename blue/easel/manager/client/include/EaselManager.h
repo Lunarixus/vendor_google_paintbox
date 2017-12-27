@@ -11,8 +11,9 @@ enum Service {
   PBSERVER = 1,
 
   // Test services starts from here.
-  DUMMY_SERVICE = 10000,
-  CRASH_SERVICE = 10001,
+  DUMMY_SERVICE_1 = 10000,
+  DUMMY_SERVICE_2 = 10001,
+  CRASH_SERVICE = 10002,
 };
 
 // Error codes

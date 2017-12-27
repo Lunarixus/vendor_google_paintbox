@@ -71,7 +71,7 @@ int main() {
   std::unique_ptr<ManagerClient> client = ManagerClient::create();
   CHECK(client->initialize() == android::EaselManager::SUCCESS);
 
-  auto dummy_service = android::EaselManager::DUMMY_SERVICE;
+  auto dummy_service = android::EaselManager::DUMMY_SERVICE_1;
   sp<ServiceStatusCallback> dummy_callback(
       new ServiceStatusCallback(dummy_service));
   CHECK(client->startService(dummy_service, dummy_callback) ==

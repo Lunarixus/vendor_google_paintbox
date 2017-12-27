@@ -15,8 +15,10 @@ std::string getServicePath(Service service) {
   switch (service) {
     case PBSERVER:
       return "/system/bin/pbserver";
-    case DUMMY_SERVICE:
-      return "/system/bin/easeldummyapp";
+    case DUMMY_SERVICE_1:
+      return "/system/bin/easeldummyapp1";
+    case DUMMY_SERVICE_2:
+      return "/system/bin/easeldummyapp2";
     case CRASH_SERVICE:
       return "/system/bin/easelcrashapp";
     default:
