@@ -174,7 +174,7 @@ binder::Status ManagerServer::startService(
 
   auto iter = mServiceInfoMap.find(service);
   if (iter != mServiceInfoMap.end()) {
-    resume(service, _aidl_return);
+    *_aidl_return = static_cast<int32_t>(SERVICE_ALREADY_STARTED);
     return binder::Status::ok();
   }
 
