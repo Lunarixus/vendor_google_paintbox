@@ -6,5 +6,5 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_OWNER := google
 LOCAL_VENDOR_MODULE := true
 LOCAL_SRC_FILES := EaselStateManagerTest.cpp
-LOCAL_SHARED_LIBRARIES := libeaselcontrol liblog
+LOCAL_SHARED_LIBRARIES := libeaselcontrol.amber liblog
 include $(BUILD_NATIVE_TEST)

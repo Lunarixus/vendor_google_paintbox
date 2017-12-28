@@ -7,7 +7,7 @@ LOCAL_MODULE_OWNER := google
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_CFLAGS += -UNDEBUG
 LOCAL_SRC_FILES := EaselClockControlTest.cpp
-LOCAL_SHARED_LIBRARIES := libeaselcontrol liblog
+LOCAL_SHARED_LIBRARIES := libeaselcontrol.amber liblog
 include $(BUILD_NATIVE_TEST)
 
 

@@ -1,5 +1,5 @@
 cc_library_shared {
-    name: "libeaselcontrol",
+    name: "libeaselcontrol.amber",
     vendor_available: true,
     owner: "google",
 
@@ -38,7 +38,7 @@ cc_library_shared {
 }
 
 cc_library_shared {
-    name: "libeaselcontrolservice",
+    name: "libeaselcontrolservice.amber",
     proprietary: true,
     owner: "google",
 

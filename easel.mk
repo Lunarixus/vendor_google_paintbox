@@ -19,16 +19,8 @@ PRODUCT_PACKAGES += \
     easel/fip.bin \
     easel/Image \
     easel/mnh.dtb \
-    easel_ramdisk.img
-
-# vendor/google_paintbox
-PRODUCT_PACKAGES += \
-    easelmanagerd \
-    libhdrplusclientimpl \
-    libhdrplusmessenger \
-    libeaselcomm \
-    libeaselcommcapi \
-    libeaselcontrol
+    easel_ramdisk.img \
+    libeaselcomm
 
 # Neuralnetworks HAL
 # PRODUCT_PACKAGES += \
@@ -40,14 +32,35 @@ PRODUCT_PACKAGES += \
 # be extracted from target files.
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 PRODUCT_PACKAGES += \
-    easel_boot_test \
     ezlsh \
-    ezlspi \
+    ezlspi
+endif
+
+# Amber config
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+
+PRODUCT_PACKAGES += \
+    libhdrplusclientimpl \
+    libhdrplusmessenger \
+    libeaselcontrol.amber
+
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+PRODUCT_PACKAGES += \
+    easel_boot_test \
+    libeaselcommcapi \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \
-    libimxservice \
     pbticlient \
     pbtiserver \
     hdrplus_client_tests
 endif
+endif
+# End of amber config
+
+# Blue config
+ifeq ($(TARGET_EASEL_VARIANT), blue)
+PRODUCT_PACKAGES += \
+    easelmanagerd
+endif
+# End of blue config

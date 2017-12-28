@@ -11,10 +11,10 @@ LOCAL_SRC_FILES :=  \
 LOCAL_SHARED_LIBRARIES:= \
     libpbtimessenger \
     liblog \
-    libeaselcontrol \
+    libeaselcontrol.amber \
     libeaselcomm
 
-LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol.amber
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/include
 

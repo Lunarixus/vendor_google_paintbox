@@ -13,10 +13,10 @@ LOCAL_SHARED_LIBRARIES:= \
     liblog \
     libutils \
     libcutils \
-    libeaselcontrol \
+    libeaselcontrol.amber \
     libeaselcomm
 
-LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol libutils
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS += libeaselcontrol.amber libutils
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \

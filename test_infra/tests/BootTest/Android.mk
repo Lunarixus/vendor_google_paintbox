@@ -9,7 +9,7 @@ LOCAL_CFLAGS += -UNDEBUG
 LOCAL_SRC_FILES := TestEaselControlClient.cpp
 LOCAL_C_INCLUDES := external/googletest/googletest/include
 LOCAL_STATIC_LIBRARIES := libgtest
-LOCAL_SHARED_LIBRARIES := libeaselcontrol libcutils liblog
+LOCAL_SHARED_LIBRARIES := libeaselcontrol.amber libcutils liblog
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -20,5 +20,5 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/bin
 LOCAL_CFLAGS += -UNDEBUG -DEASEL_SERVER
 LOCAL_SRC_FILES := TestEaselControlServer.cpp
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
-LOCAL_SHARED_LIBRARIES := libeaselcontrol liblog
+LOCAL_SHARED_LIBRARIES := libeaselcontrol.amber liblog
 include $(BUILD_EXECUTABLE)
