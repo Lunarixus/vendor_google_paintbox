@@ -37,8 +37,7 @@ SCRIPT_MODULES :=
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
-	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
-	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel
+	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
@@ -64,16 +63,19 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
 
-INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
-
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh
 LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
-INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
 endif
 
 # Amber config
 ifeq ($(TARGET_EASEL_VARIANT), amber)
+BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,logd.easel.amber)/logd.easel.amber
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user.amber
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug.amber
+endif
+
 BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
@@ -86,8 +88,15 @@ endif
 
 # Blue config
 ifeq ($(TARGET_EASEL_VARIANT), blue)
+# TODO(b/71449505): logging daemon will be merged into EaselManager.
+BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,logd.easel.blue)/logd.easel.blue
 SCRIPT_MODULES += \
 	$(EASEL_RAMDISK_SRC_DIR)/easelmanager.init
+
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user.blue
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug.blue
+endif
 
 BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
@@ -220,7 +229,9 @@ $(LOCAL_BUILT_MODULE): \
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
-	-mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
+endif
 	@chmod +w $(dir $@)/$(EASEL_LIB)/*
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*

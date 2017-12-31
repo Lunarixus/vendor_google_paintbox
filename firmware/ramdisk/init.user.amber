@@ -46,7 +46,7 @@ export HL_IPU_VERIFY_PRECOMPILED_GRAPH=none
 export GLOG_v=-2
 # LOG_LEVEL controls overall logging level. Set to debug to dump timing report.
 # LOG_LEVEL overrides GLOG_v if LOG_LEVEL is higher than GLOG_v.
-export LOG_LEVEL=DEBUG
+export LOG_LEVEL=WARN
 # LOG_DEST is the destination where to log output.
 # By default it will log to Android logcat.
 # LOG_DEST=FILE will log to the file specified by LOG_FILE.
@@ -65,19 +65,9 @@ echo "Welcome to Easel" > /dev/kmsg
 # Starts logd.
 mkdir /dev/socket
 echo 64 > /proc/sys/net/unix/max_dgram_qlen
-/system/bin/logd.easel &
-
-# Start easelmanagerd.
-/easelmanager.init &
+/system/bin/logd.easel.amber &
 
 # Start pbserver.
 /system/bin/pbserver &
-
-# TODO (gucheng): ezlsh is for development only and should be removed before
-# shipping product.  (b/34985367)
-sleep 2
-mkdir /dev/pts
-mount -t devpts devpts /dev/pts
-/system/bin/ezlsh -d &
 
 exec sh
