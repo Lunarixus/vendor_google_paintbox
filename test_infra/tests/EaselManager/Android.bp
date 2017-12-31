@@ -1,5 +1,5 @@
 cc_binary {
-    name: "easeldummyapp",
+    name: "easeldummyapp1",
 
     vendor: true,
 
@@ -16,6 +16,29 @@ cc_binary {
         "-Werror",
         "-Wall",
         "-Wextra",
+        "-DDUMMY_APP=1",
+    ],
+}
+
+cc_binary {
+    name: "easeldummyapp2",
+
+    vendor: true,
+
+    srcs: [
+        "dummy_app.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wextra",
+        "-DDUMMY_APP=2",
     ],
 }
 

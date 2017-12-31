@@ -22,8 +22,10 @@ EaselManagerService::Service convertService(int32_t service) {
   switch (serviceEnum) {
     case PBSERVER:
       return EaselManagerService::PBSERVER;
-    case DUMMY_SERVICE:
-      return EaselManagerService::DUMMY_SERVICE;
+    case DUMMY_SERVICE_1:
+      return EaselManagerService::DUMMY_SERVICE_1;
+    case DUMMY_SERVICE_2:
+      return EaselManagerService::DUMMY_SERVICE_2;
     case CRASH_SERVICE:
       return EaselManagerService::CRASH_SERVICE;
     default:
@@ -35,8 +37,10 @@ Service convertService(EaselManagerService::Service service) {
   switch (service) {
     case EaselManagerService::PBSERVER:
       return PBSERVER;
-    case EaselManagerService::DUMMY_SERVICE:
-      return DUMMY_SERVICE;
+    case EaselManagerService::DUMMY_SERVICE_1:
+      return DUMMY_SERVICE_1;
+    case EaselManagerService::DUMMY_SERVICE_2:
+      return DUMMY_SERVICE_2;
     case EaselManagerService::CRASH_SERVICE:
       return CRASH_SERVICE;
     default:

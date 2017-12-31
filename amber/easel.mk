@@ -1,5 +1,5 @@
 #
-# Copyright 2016 The Android Open Source Project
+# Copyright 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,38 +14,24 @@
 # limitations under the License.
 #
 
-# Easel firmware images
+TARGET_EASEL_VARIANT := amber
+
 PRODUCT_PACKAGES += \
     easel/fip.bin \
     easel/Image \
     easel/mnh.dtb \
     easel_ramdisk.img \
-    libeaselcomm
-
-# Neuralnetworks HAL
-# PRODUCT_PACKAGES += \
-#    android.hardware.neuralnetworks@1.0-impl-paintbox \
-#    android.hardware.neuralnetworks@1.0-service-paintbox
-
-# Add addtional utils in userdebug and eng builds
-# Also includes modules for ramdisk so they could
-# be extracted from target files.
-ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-PRODUCT_PACKAGES += \
-    ezlsh \
-    ezlspi
-endif
-
-# Amber config
-ifeq ($(TARGET_EASEL_VARIANT), amber)
-
-PRODUCT_PACKAGES += \
+    libeaselcomm \
     libhdrplusclientimpl \
     libhdrplusmessenger \
     libeaselcontrol.amber
 
-ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
-PRODUCT_PACKAGES += \
+# Add addtional utils in userdebug and eng builds
+# Also includes modules for ramdisk so they could
+# be extracted from target files.
+PRODUCT_PACKAGES_debug += \
+    ezlsh \
+    ezlspi \
     easel_boot_test \
     libeaselcommcapi \
     libpbticlient \
@@ -54,13 +40,3 @@ PRODUCT_PACKAGES += \
     pbticlient \
     pbtiserver \
     hdrplus_client_tests
-endif
-endif
-# End of amber config
-
-# Blue config
-ifeq ($(TARGET_EASEL_VARIANT), blue)
-PRODUCT_PACKAGES += \
-    easelmanagerd
-endif
-# End of blue config
