@@ -213,6 +213,8 @@ $(LOCAL_BUILT_MODULE): \
 	# init
 	@mkdir -p $(dir $@)/$(EASEL_PREBUILT)
 	@cp -f $(PRIVATE_INIT_MODULE) $(dir $@)/$(EASEL_PREBUILT)/init
+	# Add execute permission to make sure init can be run as the first process
+	@chmod +x $(dir $@)/$(EASEL_PREBUILT)/init
 
 	# Binary
 	@mkdir -p $(dir $@)/$(EASEL_BIN)
