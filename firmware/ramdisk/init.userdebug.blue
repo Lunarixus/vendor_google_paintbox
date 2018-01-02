@@ -70,6 +70,10 @@ echo 64 > /proc/sys/net/unix/max_dgram_qlen
 # Start easelmanagerd.
 /easelmanager.init &
 
+# Start easel_power_server for unit test
+# TODO (b/71584094): integrate this test server into easelmanagerserver
+easel_power_server &
+
 # TODO (gucheng): ezlsh is for development only and should be removed before
 # shipping product.  (b/34985367)
 sleep 2
