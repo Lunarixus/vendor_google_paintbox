@@ -29,7 +29,7 @@ PRODUCT_PACKAGES += \
 # Add addtional utils in userdebug and eng builds
 # Also includes modules for ramdisk so they could
 # be extracted from target files.
-PRODUCT_PACKAGES_debug += \
+PRODUCT_PACKAGES_DEBUG += \
     ezlsh \
     ezlspi \
     easel_boot_test \
