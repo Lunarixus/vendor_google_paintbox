@@ -5,6 +5,7 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "easelcontrol.h"
 #include "vendor/google_paintbox/blue/easel/manager/shared/proto/easelmanager.pb.h"
 
 namespace EaselManagerService {
@@ -21,6 +22,9 @@ class ManagerService {
   void stopService(const StopServiceRequest& request);
 
  private:
+  // Easel control.
+  EaselControlServer mEaselControl;
+
   std::mutex mServiceLock;
   // Pre-registered service status update callback function.
   std::function<void(const ServiceStatusResponse&)>

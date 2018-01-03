@@ -37,5 +37,21 @@ Error ManagerClientImpl::stopService(Service service) {
   return static_cast<Error>(res);
 }
 
+Error ManagerClientImpl::suspend(Service service) {
+  int32_t res;
+  binder::Status status =
+      mService->suspend(static_cast<int32_t>(service), &res);
+  if (!status.isOk()) return BINDER_ERROR;
+  return static_cast<Error>(res);
+}
+
+Error ManagerClientImpl::resume(Service service) {
+  int32_t res;
+  binder::Status status =
+      mService->resume(static_cast<int32_t>(service), &res);
+  if (!status.isOk()) return BINDER_ERROR;
+  return static_cast<Error>(res);
+}
+
 }  // namespace EaselManager
 }  // namespace android
