@@ -1,5 +1,5 @@
 cc_binary {
-    name: "logd.easel.amber",
+    name: "logd.easel.blue",
 
     srcs: [
         "main.cpp",
@@ -25,7 +25,7 @@ cc_binary {
 }
 
 cc_library_static {
-    name: "logdclient.amber",
+    name: "logdclient.blue",
     vendor_available: true,
     owner: "google",
 
