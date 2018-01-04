@@ -30,15 +30,21 @@ cc_binary {
     proprietary: true,
     owner: "google",
 
-    local_include_dirs: ["include"],
+    local_include_dirs: [
+        "include",
+        "control",
+    ],
 
     srcs: [
         "ManagerServer.cpp",
         "easelmanagerd.cpp",
+        "control/ManagerControlClient.cpp",
     ],
 
     static_libs: [
         "easelmanager_shared",
+        "logdclient.blue",
+        "libeaselcontrol.blue",
     ],
 
     shared_libs: [

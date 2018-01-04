@@ -48,6 +48,11 @@
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
 # ************************************************
 
-$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/bin/logd.easel)
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/bin/logd.easel.amber)
+endif
+ifeq ($(TARGET_EASEL_VARIANT), blue)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/bin/logd.easel.blue)
+endif
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/lib/libeaselcomm)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/vendor/lib64/libeaselcomm)
