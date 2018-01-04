@@ -3,11 +3,11 @@
 
 #include <stddef.h>
 
-// Use "--define noproto=1" to avoid linking to google3 protobuf library.
-// This is to avoid google3(3.4) and Android platform(3.0) protobuf version
-// mismatch.
-// By default, EASEL_PROTO_SUPPORT is defined. If you build executable in
-// google3, You could always use protobuf API in easelcomm.
+// There is a mismatch between google3(3.4) and Android platform(3.0) protobuf
+// version. So protobuf support when linked in Android source is achieved
+// through an inline helper defined in easel_comm_helper.h.
+// If you build your executable in google3, EASEL_PROTO_SUPPORT is defined by
+// default. You could always use protobuf API in easelcomm.
 #ifdef EASEL_PROTO_SUPPORT
 #include "net/proto2/public/message_lite.h"
 #endif  // EASEL_PROTO_SUPPORT
@@ -35,6 +35,8 @@ enum EaselService {
   EASEL_SERVICE_NN,
   // EaselManager service
   EASEL_SERVICE_MANAGER,
+  // EaselManager system control
+  EASEL_SERVICE_MANAGER_SYSCTRL,
   // Invalid service
   EASEL_SERVICE_UNKNOWN,
 };
@@ -250,8 +252,7 @@ class Comm {
   // Closes down communication via this object.
   virtual void Close() = 0;
 
-  // Returns true when socket is up for connection, otherwise false.
-  // For socket backend on TAP, Client cannot connect until server is up.
+  // Returns true when connection is established, otherwise false.
   virtual bool IsUp() = 0;
 
   // Creates a Comm object. Returns the pointer if successful and nullptr if

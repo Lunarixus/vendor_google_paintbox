@@ -31,7 +31,7 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "libdl",
-        "libeaselsystem",
+        "libeaselsystem.blue",
         "libhardware",
         "libhidlbase",
         "libhidlmemory",
