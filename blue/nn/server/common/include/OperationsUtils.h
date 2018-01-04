@@ -94,6 +94,10 @@ void CalculateActivationRangeUint8(int32_t activation,
                                    int32_t* act_min,
                                    int32_t* act_max);
 
+void CalculateActivationRangeFloat(int32_t activation,
+                                   float* activation_min,
+                                   float* activation_max);
+
 int32_t CalculateInputRadius(int input_integer_bits, int input_left_shift);
 
 inline void calculateExplicitPadding(int32_t in_size, int32_t stride,
@@ -213,25 +217,6 @@ enum FusedActivationFunc {
     RELU1 = 2,
     RELU6 = 3,
 };
-
-#define ANDROID_NN_MACRO_DISPATCH(macro)                                    \
-    switch (activation) {                                                   \
-        case (int32_t) FusedActivationFunc::NONE:                           \
-            macro(kNone);                                                   \
-            break;                                                          \
-        case (int32_t) FusedActivationFunc::RELU:                           \
-            macro(kRelu);                                                   \
-            break;                                                          \
-        case (int32_t) FusedActivationFunc::RELU1:                          \
-            macro(kRelu1);                                                  \
-            break;                                                          \
-        case (int32_t) FusedActivationFunc::RELU6:                          \
-            macro(kRelu6);                                                  \
-            break;                                                          \
-        default:                                                            \
-            LOG(ERROR) << "Unsupported fused activation function type";     \
-            return false;                                                   \
-    }
 
 } // namespace nn
 } // namespace android
