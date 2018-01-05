@@ -149,14 +149,14 @@ void ManagerServer::initialize() {
   int res = retryFunction([&]() {
     return mComm->open(EASEL_SERVICE_MANAGER, /*timeout_ms=mm*/100);
   });
-  if (!res) {
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__ << ": Failed to open easelcomm channel:"
                << strerror(-res);
     return;
   }
 
   res = retryFunction([&]() { return mComm->startReceiving(); });
-  if (!res) {
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__
                << ": Failed to start easelcomm receiving thread:"
                << strerror(-res);
