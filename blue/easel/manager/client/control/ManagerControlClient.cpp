@@ -27,7 +27,7 @@ void ManagerControlClient::initialize() {
   int res = retryFunction([&]() {
     return mEaselControl.open(EASEL_SERVICE_MANAGER_SYSCTRL);
   });
-  if (!res) {
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__ << ": Failed to open Easel control: "
                << strerror(errno) << " (" << -errno << ").";
     return;
@@ -94,7 +94,7 @@ int ManagerControlClient::powerOn() {
   }
   // TODO(b/70727332): remove "resume" call when libeaselcontrol has "powerOn".
   int res = retryFunction([&]() { return mEaselControl.resume(); });
-  if (!res) {
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__ << ": Resume Easel failed: " << strerror(-res);
     return res;
   }

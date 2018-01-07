@@ -121,9 +121,10 @@ ResultCode MobileNetBodyEngine::execute(
         calculatePadding(tmpOutputShape, stride[kNumLayers - 2],
                          filterShape[kNumLayers - 2], padding, &paddings) &&
         depthwiseConvPrepare(tmpOutputShape, filterShape[kNumLayers - 2],
-                             biasShape[kNumLayers - 2], padding, padding,
-                             padding, padding, stride[kNumLayers - 2],
-                             stride[kNumLayers - 2], &tmpInputShape) &&
+                             biasShape[kNumLayers - 2], paddings[0],
+                             paddings[1], paddings[2], paddings[3],
+                             stride[kNumLayers - 2], stride[kNumLayers - 2],
+                             &tmpInputShape) &&
         depthwiseConvFloat32(
             tmpOutput, tmpOutputShape, filterBuffer[kNumLayers - 2],
             filterShape[kNumLayers - 2], biasBuffer[kNumLayers - 2],
@@ -133,9 +134,9 @@ ResultCode MobileNetBodyEngine::execute(
         calculatePadding(tmpInputShape, stride[kNumLayers - 1],
                          filterShape[kNumLayers - 1], padding, &paddings) &&
         convPrepare(tmpInputShape, filterShape[kNumLayers - 1],
-                    biasShape[kNumLayers - 1], padding, padding, padding,
-                    padding, stride[kNumLayers - 1], stride[kNumLayers - 1],
-                    &outShape) &&
+                    biasShape[kNumLayers - 1], paddings[0], paddings[1],
+                    paddings[2], paddings[3], stride[kNumLayers - 1],
+                    stride[kNumLayers - 1], &outShape) &&
         convFloat32(tmpInput, tmpInputShape, filterBuffer[kNumLayers - 1],
                     filterShape[kNumLayers - 1], biasBuffer[kNumLayers - 1],
                     biasShape[kNumLayers - 1], paddings[0], paddings[1],

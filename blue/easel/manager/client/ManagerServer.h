@@ -10,8 +10,9 @@
 #include "android/EaselManager/BnManagerService.h"
 #include "android/EaselManager/IServiceStatusCallback.h"
 
-#include "EaselComm2.h"
 #include "control/ManagerControlClient.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm.h"
+#include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
 
 namespace android {
 namespace EaselManager {
@@ -47,6 +48,9 @@ class ManagerServer : public BinderService<ManagerServer>,
   // Notify all services that Easel has fatal error.
   void notifyAllServicesFatal();
 
+  // EaselMessage handler.
+  void serviceStatusHandler(const easel::Message& message);
+
   enum EaselStateControlRequest {
     SUSPEND = 1,
     RESUME = 2,
@@ -60,11 +64,12 @@ class ManagerServer : public BinderService<ManagerServer>,
   std::mutex mManagerLock;
   std::unordered_map<int32_t, ServiceInfo>
       mServiceInfoMap;  // Guarded by mManagerLock;
-  std::unique_ptr<EaselComm2::Comm> mComm;
+  std::unique_ptr<easel::Comm> mComm;
   // If Easel is resumed. Protected by mManagerLock.
   bool mEaselResumed;
   // Easel control client. Protected by mManagerLock.
   std::unique_ptr<ManagerControlClient> mManagerControl;
+  std::unique_ptr<easel::FunctionHandler> mServiceStatusHandler;
 };
 
 }  // namespace EaselManager

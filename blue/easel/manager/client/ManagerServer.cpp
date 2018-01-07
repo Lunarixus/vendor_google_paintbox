@@ -100,63 +100,25 @@ char const* ManagerServer::getServiceName() {
 void ManagerServer::initialize() {
   LOG(DEBUG) << __FUNCTION__ << "Initialize easelcomm client.";
 
-  mComm = EaselComm2::Comm::create(EaselComm2::Comm::Mode::CLIENT);
-  mComm->registerHandler(SERVICE_STATUS,
-                         [&](const EaselComm2::Message& message) {
-    EaselManagerService::ServiceStatusResponse response;
-    if (!message.toProto(&response)) {
-      LOG(ERROR) << "Could not parse response.";
-      return;
-    }
-
-    std::lock_guard<std::mutex> lock(mManagerLock);
-
-    auto iter = mServiceInfoMap.find(convertService(response.service()));
-    if (iter == mServiceInfoMap.end()) {
-      LOG(ERROR) << "Could not find service " << response.service();
-      return;
-    }
-
-    if (response.error() != EaselManagerService::SUCCESS) {
-      iter->second.serviceCallback->onServiceError(
-          convertError(response.error()));
-      // Immediately clears the callback if happen occurs.
-      // Client will not get any new updates about this service
-      // Until new callback registers with startService call.
-      mServiceInfoMap.erase(iter);
-    } else {
-      if (response.status() == EaselManagerService::LIVE) {
-        LOG(INFO) << "Service " << response.service() << " started";
-        iter->second.serviceCallback->onServiceStart();
-      } else if (response.status() == EaselManagerService::EXIT) {
-        LOG(INFO) << "Service " << response.service()
-                  << " stopped, exit " <<  response.exit();
-        iter->second.serviceCallback->onServiceEnd(response.exit());
-        mServiceInfoMap.erase(iter);
-      } else {
-        LOG(FATAL) << "Service " << response.service()
-                   << " unknown but no error reported";
-      }
-    }
-
-    if (mServiceInfoMap.empty()) {
-      LOG(INFO) << "All services quit, suspending";
-      mManagerControl->suspend();
-    }
-  });
+  mComm = easel::CreateComm(easel::Comm::Type::CLIENT);
+  mServiceStatusHandler = std::make_unique<easel::FunctionHandler>(
+    [&](const easel::Message& message) {
+      serviceStatusHandler(message);
+    });
+  mComm->RegisterHandler(SERVICE_STATUS, mServiceStatusHandler.get());
 
   // Open the channel.
   int res = retryFunction([&]() {
-    return mComm->open(EASEL_SERVICE_MANAGER, /*timeout_ms=mm*/100);
+    return mComm->Open(easel::EASEL_SERVICE_MANAGER, /*timeout_ms=mm*/100);
   });
-  if (!res) {
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__ << ": Failed to open easelcomm channel:"
                << strerror(-res);
     return;
   }
 
-  res = retryFunction([&]() { return mComm->startReceiving(); });
-  if (!res) {
+  res = retryFunction([&]() { return mComm->StartReceiving(); });
+  if (res != 0) {
     LOG(ERROR) << __FUNCTION__
                << ": Failed to start easelcomm receiving thread:"
                << strerror(-res);
@@ -174,7 +136,7 @@ binder::Status ManagerServer::startService(
 
   auto iter = mServiceInfoMap.find(service);
   if (iter != mServiceInfoMap.end()) {
-    resume(service, _aidl_return);
+    *_aidl_return = static_cast<int32_t>(SERVICE_ALREADY_STARTED);
     return binder::Status::ok();
   }
 
@@ -186,7 +148,7 @@ binder::Status ManagerServer::startService(
   EaselManagerService::StartServiceRequest request;
   request.set_service(convertService(service));
 
-  if (!mComm->connected()) {
+  if (!mComm->IsUp()) {
     resume(service, _aidl_return);
     if (*_aidl_return != static_cast<int32_t>(SUCCESS) &&
         *_aidl_return != static_cast<int32_t>(SERVICE_NOT_STARTED)) {
@@ -194,9 +156,13 @@ binder::Status ManagerServer::startService(
     }
   }
 
-  mComm->send(START_SERVICE, request);
-
-  *_aidl_return = static_cast<int32_t>(SUCCESS);
+  int ret = easel::SendProto(mComm.get(), START_SERVICE, request,
+                             /*payload=*/nullptr);
+  if (ret != 0) {
+    *_aidl_return = static_cast<int32_t>(EASEL_FATAL);
+  } else {
+    *_aidl_return = static_cast<int32_t>(SUCCESS);
+  }
 
   return binder::Status::ok();
 }
@@ -211,8 +177,13 @@ binder::Status ManagerServer::stopService(int32_t service,
   if (iter != mServiceInfoMap.end()) {
     EaselManagerService::StopServiceRequest request;
     request.set_service(convertService(service));
-    mComm->send(STOP_SERVICE, request);
-    *_aidl_return = static_cast<int32_t>(SUCCESS);
+    int ret = easel::SendProto(mComm.get(), STOP_SERVICE, request,
+                               /*payload=*/nullptr);
+    if (ret != 0) {
+      *_aidl_return = static_cast<int32_t>(EASEL_FATAL);
+    } else {
+      *_aidl_return = static_cast<int32_t>(SUCCESS);
+    }
   } else {
     *_aidl_return = static_cast<int32_t>(SERVICE_NOT_STARTED);
   }
@@ -229,7 +200,7 @@ int ManagerServer::powerOn() {
 }
 
 void ManagerServer::powerOff() {
-  if (mComm) { mComm->close(); }
+  if (mComm) { mComm->Close(); }
   if (mManagerControl) { mManagerControl->powerOff(); }
 }
 
@@ -284,6 +255,49 @@ binder::Status ManagerServer::resume(int32_t service, int32_t* _aidl_return) {
   }
   *_aidl_return = static_cast<int32_t>(retCode);
   return binder::Status::ok();
+}
+
+void ManagerServer::serviceStatusHandler(const easel::Message& message) {
+  EaselManagerService::ServiceStatusResponse response;
+  if (!easel::MessageToProto(message, &response)) {
+    LOG(ERROR) << "Could not parse response.";
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(mManagerLock);
+
+  auto iter = mServiceInfoMap.find(convertService(response.service()));
+  if (iter == mServiceInfoMap.end()) {
+    LOG(ERROR) << "Could not find service " << response.service();
+    return;
+  }
+
+  if (response.error() != EaselManagerService::SUCCESS) {
+    iter->second.serviceCallback->onServiceError(
+        convertError(response.error()));
+    // Immediately clears the callback if happen occurs.
+    // Client will not get any new updates about this service
+    // Until new callback registers with startService call.
+    mServiceInfoMap.erase(iter);
+  } else {
+    if (response.status() == EaselManagerService::LIVE) {
+      LOG(INFO) << "Service " << response.service() << " started";
+      iter->second.serviceCallback->onServiceStart();
+    } else if (response.status() == EaselManagerService::EXIT) {
+      LOG(INFO) << "Service " << response.service()
+                << " stopped, exit " <<  response.exit();
+      iter->second.serviceCallback->onServiceEnd(response.exit());
+      mServiceInfoMap.erase(iter);
+    } else {
+      LOG(FATAL) << "Service " << response.service()
+                 << " unknown but no error reported";
+    }
+  }
+
+  if (mServiceInfoMap.empty()) {
+    LOG(INFO) << "All services quit, suspending";
+    mManagerControl->suspend();
+  }
 }
 
 bool ManagerServer::areAllServicesSuspend() {

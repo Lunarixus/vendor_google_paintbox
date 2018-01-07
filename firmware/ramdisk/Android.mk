@@ -47,7 +47,6 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
@@ -82,7 +81,8 @@ BIN_MODULES += \
 LIB_MODULES += \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice.amber)/libeaselcontrolservice.amber.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so
 endif
 # End of amber config
 
@@ -101,6 +101,9 @@ endif
 BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
 	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver
+
+LIB_MODULES += \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem.blue)/libeaselsystem.blue.so
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += \

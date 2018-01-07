@@ -1,6 +1,7 @@
 #ifndef HARDWARE_GCHIPS_PAINTBOX_SYSTEM_INCLUDE_EASEL_COMM_HELPER_H_
 #define HARDWARE_GCHIPS_PAINTBOX_SYSTEM_INCLUDE_EASEL_COMM_HELPER_H_
 
+#include <errno.h>
 #include <functional>
 #include <memory>
 

@@ -12,7 +12,7 @@ cc_binary {
     ],
     shared_libs: [
         "libbase",
-        "libeaselsystem",
+        "libeaselsystem.blue",
         "liblog",
         "libprotobuf-cpp-lite",
     ],
