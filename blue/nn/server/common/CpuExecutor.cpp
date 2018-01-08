@@ -24,7 +24,6 @@
 #include "OemModel.h"
 #include "Operations.h"
 
-#include "log/log.h"
 #include <sys/mman.h>
 
 namespace android {
@@ -38,12 +37,12 @@ bool RunTimeOperandInfo::setInfoAndAllocateIfNeeded(const Shape& shape) {
     if (lifetime == OperandLifeTime::MODEL_OUTPUT) {
         if (type != shape.type ||
             dimensions != shape.dimensions) {
-            ALOGE("Invalid type or dimensions for model output");
+            LOG(ERROR) << "Invalid type or dimensions for model output";
             return false;
         }
         if (type == OperandType::TENSOR_QUANT8_ASYMM &&
             (scale != shape.scale || zeroPoint != shape.offset)) {
-            ALOGE("Invalid scale or zeroPoint for model output");
+            LOG(ERROR) << "Invalid scale or zeroPoint for model output";
             return false;
         }
     }
@@ -66,7 +65,7 @@ bool RunTimeOperandInfo::setInfoAndAllocateIfNeeded(const Shape& shape) {
 int CpuExecutor::run(const Model& model, const Request& request,
                      const std::vector<RunTimePoolInfo>& modelPoolInfos,
                      const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    ALOGI("CpuExecutor::run()");
+    LOG(INFO)<< "CpuExecutor::run()";
 
     mModel = &model;
     mRequest = &request; // TODO check if mRequest is needed
@@ -81,13 +80,13 @@ int CpuExecutor::run(const Model& model, const Request& request,
 
     mModel = nullptr;
     mRequest = nullptr;
-    ALOGI("Completed run normally");
+    LOG(INFO) << "Completed run normally";
     return ANEURALNETWORKS_NO_ERROR;
 }
 
 bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& modelPoolInfos,
                                         const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    ALOGI("CpuExecutor::initializeRunTimeInfo");
+    LOG(INFO) << "CpuExecutor::initializeRunTimeInfo";
     const size_t count = mModel->operands().size();
     mOperands.resize(count);
 
@@ -186,7 +185,7 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
 
 int CpuExecutor::executeOperation(const Operation& operation) {
     int32_t oemModel = operation.oemmodel();
-    ALOGI("execute OEM model #%d", oemModel);
+    LOG(INFO) << "execute OEM model #" << oemModel;
     ResultCode res = ANEURALNETWORKS_NO_ERROR;
     switch (static_cast<paintbox_nn::OemModel>(oemModel)) {
         case paintbox_nn::OemModel::MATRIX_ADD: {
@@ -200,7 +199,7 @@ int CpuExecutor::executeOperation(const Operation& operation) {
             break;
         }
         default: {
-            ALOGE("OemModel #%d not supported", oemModel);
+            LOG(ERROR) << "OemModel #" << oemModel << " not supported";
             return ANEURALNETWORKS_BAD_DATA;
         }
     }
