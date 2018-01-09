@@ -51,12 +51,14 @@ cc_library_static {
     ],
     header_libs: [
         "libneuralnetworks_headers",
-        "libgemmlowp",
-        "libfixedpoint",
         "libeigen",
+        "gemmlowp_headers",
+        "tensorflow_headers",
         "paintbox_nn_headers",
     ],
-
+    whole_static_libs: [
+        "libtflite_kernel_utils",
+    ],
     cflags: [
         "-Werror",
         "-Wall",

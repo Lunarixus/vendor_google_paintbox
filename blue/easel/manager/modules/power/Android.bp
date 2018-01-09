@@ -1,0 +1,88 @@
+cc_library {
+    name: "libeaselpower.blue",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "EaselPowerBlue.cpp",
+        "EaselStateManagerBlue.cpp",
+        "EaselPowerServerBlue.cpp",
+    ],
+
+    local_include_dirs: ["."],
+
+    shared_libs: [
+        "libbase",
+        "libeaselsystem.blue",
+        "liblog",
+        "libprotobuf-cpp-lite",
+    ],
+    header_libs: ["easel-kernel-headers"],
+    export_include_dirs: ["include"],
+    export_shared_lib_headers: [
+        "libeaselsystem.blue",
+        "libprotobuf-cpp-lite",
+    ],
+    export_header_lib_headers: ["easel-kernel-headers"],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+
+    compile_multilib = "64",
+}
+
+cc_binary {
+    name: "easel_power_test",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "test/easel_power_test.cpp",
+    ],
+
+    static_libs: [
+        "libeaselpower.blue",
+        "libgtest",
+    ],
+    shared_libs: [
+        "libbase",
+        "libeaselsystem.blue",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+
+    compile_multilib = "64",
+}
+
+cc_binary {
+    name: "easel_power_server",
+    proprietary: true,
+    owner: "google",
+
+    srcs: [
+        "test/easel_power_server.cpp",
+    ],
+
+    static_libs: [
+        "libeaselpower.blue",
+    ],
+    shared_libs: [
+        "libbase",
+        "libeaselsystem.blue",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-UNDEBUG",
+    ],
+
+    compile_multilib = "64",
+}

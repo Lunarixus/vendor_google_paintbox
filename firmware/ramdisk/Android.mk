@@ -103,10 +103,12 @@ BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver
 
 LIB_MODULES += \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselpower.blue)/libeaselpower.blue.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem.blue)/libeaselsystem.blue.so
 
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += \
+	$(call intermediates-dir-for,EXECUTABLES,easel_power_server)/easel_power_server \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp1)/easeldummyapp1 \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp2)/easeldummyapp2 \
 	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
