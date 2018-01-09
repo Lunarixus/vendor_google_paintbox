@@ -7,6 +7,7 @@
 #include "android-base/logging.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
+#include "ScopedTimeLogger.h"
 
 namespace android {
 namespace EaselPowerBlue {
@@ -46,6 +47,8 @@ void EaselPowerBlue::close() {
 }
 
 int EaselPowerBlue::powerOn() {
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   int ret = mStateManager.setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
   if (ret) {
     LOG(ERROR) << "failed to power on: " << strerror(-ret);
@@ -58,11 +61,12 @@ int EaselPowerBlue::powerOn() {
     return ret;
   }
 
-  LOG(INFO) << "did power on";
   return 0;
 }
 
 int EaselPowerBlue::powerOff() {
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   mComm->Close(); // closes down communication
 
   int ret = mStateManager.setState(EaselStateManager::ESM_STATE_OFF, /*blocking=*/true);
@@ -71,28 +75,29 @@ int EaselPowerBlue::powerOff() {
     return ret;
   }
 
-  LOG(INFO) << "did power off";
   return 0;
 }
 
 int EaselPowerBlue::resume() {
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   int ret = mStateManager.setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
   if (ret) {
     LOG(ERROR) << "failed to resume: " << strerror(-ret);
     return ret;
   }
 
-  LOG(INFO) << "did resume";
   return 0;
 }
 
 int EaselPowerBlue::suspend() {
-  LOG(WARNING) << __FUNCTION__ << ": not implemented";
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   mComm->Send(SUSPEND_CHANNEL, /*payload=*/nullptr);
 
   int ret = mStateManager.setState(EaselStateManager::ESM_STATE_SUSPEND, /*blocking=*/true);
   if (ret) {
-    LOG(ERROR) << "failed to resume: " << strerror(-ret);
+    LOG(ERROR) << "failed to suspend: " << strerror(-ret);
     return ret;
   }
 
