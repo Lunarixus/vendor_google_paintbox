@@ -46,6 +46,8 @@ bool fileExist(const char* path) {
 ManagerService::ManagerService(
     std::function<void(const ServiceStatusResponse&)> statusCallback)
     : mStatusCallback(statusCallback) {
+  // TODO (b/71584094): remove EaselControlServer once the blue version
+  // of control, watchdog and thermal is complete.
   // Opening Easel Control
   int res = mEaselControl.open(EASEL_SERVICE_MANAGER_SYSCTRL);
   if (res != 0) {

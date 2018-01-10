@@ -12,6 +12,7 @@ cc_binary {
     static_libs: [
         "easelmanager_shared",
         "libeaselcontrolservice.blue",
+        "libeaselpower.blue",
     ],
 
     shared_libs: [
