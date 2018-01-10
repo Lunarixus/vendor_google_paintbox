@@ -6,6 +6,9 @@
 
 #include "uapi/linux/mnh-sm.h"
 
+namespace android {
+namespace EaselPowerBlue {
+
 class EaselStateManager {
  public:
   enum State {
@@ -69,5 +72,8 @@ class EaselStateManager {
  private:
   int mFd;
 };
+
+} // namespace EaselPowerBlue
+} // namespace android
 
 #endif  // __EASEL_STATE_MANAGER_H__

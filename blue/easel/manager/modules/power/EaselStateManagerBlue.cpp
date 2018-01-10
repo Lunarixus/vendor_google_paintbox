@@ -16,6 +16,9 @@
 
 #define ESM_DEV_FILE  "/dev/mnh_sm"
 
+namespace android {
+namespace EaselPowerBlue {
+
 int EaselStateManager::open() {
   mFd = ::open(ESM_DEV_FILE, O_RDONLY);
 
@@ -83,3 +86,6 @@ int EaselStateManager::getFwVersion(char *fwVersion, size_t size) {
 
   return 0;
 }
+
+} // namespace EaselPowerBlue
+} // namespace android
