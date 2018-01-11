@@ -50,7 +50,7 @@ GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
 GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessoreasel.so"
 GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
 GOOGLE3_SYSTEM_INCLUDE="hardware/gchips/paintbox/system/include"
-GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/generate_all_pbserver_pcgs.sh"
+GOOGLE3_PCG_GEN_TARGET="hardware/gchips/paintbox/scripts:pcg_generator"
 
 ANDROID_PREBUILT_PATH="vendor/google_paintbox/prebuilts/"
 ANDROID_LIB_PATH="${ANDROID_PREBUILT_PATH%%/}/libs"
@@ -125,9 +125,9 @@ pushd ${GOOGLE3_PATH}
 # Generate PCG
 if (( FLAGS_generate_pcgs )); then
   rm -rf ${TMP_PCG_FULL_PATH}
-  GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
+  GLOG_v=-2 blaze run ${GOOGLE3_PCG_GEN_TARGET} -- --pcg_output_dir=${TMP_PCG_FULL_PATH}
   if [ $? -ne 0 ]; then
-    echo "Error: ${GOOGLE3_PCG_GEN_SH} returned non-zero"
+    echo "Error: blaze run ${GOOGLE3_PCG_GEN_TARGET} returned non-zero"
     exit 1
   fi
 fi

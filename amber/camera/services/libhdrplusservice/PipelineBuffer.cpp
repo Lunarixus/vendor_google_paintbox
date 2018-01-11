@@ -85,7 +85,7 @@ status_t PipelineBuffer::clear() {
             return 0;
         }
         default:
-            ALOGE("%s: Format %zd not supported.", __FUNCTION__, mAllocatedConfig.image.format);
+            ALOGE("%s: Format %d not supported.", __FUNCTION__, mAllocatedConfig.image.format);
             return -EINVAL;
     }
 }
@@ -113,7 +113,7 @@ status_t PipelineBuffer:: validatePlaneConfig(const ImageConfiguration &image, u
             minStride = image.width;
             break;
         default:
-            ALOGE("%s: Format %zd not supported.", __FUNCTION__, image.format);
+            ALOGE("%s: Format %d not supported.", __FUNCTION__, image.format);
             return -EINVAL;
     }
 
@@ -154,13 +154,13 @@ status_t PipelineBuffer::validateConfig(const StreamConfiguration &config) {
             expectedNumPlanes = 2;
             break;
         default:
-            ALOGE("%s: Format %zd not supported.", __FUNCTION__, mRequestedConfig.image.format);
+            ALOGE("%s: Format %d not supported.", __FUNCTION__, mRequestedConfig.image.format);
             return -EINVAL;
     }
 
     // Verify number of planes is correct.
     if (config.image.planes.size() != expectedNumPlanes) {
-        ALOGE("%s: Expecting %zu planes for format %zd but got %zu planes.", __FUNCTION__,
+        ALOGE("%s: Expecting %zu planes for format %d but got %zu planes.", __FUNCTION__,
                 expectedNumPlanes, config.image.format, config.image.planes.size());
         return -EINVAL;
     }
