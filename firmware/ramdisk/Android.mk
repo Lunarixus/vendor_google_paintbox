@@ -112,9 +112,6 @@ BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp1)/easeldummyapp1 \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp2)/easeldummyapp2 \
 	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
-
-LIB_MODULES += \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
 endif
 
 endif
