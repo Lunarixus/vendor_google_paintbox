@@ -1,10 +1,9 @@
-#ifndef ANDROID_ML_NN_COMMON_OEM_MOBILE_NET_BODY_ENGINE_H
-#define ANDROID_ML_NN_COMMON_OEM_MOBILE_NET_BODY_ENGINE_H
+#ifndef PAINTBOX_NN_OEM_OPERATIONS_MOBILE_NET_BODY_ENGINE_H
+#define PAINTBOX_NN_OEM_OPERATIONS_MOBILE_NET_BODY_ENGINE_H
 
 #include "OemOperationEngine.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // OemModel for a MobileNetBody.
 // Input: 224 x 224 x 3 image.
@@ -21,7 +20,6 @@ class MobileNetBodyEngine : public OemOperationEngine {
                      std::vector<RunTimeOperandInfo>* operands) override;
 };
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
-#endif  // ANDROID_ML_NN_COMMON_OEM_MOBILE_NET_BODY_ENGINE_H
+#endif  // PAINTBOX_NN_OEM_OPERATIONS_MOBILE_NET_BODY_ENGINE_H

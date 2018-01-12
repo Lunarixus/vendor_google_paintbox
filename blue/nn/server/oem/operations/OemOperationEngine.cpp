@@ -1,7 +1,6 @@
 #include "OemOperationEngine.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 OemOperationEngine::OemOperationEngine() {}
 OemOperationEngine::~OemOperationEngine() {}
@@ -11,5 +10,4 @@ ResultCode OemOperationEngine::run(const Operation& operation,
   return execute(operation, operands);
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn

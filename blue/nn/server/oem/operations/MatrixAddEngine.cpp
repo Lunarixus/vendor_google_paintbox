@@ -7,8 +7,7 @@
 #include "Operations.h"
 #include "OperationsUtils.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 MatrixAddEngine::MatrixAddEngine() {}
 MatrixAddEngine::~MatrixAddEngine() {}
@@ -23,10 +22,10 @@ bool MatrixAddEngine::verify(const Operation& operation,
       (operands[operation.inputs(0)].lifetime == OperandLifeTime::MODEL_INPUT);
   success &=
       (operands[operation.inputs(1)].lifetime == OperandLifeTime::MODEL_INPUT);
-  success &=
-      (operands[operation.inputs(2)].lifetime == OperandLifeTime::CONSTANT_COPY);
-  success &=
-      (operands[operation.outputs(0)].lifetime == OperandLifeTime::MODEL_OUTPUT);
+  success &= (operands[operation.inputs(2)].lifetime ==
+              OperandLifeTime::CONSTANT_COPY);
+  success &= (operands[operation.outputs(0)].lifetime ==
+              OperandLifeTime::MODEL_OUTPUT);
 
   Shape shape0 = operands[operation.inputs(0)].shape();
   Shape shape1 = operands[operation.inputs(1)].shape();
@@ -42,7 +41,7 @@ ResultCode MatrixAddEngine::execute(const Operation& operation,
   const RunTimeOperandInfo& in1 = operands->at(operation.inputs(0));
   const RunTimeOperandInfo& in2 = operands->at(operation.inputs(1));
   int32_t activation =
-      android::nn::getScalarData<int32_t>(operands->at(operation.inputs(2)));
+      getScalarData<int32_t>(operands->at(operation.inputs(2)));
 
   RunTimeOperandInfo& out = operands->at(operation.outputs(0));
   Shape outShape = out.shape();
@@ -71,5 +70,4 @@ ResultCode MatrixAddEngine::execute(const Operation& operation,
   return ANEURALNETWORKS_NO_ERROR;
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
