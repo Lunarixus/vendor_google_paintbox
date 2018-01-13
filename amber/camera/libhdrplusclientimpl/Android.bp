@@ -28,7 +28,6 @@ cc_library_shared {
     ],
 
     include_dirs: [
-        "hardware/qcom/camera/msm8998/QCamera2/HAL3/",
     ],
 
     export_include_dirs: [
