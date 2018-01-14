@@ -29,7 +29,22 @@ cc_library {
         "-Wall",
         "-Werror",
         "-UNDEBUG",
+
+        // Scoped time logger is enabled for user builds.
+        // TODO (b/71867212): disable this feature once timing is stable
+        "-DENABLE_SCOPED_TIME_LOGGER",
     ],
+
+    product_variables : {
+        debuggable: {
+            // debuggable is true for eng and userdebug builds
+            cflags: [
+                // Scoped time logger is enabled for userdebug and eng builds.
+                // Use "-U" to disable this feature on userdebug and eng builds.
+                "-DENABLE_SCOPED_TIME_LOGGER",
+            ],
+        },
+    },
 
     compile_multilib = "64",
 }

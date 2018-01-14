@@ -15,10 +15,11 @@ paintbox_nn::OemModel getOemModel(const Model& model,
 
 // Converts HIDL Model to protobuffer Model type.
 // The OEM model type input will be ignored.
-void convertHidlModel(const Model& inputModel, paintbox_nn::Model* outputModel);
+void convertHidlModel(const Model& inputModel, int64_t modelId,
+                      paintbox_nn::Model* outputModel);
 
 // Converts HIDL Request to protobuffer Request type.
-void convertHidlRequest(const Request& inputModel,
+void convertHidlRequest(const Request& inputModel, int64_t modelId,
                         paintbox_nn::Request* outputRequest);
 
 // The structure maintaining hardwarebuffer together with the mmapped memory

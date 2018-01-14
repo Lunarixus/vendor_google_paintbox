@@ -7,12 +7,20 @@
 #include "android-base/logging.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm.h"
 #include "hardware/gchips/paintbox/system/include/easel_comm_helper.h"
+#include "EaselStateManagerBlue.h"
+#include "ScopedTimeLogger.h"
 
 namespace android {
 namespace EaselPowerBlue {
 
+EaselPowerBlue::EaselPowerBlue() {
+  mStateManager = std::make_unique<EaselStateManager>();
+}
+
+EaselPowerBlue::~EaselPowerBlue() {}
+
 int EaselPowerBlue::open() {
-  int ret = mStateManager.open();
+  int ret = mStateManager->open();
   if (ret) {
     LOG(ERROR) << "failed to initialize state manager: " << strerror(-ret);
     return ret;
@@ -21,7 +29,7 @@ int EaselPowerBlue::open() {
   mComm = easel::CreateComm(easel::Comm::Type::CLIENT);
   if (!mComm) {
     LOG(ERROR) << "failed to create comm object";
-    ret = mStateManager.close();
+    ret = mStateManager->close();
     if (ret) {
       LOG(WARNING) << "error when closing state manager: " << strerror(-ret);
     }
@@ -36,7 +44,7 @@ void EaselPowerBlue::close() {
   mComm->Close(); // closes down communication
   mComm.reset();  // releases easelcomm object
 
-  int ret = mStateManager.close();
+  int ret = mStateManager->close();
   if (ret) {
     LOG(WARNING) << "error when closing state manager: " << strerror(-ret);
     return;
@@ -46,7 +54,9 @@ void EaselPowerBlue::close() {
 }
 
 int EaselPowerBlue::powerOn() {
-  int ret = mStateManager.setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
+  int ret = mStateManager->setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
   if (ret) {
     LOG(ERROR) << "failed to power on: " << strerror(-ret);
     return ret;
@@ -58,41 +68,43 @@ int EaselPowerBlue::powerOn() {
     return ret;
   }
 
-  LOG(INFO) << "did power on";
   return 0;
 }
 
 int EaselPowerBlue::powerOff() {
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   mComm->Close(); // closes down communication
 
-  int ret = mStateManager.setState(EaselStateManager::ESM_STATE_OFF, /*blocking=*/true);
+  int ret = mStateManager->setState(EaselStateManager::ESM_STATE_OFF, /*blocking=*/true);
   if (ret) {
     LOG(ERROR) << "failed to power off: " << strerror(-ret);
     return ret;
   }
 
-  LOG(INFO) << "did power off";
   return 0;
 }
 
 int EaselPowerBlue::resume() {
-  int ret = mStateManager.setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
+  int ret = mStateManager->setState(EaselStateManager::ESM_STATE_ACTIVE, /*blocking=*/true);
   if (ret) {
     LOG(ERROR) << "failed to resume: " << strerror(-ret);
     return ret;
   }
 
-  LOG(INFO) << "did resume";
   return 0;
 }
 
 int EaselPowerBlue::suspend() {
-  LOG(WARNING) << __FUNCTION__ << ": not implemented";
+  MEASURE_SCOPED_TIME(__FUNCTION__);
+
   mComm->Send(SUSPEND_CHANNEL, /*payload=*/nullptr);
 
-  int ret = mStateManager.setState(EaselStateManager::ESM_STATE_SUSPEND, /*blocking=*/true);
+  int ret = mStateManager->setState(EaselStateManager::ESM_STATE_SUSPEND, /*blocking=*/true);
   if (ret) {
-    LOG(ERROR) << "failed to resume: " << strerror(-ret);
+    LOG(ERROR) << "failed to suspend: " << strerror(-ret);
     return ret;
   }
 
@@ -105,7 +117,7 @@ std::string EaselPowerBlue::getFwVersion() {
                 "fw version string too short; please check kernel header");
 
   char fwVersion[FW_VER_SIZE];
-  int ret = mStateManager.getFwVersion(fwVersion, sizeof(fwVersion));
+  int ret = mStateManager->getFwVersion(fwVersion, sizeof(fwVersion));
   if (ret) {
     LOG(ERROR) << "failed to get fw version: " << strerror(-ret);
     return "N/A";

@@ -31,42 +31,46 @@ class PaintboxPreparedModel;
 
 // Paintbox NN API driver implementation.
 class PaintboxDriver : public IDevice {
-public:
-    PaintboxDriver() : mName("paintbox"), mPreparedModel(nullptr) {}
-    ~PaintboxDriver() override {}
-    Return<ErrorStatus> prepareModel(const Model& model,
-                                     const sp<IPreparedModelCallback>& callback) override;
-    Return<DeviceStatus> getStatus() override;
+ public:
+  PaintboxDriver() : mName("paintbox"), mModelIdNext(1) {}
+  ~PaintboxDriver() override {}
+  Return<ErrorStatus> prepareModel(
+      const Model& model, const sp<IPreparedModelCallback>& callback) override;
+  Return<DeviceStatus> getStatus() override;
 
-    // Starts and runs the driver service.  Typically called from main().
-    // This will return only once the service shuts down.
-    int run();
-protected:
-    std::string mName;
-    EaselExecutorClient mClient;
+  // Starts and runs the driver service.  Typically called from main().
+  // This will return only once the service shuts down.
+  int run();
 
-    wp<PaintboxPreparedModel> mPreparedModel;
+ protected:
+  // Returns the next runtime model ID.
+  // The returned value is monotonously increasing.
+  int64_t nextModelId();
+
+  std::string mName;
+  EaselExecutorClient mClient;
+  int64_t mModelIdNext;
+
+  std::once_flag mInitialized;
 };
 
 class PaintboxPreparedModel : public IPreparedModel {
-public:
-    PaintboxPreparedModel(const Model& model, EaselExecutorClient* client);
-    ~PaintboxPreparedModel() override;
-    bool initialize();
-    Return<ErrorStatus> execute(const Request& request,
-                                const sp<IExecutionCallback>& callback) override;
-    const Model* model();
-    // Destories the model, which will make all following execution not valid.
-    void destroyModel();
+ public:
+  PaintboxPreparedModel(const Model& model, int64_t modelId,
+                        EaselExecutorClient* client);
+  ~PaintboxPreparedModel() override;
+  Return<ErrorStatus> execute(const Request& request,
+                              const sp<IExecutionCallback>& callback) override;
+  const Model* model();
 
-private:
-    std::mutex mModelLock;
-    std::unique_ptr<Model> mModel;  // GUARDED_BY(mModelLock)
-    EaselExecutorClient* mClient;
+ private:
+  std::unique_ptr<Model> mModel;
+  int64_t mModelId;
+  EaselExecutorClient* mClient;
 };
 
-} // namespace paintbox_driver
-} // namespace nn
-} // namespace android
+}  // namespace paintbox_driver
+}  // namespace nn
+}  // namespace android
 
-#endif // PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H
+#endif  // PAINTBOX_NN_PAINTBOX_DRIVER_PAINTBOX_DRIVER_H

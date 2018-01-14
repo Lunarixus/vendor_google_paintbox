@@ -19,8 +19,7 @@ EaselPowerServerBlue::EaselPowerServerBlue() {
   suspend_count_ = 0;
 }
 
-EaselPowerServerBlue::~EaselPowerServerBlue() {
-}
+EaselPowerServerBlue::~EaselPowerServerBlue() {}
 
 void EaselPowerServerBlue::run() {
   mComm = easel::CreateComm(easel::Comm::Type::SERVER);

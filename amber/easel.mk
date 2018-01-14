@@ -33,7 +33,6 @@ PRODUCT_PACKAGES_DEBUG += \
     ezlsh \
     ezlspi \
     easel_boot_test \
-    libeaselcommcapi \
     libpbticlient \
     libpbtimessenger \
     libpbtiservice \

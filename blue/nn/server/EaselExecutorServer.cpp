@@ -1,17 +1,16 @@
 #define LOG_TAG "EaselExecutorServer"
 
+#include <thread>
+
 #include "CpuExecutor.h"
 #include "EaselExecutorServer.h"
 #include "Rpc.h"
-
-#include <log/log.h>
 
 namespace paintbox_nn {
 
 EaselExecutorServer::EaselExecutorServer() {
   mComm = std::unique_ptr<easel::Comm>(
       easel::Comm::Create(easel::Comm::Type::SERVER));
-  mState = State::INIT;
 
   mPrepareModelHandler = std::make_unique<easel::FunctionHandler>(
       [this](const easel::Message& message) { handlePrepareModel(message); });
@@ -24,7 +23,8 @@ EaselExecutorServer::EaselExecutorServer() {
 }
 
 void EaselExecutorServer::start() {
-  CHECK(mState == State::INIT);
+  // Start the executor thread.
+  std::thread([&] { executeRunThread(); }).detach();
 
   mComm->RegisterHandler(PREPARE_MODEL, mPrepareModelHandler.get());
   mComm->RegisterHandler(EXECUTE, mExecuteHandler.get());
@@ -33,86 +33,87 @@ void EaselExecutorServer::start() {
 }
 
 void EaselExecutorServer::handlePrepareModel(const easel::Message& message) {
-  ALOGI("received PrepareModel");
-
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
   if (message.GetPayloadSize() <= 0) {
     // If it is a message with Model object.
-    // Should be in destroyed state.
-    CHECK(mState == State::INIT || mState == State::MODEL_DESTROYED);
-    CHECK(mModel.pools.empty());
-    CHECK(!mExecutorThread.joinable());
-    CHECK(easel::MessageToProto(message, &mModel.model));
-    ALOGI("PrepareModel done. model size %d pool size %d",
-          mModel.model.ByteSize(), mModel.model.poolsizes().size());
-    mState = State::MODEL_RECEIVED;
-    // If model does not have pools, set to fully received state right away.
-    if (mModel.model.poolsizes().empty()) {
-      modelFullyReceived();
-    }
+    ModelPair modelPair;
+    CHECK(easel::MessageToProto(message, &modelPair.model));
+    Model& model = modelPair.model;
+    int64_t modelId = model.modelid();
+    bool noPools = model.poolsizes().empty();
+    LOG(INFO) << "PrepareModel done. model size " << model.ByteSize()
+              << " pool size " << model.poolsizes().size() << " model id "
+              << modelId;
+
+    // Save model to map
+    auto iter = mModels.find(modelId);
+    CHECK(iter == mModels.end());
+    mModels.emplace(modelId, std::move(modelPair));
+
+    // If model does not have pools, it is fully received right away.
+    if (noPools) modelFullyReceived(modelId);
   } else {
-    CHECK(mState == State::MODEL_RECEIVED);
+    ModelPoolRequest request;
+    CHECK(easel::MessageToProto(message, &request));
+    int64_t modelId = request.modelid();
 
     // If it is a message with pool that comes after Model:
     int id = message.GetPayloadId();
 
-    CHECK_LT(id, mModel.model.poolsizes().size());
+    // Find the model from map.
+    auto iter = mModels.find(modelId);
+    CHECK(iter != mModels.end());
+    ModelPair& modelPair = iter->second;
+
+    CHECK_LT(id, modelPair.model.poolsizes().size());
     // Check we have received the previous buffers.
-    CHECK_EQ(mModel.pools.size(), static_cast<size_t>(id));
+    CHECK_EQ(modelPair.pools.size(), static_cast<size_t>(id));
     size_t inputSize = message.GetPayloadSize();
-    CHECK_EQ(inputSize, mModel.model.poolsizes(id));
+    CHECK_EQ(inputSize, modelPair.model.poolsizes(id));
 
     // Receive input data.
     std::unique_ptr<easel::HardwareBuffer> hardwareBuffer =
         easel::AllocateHardwareBuffer(inputSize, id);
     CHECK(hardwareBuffer != nullptr);
     CHECK_EQ(mComm->ReceivePayload(message, hardwareBuffer.get()), 0);
-    mModel.pools.push_back(std::move(hardwareBuffer));
+    modelPair.pools.push_back(std::move(hardwareBuffer));
 
     // Send the response on the last buffer.
-    if (id == mModel.model.poolsizes().size() - 1) {
-      modelFullyReceived();
+    if (modelPair.ready()) {
+      modelFullyReceived(modelId);
     }
   }
 }
 
-void EaselExecutorServer::modelFullyReceived() {
-  mState = State::MODEL_POOLS_RECEIVED;
+void EaselExecutorServer::modelFullyReceived(int64_t modelId) {
   PrepareModelResponse response;
   response.set_error(NONE);
-  easel::SendProto(mComm.get(), PREPARE_MODEL, response, /*payload=*/nullptr);
-
-  // Start the executor thread.
-  mExecutorThread = std::thread([&] { executeRunThread(); });
+  response.set_modelid(modelId);
+  CHECK_EQ(easel::SendProto(mComm.get(), PREPARE_MODEL, response,
+                            /*payload=*/nullptr),
+           0);
 }
 
 void EaselExecutorServer::handleExecute(const easel::Message& message) {
-  ALOGI("received Execute");
   std::lock_guard<std::mutex> lock(mExecutorLock);
 
   if (message.GetPayloadSize() <= 0) {
-    CHECK(mState == State::MODEL_POOLS_RECEIVED ||
-          mState == State::REQUEST_POOLS_RECEIVED);
+    RequestPair requestPair;
+    easel::MessageToProto(message, &requestPair.request);
+    bool noPools = requestPair.request.inputpools().empty();
 
-    RequestPair pair;
-    easel::MessageToProto(message, &pair.request);
-    ALOGI("request size %d pool size %d", pair.request.ByteSize(),
-          pair.request.poolsizes().size());
-    CHECK(pair.pools.empty());
-    pair.pools.resize(pair.request.poolsizes().size());
-    mRequests.push(std::move(pair));
-    mState = State::REQUEST_RECEIVED;
+    LOG(INFO) << "request size " << requestPair.request.ByteSize()
+              << " pool size " << requestPair.request.poolsizes().size()
+              << " model id " << requestPair.request.modelid();
+    CHECK(requestPair.pools.empty());
+    requestPair.pools.resize(requestPair.request.poolsizes().size());
+    mRequests.push(std::move(requestPair));
 
-    // If request does not need input pools, set to fully received state right
+    // If request does not need input pools, it is fully received right
     // away.
-    if (pair.request.inputpools().empty()) {
-      requestFullyReceived();
-    }
-
+    if (noPools) requestFullyReceived();
   } else {
-    CHECK(mState == State::REQUEST_RECEIVED);
-
     auto& request = mRequests.back().request;
     auto& pools = mRequests.back().pools;
     // id is also the index of pools (not inputpools or outputpools).
@@ -141,11 +142,11 @@ void EaselExecutorServer::handleExecute(const easel::Message& message) {
 }
 
 void EaselExecutorServer::requestFullyReceived() {
-  mState = State::REQUEST_POOLS_RECEIVED;
   mRequestAvailable.notify_one();
 }
 
 namespace {
+// Constructs RuntimePoolInfo vector from HardwareBuffer pools.
 void setRunTimePoolInfosFromHardwareBuffer(
     std::vector<android::nn::RunTimePoolInfo>* poolInfos,
     std::vector<std::unique_ptr<easel::HardwareBuffer>>* pools) {
@@ -160,81 +161,89 @@ void setRunTimePoolInfosFromHardwareBuffer(
 void EaselExecutorServer::executeRunThread() {
   std::unique_lock<std::mutex> lock(mExecutorLock);
   while (true) {
-    mRequestAvailable.wait(lock, [&] {
-      return !mRequests.empty() || mState == State::MODEL_DESTROYING;
-    });
-    if (mState == State::MODEL_DESTROYING) {
-      ALOGI("Model about to be destroyed, finishing executor thread.");
-      while (!mRequests.empty()) {
-        mRequests.pop();
-      }
-      return;
-    }
+    mRequestAvailable.wait(lock, [&] { return !mRequests.empty(); });
 
-    RequestPair& pair = mRequests.front();
+    RequestPair& requestPair = mRequests.front();
+    int64_t modelId = requestPair.request.modelid();
+
+    auto iter = mModels.find(modelId);
+    if (iter == mModels.end()) {
+      LOG(ERROR) << "Model ID " << modelId << " not prepared";
+      RequestResponse response;
+      response.set_error(GENERAL_FAILURE);
+      CHECK_EQ(SendProto(mComm.get(), EXECUTE, response, /*payload=*/nullptr),
+               0);
+      mRequests.pop();
+    }
+    ModelPair& modelPair = iter->second;
+
+    CHECK(modelPair.ready());
+
     // Allocate empty output pools.
-    for (size_t i = 0; i < pair.pools.size(); i++) {
-      if (pair.pools[i] == nullptr) {
-        size_t size = pair.request.poolsizes(i);
-        pair.pools[i] = easel::AllocateHardwareBuffer(size);
-        CHECK(pair.pools[i]->Valid());
+    for (size_t i = 0; i < requestPair.pools.size(); i++) {
+      if (requestPair.pools[i] == nullptr) {
+        size_t size = requestPair.request.poolsizes(i);
+        requestPair.pools[i] = easel::AllocateHardwareBuffer(size);
+        CHECK(requestPair.pools[i]->Valid());
       }
     }
 
     std::vector<android::nn::RunTimePoolInfo> modelPoolInfos;
-    setRunTimePoolInfosFromHardwareBuffer(&modelPoolInfos, &(mModel.pools));
+    setRunTimePoolInfosFromHardwareBuffer(&modelPoolInfos, &(modelPair.pools));
 
     std::vector<android::nn::RunTimePoolInfo> requestPoolInfos;
-    setRunTimePoolInfosFromHardwareBuffer(&requestPoolInfos, &(pair.pools));
+    setRunTimePoolInfosFromHardwareBuffer(&requestPoolInfos,
+                                          &(requestPair.pools));
 
     android::nn::CpuExecutor executor;
-    int n = executor.run(mModel.model, pair.request, modelPoolInfos,
+    int n = executor.run(modelPair.model, requestPair.request, modelPoolInfos,
                          requestPoolInfos);
-    ALOGI("executor.run returned %d", n);
+    LOG(INFO) << "executor.run returned " << n;
     ErrorStatus executionStatus =
         n == ANEURALNETWORKS_NO_ERROR ? NONE : GENERAL_FAILURE;
 
     if (executionStatus == ErrorStatus::NONE) {
       // Send output pools back to client.
-      for (int outputIndex : pair.request.outputpools()) {
-        pair.pools[outputIndex]->SetId(outputIndex);
-        mComm->Send(EXECUTE, pair.pools[outputIndex].get());
+      for (int outputIndex : requestPair.request.outputpools()) {
+        requestPair.pools[outputIndex]->SetId(outputIndex);
+        CHECK_EQ(mComm->Send(EXECUTE, requestPair.pools[outputIndex].get()), 0);
       }
     }
 
     RequestResponse response;
     response.set_error(executionStatus);
-    SendProto(mComm.get(), EXECUTE, response, /*payload=*/nullptr);
+    CHECK_EQ(SendProto(mComm.get(), EXECUTE, response, /*payload=*/nullptr), 0);
 
     // Release allocated resource
     mRequests.pop();
   }
 }
 
-void EaselExecutorServer::handleDestroyModel(const easel::Message&) {
-  ALOGI("received DestoryModel");
-
+void EaselExecutorServer::handleDestroyModel(const easel::Message& message) {
+  DestroyModelRequest request;
+  CHECK(easel::MessageToProto(message, &request));
+  int64_t modelId = request.modelid();
+  bool success = false;
   {
     std::lock_guard<std::mutex> lock(mExecutorLock);
-    CHECK(mState != State::INIT && mState != State::MODEL_DESTROYING &&
-          mState != State::MODEL_DESTROYED);
-    mState = State::MODEL_DESTROYING;
+    auto iter = mModels.find(modelId);
+    if (iter == mModels.end()) {
+      success = false;
+      LOG(ERROR) << "Destroyed model: model ID " << modelId << " not prepared";
+    } else {
+      mModels.erase(iter);
+      success = true;
+      LOG(INFO) << "Destroyed model: success, model ID " << modelId
+                << ", models left " << mModels.size();
+    }
   }
 
-  mRequestAvailable.notify_one();
-
-  if (mExecutorThread.joinable()) {
-    mExecutorThread.join();
-  }
-
-  std::lock_guard<std::mutex> lock(mExecutorLock);
-  mModel.model = Model();
-  mModel.pools.clear();
-
-  TearDownModelResponse response;
-  response.set_error(NONE);
-  easel::SendProto(mComm.get(), DESTROY_MODEL, response, /*payload=*/nullptr);
-  mState = State::MODEL_DESTROYED;
+  DestroyModelResponse response;
+  response.set_error(success ? NONE : INVALID_ARGUMENT);
+  response.set_modelid(modelId);
+  CHECK_EQ(easel::SendProto(mComm.get(), DESTROY_MODEL, response,
+                            /*payload=*/nullptr),
+           0);
 }
 
 }  // namespace paintbox_nn

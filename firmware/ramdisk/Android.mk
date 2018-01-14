@@ -17,9 +17,9 @@ LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 FW_VER := $(BUILD_NUMBER_FROM_FILE)
 FW_DATE := $$(date +'%Y%m%d.')
 
-# Set Easel firmware version number here (b/65286131)
-FW_MAJOR := '001'
-FW_MINOR := '001'
+# Sets Easel firmware version number, appended to the ramdisk.
+FW_MAJOR := '002'
+FW_MINOR := '000'
 
 # TODO(cjluo): Add notice file before launch.
 
@@ -112,9 +112,6 @@ BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp1)/easeldummyapp1 \
 	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp2)/easeldummyapp2 \
 	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
-
-LIB_MODULES += \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
 endif
 
 endif
