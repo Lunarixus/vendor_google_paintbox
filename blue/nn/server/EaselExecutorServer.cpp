@@ -2,7 +2,7 @@
 
 #include <thread>
 
-#include "CpuExecutor.h"
+#include "OemExecutor.h"
 #include "EaselExecutorServer.h"
 #include "Rpc.h"
 
@@ -195,7 +195,7 @@ void EaselExecutorServer::executeRunThread() {
     setRunTimePoolInfosFromHardwareBuffer(&requestPoolInfos,
                                           &(requestPair.pools));
 
-    android::nn::CpuExecutor executor;
+    android::nn::OemExecutor executor;
     int n = executor.run(modelPair.model, requestPair.request, modelPoolInfos,
                          requestPoolInfos);
     LOG(INFO) << "executor.run returned " << n;

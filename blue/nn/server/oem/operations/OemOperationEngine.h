@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "CpuExecutor.h"
+#include "OemExecutor.h"
 #include "NeuralNetworks.h"
 
 namespace android {
