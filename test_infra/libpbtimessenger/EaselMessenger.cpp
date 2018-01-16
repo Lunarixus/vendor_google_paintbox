@@ -209,6 +209,7 @@ status_t EaselMessenger::connect(EaselMessengerListener &listener,
         if (res != 0) {
             ALOGE("%s: Creating a message failed: %s (%d).",
                   __FUNCTION__, strerror(-res), res);
+            delete message;
             disconnectWithLockHeld();
             return -ENODEV;
         }
