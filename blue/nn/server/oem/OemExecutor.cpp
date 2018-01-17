@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "CpuExecutor"
+#define LOG_TAG "OemExecutor"
 
-#include "CpuExecutor.h"
+#include "OemExecutor.h"
 
 #include "MatrixAddEngine.h"
 #include "MobileNetBodyEngine.h"
@@ -62,10 +62,10 @@ bool RunTimeOperandInfo::setInfoAndAllocateIfNeeded(const Shape& shape) {
 
 // Ignore the .pools entry in model and request.  This will have been taken care of
 // by the caller.
-int CpuExecutor::run(const Model& model, const Request& request,
+int OemExecutor::run(const Model& model, const Request& request,
                      const std::vector<RunTimePoolInfo>& modelPoolInfos,
                      const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    LOG(INFO)<< "CpuExecutor::run()";
+    LOG(INFO)<< "OemExecutor::run()";
 
     mModel = &model;
     mRequest = &request; // TODO check if mRequest is needed
@@ -84,9 +84,9 @@ int CpuExecutor::run(const Model& model, const Request& request,
     return ANEURALNETWORKS_NO_ERROR;
 }
 
-bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& modelPoolInfos,
+bool OemExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& modelPoolInfos,
                                         const std::vector<RunTimePoolInfo>& requestPoolInfos) {
-    LOG(INFO) << "CpuExecutor::initializeRunTimeInfo";
+    LOG(INFO) << "OemExecutor::initializeRunTimeInfo";
     const size_t count = mModel->operands().size();
     mOperands.resize(count);
 
@@ -167,7 +167,7 @@ bool CpuExecutor::initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& mode
     return true;
 }
 
-void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) {
+void OemExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) {
     for (uint32_t i : inputs) {
         auto& info = mOperands[i];
         // Check if it's a static or model input/output.
@@ -183,7 +183,7 @@ void CpuExecutor::freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs) 
     }
 }
 
-int CpuExecutor::executeOperation(const Operation& operation) {
+int OemExecutor::executeOperation(const Operation& operation) {
     int32_t oemModel = operation.oemmodel();
     LOG(INFO) << "execute OEM model #" << oemModel;
     ResultCode res = ANEURALNETWORKS_NO_ERROR;

@@ -8,6 +8,7 @@ cc_binary {
     cflags: ["-Wall", "-Werror", "-Wextra"],
     static_libs: [
         "paintbox_nn_common",
+        "paintbox_nn_oem",
         "paintbox_nn_shared",
     ],
     shared_libs: [

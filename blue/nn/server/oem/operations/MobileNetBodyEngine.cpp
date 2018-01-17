@@ -39,7 +39,7 @@ MobileNetBodyEngine::~MobileNetBodyEngine() {}
 
 bool MobileNetBodyEngine::verify(
     const Operation& operation,
-    const std::vector<RunTimeOperandInfo>& operands) {
+    const std::vector<RunTimeOperandInfo>&) {
   bool success = (operation.inputs().size() == 1 + kNumLayers * 2) &&
                  (operation.outputs().size() == 1);
 

@@ -36,9 +36,11 @@ GOOGLE3_HARDWARE="hardware"
 GOOGLE3_GOOGLEX="googlex"
 GOOGLE3_GCAM_PATH="hardware/gchips/paintbox/googlex/gcam/hdrplus"
 GOOGLE3_SYSTEM_PATH="hardware/gchips/paintbox/system/easel"
+GOOGLE3_IMX_PATH="hardware/gchips/paintbox/host_sw/api"
 
 GOOGLE3_GCAM_OUT="blaze-bin/${GOOGLE3_GCAM_PATH}"
 GOOGLE3_SYSTEM_OUT="blaze-bin/${GOOGLE3_SYSTEM_PATH}"
+GOOGLE3_IMX_OUT="blaze-bin/${GOOGLE3_IMX_PATH}"
 GOOGLE3_GCAM_TARGET="libgcam-package"
 GOOGLE3_GCAM_OUT_TGZ="libgcam.tgz"
 GOOGLE3_SYSTEM_TARGET_AMBER="libeaselsystem.amber.so"
@@ -47,7 +49,7 @@ GOOGLE3_SYSTEM_OUT_SO_AMBER="${GOOGLE3_SYSTEM_TARGET_AMBER}"
 GOOGLE3_SYSTEM_OUT_SO_BLUE="${GOOGLE3_SYSTEM_TARGET_BLUE}"
 GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
 GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
-GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessoreasel.so"
+GOOGLE3_IMX_OUT="${GOOGLE3_IMX_OUT}/staticdeps_stripped/libimageprocessor.so"
 GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
 GOOGLE3_SYSTEM_INCLUDE="hardware/gchips/paintbox/system/include"
 GOOGLE3_PCG_GEN_TARGET="hardware/gchips/paintbox/scripts:pcg_generator"
@@ -62,6 +64,7 @@ GOOGLE3_SYSTEM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_SYSTEM_PATH}"
 GOOGLE3_GCAM_TARGET_FULL_PATH="${GOOGLE3_GCAM_PATH%%/}:${GOOGLE3_GCAM_TARGET}"
 GOOGLE3_SYSTEM_TARGET_AMBER_FULL_PATH="${GOOGLE3_SYSTEM_PATH%%/}:${GOOGLE3_SYSTEM_TARGET_AMBER}"
 GOOGLE3_SYSTEM_TARGET_BLUE_FULL_PATH="${GOOGLE3_SYSTEM_PATH%%/}:${GOOGLE3_SYSTEM_TARGET_BLUE}"
+GOOGLE3_IXM_TARGET_FULL_PATH="${GOOGLE3_IMX_PATH%%/}:libimageprocessor_staticdeps_stripped"
 GOOGLE3_GCAM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_OUT}"
 GOOGLE3_GCAM_OUT_TGZ_FULL="${GOOGLE3_GCAM_OUT_FULL_PATH%%/}/${GOOGLE3_GCAM_OUT_TGZ}"
 GOOGLE3_SYSTEM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_SYSTEM_OUT}"
@@ -132,7 +135,7 @@ if (( FLAGS_generate_pcgs )); then
   fi
 fi
 
-# Build libgcam
+# Build libgcam and libimageprocessor
 if (( FLAGS_prod )); then
   prod=" --define prod=1 "
 fi
@@ -140,7 +143,7 @@ blaze build $prod \
   --define easel=1 \
   --define ipuonly=1 \
   --config=android_arm64 \
-  -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
+  -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH} ${GOOGLE3_IXM_TARGET_FULL_PATH}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
   popd

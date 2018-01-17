@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
-#define ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
+#ifndef ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
+#define ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
 
 #include "HalInterfaces.h"
 #include "OperationsUtils.h"
@@ -67,7 +67,7 @@ struct RunTimePoolInfo {
 };
 
 // This class is used to execute a model on the CPU.
-class CpuExecutor {
+class OemExecutor {
 public:
     // Executes the model. The results will be stored at the locations
     // specified in the constructor.
@@ -114,4 +114,4 @@ T getScalarData(const RunTimeOperandInfo& info) {
 } // namespace nn
 } // namespace android
 
-#endif // ANDROID_ML_NN_COMMON_CPU_EXECUTOR_H
+#endif // ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
