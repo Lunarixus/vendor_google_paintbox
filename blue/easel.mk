@@ -33,7 +33,6 @@ PRODUCT_PACKAGES += \
 # Also includes modules for ramdisk so they could
 # be extracted from target files.
 PRODUCT_PACKAGES_DEBUG += \
-    easel_power_server \
     easel_power_test \
     ezlsh \
     ezlspi
