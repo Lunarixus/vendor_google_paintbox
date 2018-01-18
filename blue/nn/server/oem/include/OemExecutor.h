@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
-#define ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
+#ifndef PAINTBOX_NN_OEM_EXECUTOR_H
+#define PAINTBOX_NN_OEM_EXECUTOR_H
 
 #include "HalInterfaces.h"
 #include "OperationsUtils.h"
@@ -24,80 +24,92 @@
 #include <algorithm>
 #include <vector>
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
+
+using android::nn::Shape;
+using android::nn::sizeOfData;
 
 // Information we maintain about each operand during execution that
 // may change during execution.
 struct RunTimeOperandInfo {
-    // TODO Storing the type here is redundant, as it won't change during execution.
-    OperandType type;
-    // The type and dimensions of the operand.  The dimensions can
-    // change at runtime.  We include the type because it's useful
-    // to pass together with the dimension to the functions implementing
-    // the operators.
-    std::vector<uint32_t> dimensions;
+  // TODO Storing the type here is redundant, as it won't change during
+  // execution.
+  OperandType type;
+  // The type and dimensions of the operand.  The dimensions can
+  // change at runtime.  We include the type because it's useful
+  // to pass together with the dimension to the functions implementing
+  // the operators.
+  std::vector<uint32_t> dimensions;
 
-    float scale;
-    int32_t zeroPoint;
-    // Where the operand's data is stored.  Check the corresponding
-    // location information in the model to figure out if this points
-    // to memory we have allocated for an temporary operand.
-    uint8_t* buffer;
-    // The length of the buffer.
-    uint32_t length;
-    // Whether this is a temporary variable, a model input, a constant, etc.
-    OperandLifeTime lifetime;
-    // Keeps track of how many operations have yet to make use
-    // of this temporary variable.  When the count is decremented to 0,
-    // we free the buffer.  For non-temporary variables, this count is
-    // always 0.
-    uint32_t numberOfUsesLeft;
+  float scale;
+  int32_t zeroPoint;
+  // Where the operand's data is stored.  Check the corresponding
+  // location information in the model to figure out if this points
+  // to memory we have allocated for an temporary operand.
+  uint8_t* buffer;
+  // The length of the buffer.
+  uint32_t length;
+  // Whether this is a temporary variable, a model input, a constant, etc.
+  OperandLifeTime lifetime;
+  // Keeps track of how many operations have yet to make use
+  // of this temporary variable.  When the count is decremented to 0,
+  // we free the buffer.  For non-temporary variables, this count is
+  // always 0.
+  uint32_t numberOfUsesLeft;
 
-    Shape shape() const {
-        return Shape{.type = type, .dimensions = dimensions, .scale = scale, .offset = zeroPoint};
-    }
+  Shape shape() const {
+    return Shape{.type = type,
+                 .dimensions = dimensions,
+                 .scale = scale,
+                 .offset = zeroPoint};
+  }
 
-    bool setInfoAndAllocateIfNeeded(const Shape& shape);
+  bool setInfoAndAllocateIfNeeded(const Shape& shape);
 };
 
-// Used to keep a pointer to each of the memory pools.
+// Used to keep a pointer and size to each of the memory pools.
 struct RunTimePoolInfo {
-    uint8_t* buffer;
+  uint8_t* buffer;
+  size_t size;
 };
 
-// This class is used to execute a model on the CPU.
+// This class is used to execute an model with OEM operations.
 class OemExecutor {
-public:
-    // Executes the model. The results will be stored at the locations
-    // specified in the constructor.
-    // The model must outlive the executor.  We prevent it from being modified
-    // while this is executing.
-    int run(const Model& model, const Request& request,
-            const std::vector<RunTimePoolInfo>& modelPoolInfos,
-            const std::vector<RunTimePoolInfo>& requestPoolInfos);
+ public:
+  // Ownership of model is transferred to OemExecutor.
+  explicit OemExecutor(std::unique_ptr<Model> model);
+  ~OemExecutor();
 
-private:
-    bool initializeRunTimeInfo(const std::vector<RunTimePoolInfo>& modelPoolInfos,
-                               const std::vector<RunTimePoolInfo>& requestPoolInfos);
-    // Runs one operation of the graph.
-    int executeOperation(const Operation& entry);
-    // Decrement the usage count for the operands listed.  Frees the memory
-    // allocated for any temporary variable with a count of zero.
-    void freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs);
+  // Allocates the RunTimePoolInfo for pool at index.
+  // Returns the valid RunTimePoolInfo pointer if successful, otherwise nullptr.
+  RunTimePoolInfo* allocModelPoolInfo(size_t index);
 
-    // The model and the request that we'll execute. Only valid while run()
-    // is being executed.
-    const Model* mModel = nullptr;
-    const Request* mRequest = nullptr;
+  // Returns true if all the pools for the model are valid, otherwise false.
+  bool ready();
 
-    // We're copying the list of all the dimensions from the model, as
-    // these may be modified when we run the operatins.  Since we're
-    // making a full copy, the indexes used in the operand description
-    // stay valid.
-    //    std::vector<uint32_t> mDimensions;
-    // Runtime information about all the operands.
-    std::vector<RunTimeOperandInfo> mOperands;
+  // Executes the model. The results will be stored at requestPoolInfos.
+  // Returns ANEURALNETWORKS_NO_ERROR if successful, otherwise the error code.
+  int run(const Request& request,
+          const std::vector<RunTimePoolInfo>& requestPoolInfos);
+
+ private:
+  // Initializes the RunTimeOperandInfo operands.
+  // Returns true if successful, otherwise false.
+  bool initializeRunTimeInfo(
+      const Request& request,
+      const std::vector<RunTimePoolInfo>& requestPoolInfos,
+      std::vector<RunTimeOperandInfo>* operands);
+  // Runs one operation of the graph.
+  int executeOperation(const Operation& entry,
+                       std::vector<RunTimeOperandInfo>* operands);
+  // Decrement the usage count for the operands listed.  Frees the memory
+  // allocated for any temporary variable with a count of zero.
+  void freeNoLongerUsedOperands(const std::vector<uint32_t>& inputs,
+                                std::vector<RunTimeOperandInfo>* operands);
+
+  // The model and the pools that we'll use in execute.
+  std::unique_ptr<Model> mModel;
+  std::vector<RunTimePoolInfo> mModelPoolInfos;
 };
 
 namespace {
@@ -111,7 +123,6 @@ T getScalarData(const RunTimeOperandInfo& info) {
 
 }  // anonymous namespace
 
-} // namespace nn
-} // namespace android
+}  // namespace paintbox_nn
 
-#endif // ANDROID_ML_NN_COMMON_OEM_EXECUTOR_H
+#endif  // PAINTBOX_NN_OEM_EXECUTOR_H

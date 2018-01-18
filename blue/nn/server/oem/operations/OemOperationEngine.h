@@ -1,13 +1,12 @@
-#ifndef ANDROID_ML_NN_COMMON_OEM_OEM_OPERATION_ENGINE_H
-#define ANDROID_ML_NN_COMMON_OEM_OEM_OPERATION_ENGINE_H
+#ifndef PAINTBOX_NN_OEM_OPERATIONS_OEM_OPERATION_ENGINE_H
+#define PAINTBOX_NN_OEM_OPERATIONS_OEM_OPERATION_ENGINE_H
 
 #include <vector>
 
-#include "OemExecutor.h"
 #include "NeuralNetworks.h"
+#include "OemExecutor.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // OemOperation Engine for processing OEM_OPERATION requests.
 class OemOperationEngine {
@@ -28,7 +27,6 @@ class OemOperationEngine {
                              std::vector<RunTimeOperandInfo>* operands) = 0;
 };
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
-#endif  // ANDROID_ML_NN_COMMON_OEM_OEM_OPERATION_IMPL_H
+#endif  // PAINTBOX_NN_OEM_OPERATIONS_OEM_OPERATION_ENGINE_H

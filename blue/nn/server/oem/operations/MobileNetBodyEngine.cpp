@@ -8,8 +8,10 @@
 #include "Operations.h"
 #include "OperationsUtils.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
+
+using android::nn::calculateExplicitPadding;
+using android::nn::kPaddingSame;
 
 namespace {
 const int kNumLayers = 27;
@@ -37,9 +39,8 @@ bool calculatePadding(const Shape& inputShape, int32_t stride,
 MobileNetBodyEngine::MobileNetBodyEngine() {}
 MobileNetBodyEngine::~MobileNetBodyEngine() {}
 
-bool MobileNetBodyEngine::verify(
-    const Operation& operation,
-    const std::vector<RunTimeOperandInfo>&) {
+bool MobileNetBodyEngine::verify(const Operation& operation,
+                                 const std::vector<RunTimeOperandInfo>&) {
   bool success = (operation.inputs().size() == 1 + kNumLayers * 2) &&
                  (operation.outputs().size() == 1);
 
@@ -152,5 +153,4 @@ ResultCode MobileNetBodyEngine::execute(
   return ANEURALNETWORKS_NO_ERROR;
 }
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
