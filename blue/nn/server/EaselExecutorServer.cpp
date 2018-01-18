@@ -2,8 +2,8 @@
 
 #include <thread>
 
-#include "OemExecutor.h"
 #include "EaselExecutorServer.h"
+#include "OemExecutor.h"
 #include "Rpc.h"
 
 namespace paintbox_nn {
@@ -37,19 +37,20 @@ void EaselExecutorServer::handlePrepareModel(const easel::Message& message) {
 
   if (message.GetPayloadSize() <= 0) {
     // If it is a message with Model object.
-    ModelPair modelPair;
-    CHECK(easel::MessageToProto(message, &modelPair.model));
-    Model& model = modelPair.model;
-    int64_t modelId = model.modelid();
-    bool noPools = model.poolsizes().empty();
-    LOG(INFO) << "PrepareModel done. model size " << model.ByteSize()
-              << " pool size " << model.poolsizes().size() << " model id "
+    auto model = std::make_unique<Model>();
+    CHECK(easel::MessageToProto(message, model.get()));
+
+    int64_t modelId = model->modelid();
+    bool noPools = model->poolsizes().empty();
+    LOG(INFO) << "PrepareModel done. model size " << model->ByteSize()
+              << " pool size " << model->poolsizes().size() << " model id "
               << modelId;
 
     // Save model to map
-    auto iter = mModels.find(modelId);
-    CHECK(iter == mModels.end());
-    mModels.emplace(modelId, std::move(modelPair));
+    auto iter = mExecutors.find(modelId);
+    CHECK(iter == mExecutors.end());
+
+    mExecutors.emplace(modelId, std::move(model));
 
     // If model does not have pools, it is fully received right away.
     if (noPools) modelFullyReceived(modelId);
@@ -62,25 +63,24 @@ void EaselExecutorServer::handlePrepareModel(const easel::Message& message) {
     int id = message.GetPayloadId();
 
     // Find the model from map.
-    auto iter = mModels.find(modelId);
-    CHECK(iter != mModels.end());
-    ModelPair& modelPair = iter->second;
+    auto iter = mExecutors.find(modelId);
+    CHECK(iter != mExecutors.end());
+    OemExecutor& executor = iter->second;
 
-    CHECK_LT(id, modelPair.model.poolsizes().size());
-    // Check we have received the previous buffers.
-    CHECK_EQ(modelPair.pools.size(), static_cast<size_t>(id));
+    RunTimePoolInfo* info = executor.allocModelPoolInfo(id);
+    CHECK(info != nullptr);
+
     size_t inputSize = message.GetPayloadSize();
-    CHECK_EQ(inputSize, modelPair.model.poolsizes(id));
+    CHECK_EQ(inputSize, info->size);
 
     // Receive input data.
     std::unique_ptr<easel::HardwareBuffer> hardwareBuffer =
-        easel::AllocateHardwareBuffer(inputSize, id);
+        easel::CreateHardwareBuffer(info->buffer, info->size, id);
     CHECK(hardwareBuffer != nullptr);
     CHECK_EQ(mComm->ReceivePayload(message, hardwareBuffer.get()), 0);
-    modelPair.pools.push_back(std::move(hardwareBuffer));
 
     // Send the response on the last buffer.
-    if (modelPair.ready()) {
+    if (executor.ready()) {
       modelFullyReceived(modelId);
     }
   }
@@ -148,7 +148,7 @@ void EaselExecutorServer::requestFullyReceived() {
 namespace {
 // Constructs RuntimePoolInfo vector from HardwareBuffer pools.
 void setRunTimePoolInfosFromHardwareBuffer(
-    std::vector<android::nn::RunTimePoolInfo>* poolInfos,
+    std::vector<RunTimePoolInfo>* poolInfos,
     std::vector<std::unique_ptr<easel::HardwareBuffer>>* pools) {
   poolInfos->resize(pools->size());
   for (size_t i = 0; i < pools->size(); i++) {
@@ -166,8 +166,8 @@ void EaselExecutorServer::executeRunThread() {
     RequestPair& requestPair = mRequests.front();
     int64_t modelId = requestPair.request.modelid();
 
-    auto iter = mModels.find(modelId);
-    if (iter == mModels.end()) {
+    auto iter = mExecutors.find(modelId);
+    if (iter == mExecutors.end()) {
       LOG(ERROR) << "Model ID " << modelId << " not prepared";
       RequestResponse response;
       response.set_error(GENERAL_FAILURE);
@@ -175,9 +175,9 @@ void EaselExecutorServer::executeRunThread() {
                0);
       mRequests.pop();
     }
-    ModelPair& modelPair = iter->second;
+    OemExecutor& executor = iter->second;
 
-    CHECK(modelPair.ready());
+    CHECK(executor.ready());
 
     // Allocate empty output pools.
     for (size_t i = 0; i < requestPair.pools.size(); i++) {
@@ -188,16 +188,11 @@ void EaselExecutorServer::executeRunThread() {
       }
     }
 
-    std::vector<android::nn::RunTimePoolInfo> modelPoolInfos;
-    setRunTimePoolInfosFromHardwareBuffer(&modelPoolInfos, &(modelPair.pools));
-
-    std::vector<android::nn::RunTimePoolInfo> requestPoolInfos;
+    std::vector<RunTimePoolInfo> requestPoolInfos;
     setRunTimePoolInfosFromHardwareBuffer(&requestPoolInfos,
                                           &(requestPair.pools));
 
-    android::nn::OemExecutor executor;
-    int n = executor.run(modelPair.model, requestPair.request, modelPoolInfos,
-                         requestPoolInfos);
+    int n = executor.run(requestPair.request, requestPoolInfos);
     LOG(INFO) << "executor.run returned " << n;
     ErrorStatus executionStatus =
         n == ANEURALNETWORKS_NO_ERROR ? NONE : GENERAL_FAILURE;
@@ -226,15 +221,15 @@ void EaselExecutorServer::handleDestroyModel(const easel::Message& message) {
   bool success = false;
   {
     std::lock_guard<std::mutex> lock(mExecutorLock);
-    auto iter = mModels.find(modelId);
-    if (iter == mModels.end()) {
+    auto iter = mExecutors.find(modelId);
+    if (iter == mExecutors.end()) {
       success = false;
       LOG(ERROR) << "Destroyed model: model ID " << modelId << " not prepared";
     } else {
-      mModels.erase(iter);
+      mExecutors.erase(iter);
       success = true;
       LOG(INFO) << "Destroyed model: success, model ID " << modelId
-                << ", models left " << mModels.size();
+                << ", models left " << mExecutors.size();
     }
   }
 

@@ -1,10 +1,9 @@
-#ifndef ANDROID_ML_NN_COMMON_OEM_MATRIX_ADD_ENGINE_H
-#define ANDROID_ML_NN_COMMON_OEM_MATRIX_ADD_ENGINE_H
+#ifndef PAINTBOX_NN_OEM_OPERATIONS_MATRIX_ADD_ENGINE_H
+#define PAINTBOX_NN_OEM_OPERATIONS_MATRIX_ADD_ENGINE_H
 
 #include "OemOperationEngine.h"
 
-namespace android {
-namespace nn {
+namespace paintbox_nn {
 
 // OemModel for a simple MatrixAdd.
 // Input: matrix a and b as TENSOR_FLOAT32. The third input is activation.
@@ -21,7 +20,6 @@ class MatrixAddEngine : public OemOperationEngine {
                      std::vector<RunTimeOperandInfo>* operands) override;
 };
 
-}  // namespace nn
-}  // namespace android
+}  // namespace paintbox_nn
 
-#endif  // ANDROID_ML_NN_COMMON_OEM_MATRIX_ADD_ENGINE_H
+#endif  // PAINTBOX_NN_OEM_OPERATIONS_MATRIX_ADD_ENGINE_H

@@ -23,11 +23,12 @@ void do_delay(const unsigned int seconds) {
 }
 
 // Tests open(), getFwVersion() and close()
-TEST(EaselPowerTest, OpenVersionClose) {
+TEST(EaselPowerTest, OpenVersionOffClose) {
   EaselPowerBlue ePower;
 
   EXPECT_EQ(0, ePower.open());
   EXPECT_EQ(false, ePower.getFwVersion().empty());
+  EXPECT_EQ(0, ePower.powerOff());
   ePower.close();
 }
 

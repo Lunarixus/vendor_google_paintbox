@@ -9,18 +9,9 @@
 #include <queue>
 #include <unordered_map>
 
+#include "OemExecutor.h"
+
 namespace paintbox_nn {
-
-// A struct pair with model and related pools.
-struct ModelPair {
-  Model model;
-  std::vector<std::unique_ptr<easel::HardwareBuffer>> pools;
-
-  // Returns true if all the pools are initialized (meaning received).
-  bool ready() {
-    return model.poolsizes().size() == static_cast<int>(pools.size());
-  };
-};
 
 // A struct pair with request and related pools.
 struct RequestPair {
@@ -43,7 +34,7 @@ class EaselExecutorServer {
 
  private:
   // Handles PREPARE_MODEL request from AP.
-  // Saves the model and pools from message into mModel.
+  // Saves the model and pools from message into mExecutors.
   void handlePrepareModel(const easel::Message& message);
 
   // Notifies the client that the model is fully received and prepared.
@@ -58,7 +49,7 @@ class EaselExecutorServer {
   void requestFullyReceived();
 
   // Handles DESTROY_MODEL request from AP.
-  // Removes the corresponding model from mModels.
+  // Removes the corresponding executor from mExecutors.
   void handleDestroyModel(const easel::Message& message);
 
   // Thread function that pulls request from mRequests and execute it in a loop.
@@ -67,8 +58,9 @@ class EaselExecutorServer {
   std::unique_ptr<easel::Comm> mComm;
   std::mutex mExecutorLock;
   std::condition_variable mRequestAvailable;
-  std::unordered_map<int64_t, ModelPair> mModels;  // Guarded by mExecutorLock.
-  std::queue<RequestPair> mRequests;               // Guarded by mExecutorLock.
+  std::unordered_map<int64_t, OemExecutor>
+      mExecutors;                     // Guarded by mExecutorLock.
+  std::queue<RequestPair> mRequests;  // Guarded by mExecutorLock.
 
   std::unique_ptr<easel::FunctionHandler> mPrepareModelHandler;
   std::unique_ptr<easel::FunctionHandler> mExecuteHandler;

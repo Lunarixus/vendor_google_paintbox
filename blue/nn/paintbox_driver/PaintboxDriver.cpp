@@ -21,6 +21,7 @@
 #include "Conversion.h"
 #include "CpuExecutor.h"
 #include "HalInterfaces.h"
+#include "ValidateHal.h"
 
 #include <android-base/logging.h>
 #include <hidl/LegacySupport.h>
