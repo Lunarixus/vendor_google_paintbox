@@ -129,7 +129,6 @@ TEST_F(TrivialOEMTest, SingleOEMOperationTest) {
 
 TEST_F(TrivialOEMTest, MultipleOEMOperationTest) {
     for (int i = 0; i < 10; i++) {
-        LOG(INFO) << "MultipleOEMOperationTest iteration " << i;
         android::nn::wrapper::Model modelAdd2;
         CreateSingleOEMOperation(&modelAdd2);
 
@@ -141,6 +140,32 @@ TEST_F(TrivialOEMTest, MultipleOEMOperationTest) {
         Execution execution(&compilation);
         ASSERT_EQ(execution.setInput(0, matrix1, sizeof(Matrix3x4)), Result::NO_ERROR);
         ASSERT_EQ(execution.setInput(1, matrix2, sizeof(Matrix3x4)), Result::NO_ERROR);
+        ASSERT_EQ(execution.setOutput(0, actual, sizeof(Matrix3x4)), Result::NO_ERROR);
+
+        ASSERT_EQ(execution.compute(), Result::NO_ERROR);
+        ASSERT_EQ(CompareMatrices(expected2, actual), 0);
+    }
+}
+
+TEST_F(TrivialOEMTest, MultiplePreparedModelTest) {
+    std::vector<android::nn::wrapper::Model> modelList;
+    std::vector<Compilation>  compilationList;
+    for (int i = 0; i < 10; i++) {
+        android::nn::wrapper::Model modelAdd2;
+        CreateSingleOEMOperation(&modelAdd2);
+        modelList.emplace_back(std::move(modelAdd2));
+        Compilation compilation(&modelList.back());
+        compilation.finish();
+        compilationList.emplace_back(std::move(compilation));
+    }
+
+    for (int i = 0; i < 10; i++) {
+        Execution execution(&compilationList[i]);
+        ASSERT_EQ(execution.setInput(0, matrix1, sizeof(Matrix3x4)), Result::NO_ERROR);
+        ASSERT_EQ(execution.setInput(1, matrix2, sizeof(Matrix3x4)), Result::NO_ERROR);
+        // Test the one node model.
+        Matrix3x4 actual;
+        memset(&actual, 0, sizeof(actual));
         ASSERT_EQ(execution.setOutput(0, actual, sizeof(Matrix3x4)), Result::NO_ERROR);
 
         ASSERT_EQ(execution.compute(), Result::NO_ERROR);

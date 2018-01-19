@@ -29,10 +29,6 @@ cc_library_static {
     export_include_dirs: ["include"],
 
     srcs: [
-        "CpuExecutor.cpp",
-        "oem/MatrixAddEngine.cpp",
-        "oem/MobileNetBodyEngine.cpp",
-        "oem/OemOperationEngine.cpp",
         "operations/Conv2D.cpp",
         "operations/DepthwiseConv2D.cpp",
         "operations/SimpleMath.cpp",
@@ -40,7 +36,6 @@ cc_library_static {
         "Utils.cpp",
     ],
 
-    local_include_dirs: ["oem"],
     static_libs: [
         "paintbox_nn_shared",
     ],
@@ -49,14 +44,18 @@ cc_library_static {
         "liblog",
         "libutils",
     ],
+
+    export_header_lib_headers: ["libneuralnetworks_headers"],
+
     header_libs: [
         "libneuralnetworks_headers",
-        "libgemmlowp",
-        "libfixedpoint",
         "libeigen",
-        "paintbox_nn_headers",
+        "gemmlowp_headers",
+        "tensorflow_headers",
     ],
-
+    whole_static_libs: [
+        "libtflite_kernel_utils",
+    ],
     cflags: [
         "-Werror",
         "-Wall",

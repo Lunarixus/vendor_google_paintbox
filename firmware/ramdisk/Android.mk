@@ -17,9 +17,9 @@ LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 FW_VER := $(BUILD_NUMBER_FROM_FILE)
 FW_DATE := $$(date +'%Y%m%d.')
 
-# Set Easel firmware version number here (b/65286131)
-FW_MAJOR := '001'
-FW_MINOR := '001'
+# Sets Easel firmware version number, appended to the ramdisk.
+FW_MAJOR := '002'
+FW_MINOR := '000'
 
 # TODO(cjluo): Add notice file before launch.
 
@@ -37,8 +37,7 @@ SCRIPT_MODULES :=
 
 BIN_MODULES := \
 	$(call intermediates-dir-for,EXECUTABLES,crash_dump)/crash_dump64 \
-	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64 \
-	$(call intermediates-dir-for,EXECUTABLES,logd.easel)/logd.easel
+	$(call intermediates-dir-for,EXECUTABLES,linker)/linker64
 
 LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libbacktrace)/libbacktrace.so \
@@ -48,7 +47,6 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libcutils)/libcutils.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libdl)/libdl.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcomm)/libeaselcomm.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libgcam)/libgcam.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libimageprocessor)/libimageprocessor.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,liblog)/liblog.so \
@@ -64,42 +62,54 @@ LIB_MODULES := \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libvndksupport)/libvndksupport.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libz)/libz.so
 
-INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user
-
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,ezlsh)/ezlsh
 LIB_MODULES += $(call intermediates-dir-for,SHARED_LIBRARIES,libc_malloc_debug)/libc_malloc_debug.so
-INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug
 endif
 
 # Amber config
 ifeq ($(TARGET_EASEL_VARIANT), amber)
+BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,logd.easel.amber)/logd.easel.amber
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user.amber
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug.amber
+endif
+
 BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,pbserver)/pbserver
 
 LIB_MODULES += \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcontrolservice.amber)/libeaselcontrolservice.amber.so \
 	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusmessenger)/libhdrplusmessenger.so \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libhdrplusservice)/libhdrplusservice.so \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem)/libeaselsystem.so
 endif
 # End of amber config
 
 # Blue config
 ifeq ($(TARGET_EASEL_VARIANT), blue)
+# TODO(b/71449505): logging daemon will be merged into EaselManager.
+BIN_MODULES += $(call intermediates-dir-for,EXECUTABLES,logd.easel.blue)/logd.easel.blue
 SCRIPT_MODULES += \
 	$(EASEL_RAMDISK_SRC_DIR)/easelmanager.init
+
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.user.blue
+ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
+INIT_MODULE := $(EASEL_RAMDISK_SRC_DIR)/init.userdebug.blue
+endif
 
 BIN_MODULES += \
 	$(call intermediates-dir-for,EXECUTABLES,easelmanagerserver)/easelmanagerserver \
 	$(call intermediates-dir-for,EXECUTABLES,nnserver)/nnserver
 
+LIB_MODULES += \
+	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselsystem.blue)/libeaselsystem.blue.so
+
 ifneq (,$(filter eng userdebug, $(TARGET_BUILD_VARIANT)))
 BIN_MODULES += \
-	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp)/easeldummyapp \
+	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp1)/easeldummyapp1 \
+	$(call intermediates-dir-for,EXECUTABLES,easeldummyapp2)/easeldummyapp2 \
 	$(call intermediates-dir-for,EXECUTABLES,easelcrashapp)/easelcrashapp
-
-LIB_MODULES += \
-	$(call intermediates-dir-for,SHARED_LIBRARIES,libeaselcommcapi)/libeaselcommcapi.so
 endif
 
 endif
@@ -203,6 +213,8 @@ $(LOCAL_BUILT_MODULE): \
 	# init
 	@mkdir -p $(dir $@)/$(EASEL_PREBUILT)
 	@cp -f $(PRIVATE_INIT_MODULE) $(dir $@)/$(EASEL_PREBUILT)/init
+	# Add execute permission to make sure init can be run as the first process
+	@chmod +x $(dir $@)/$(EASEL_PREBUILT)/init
 
 	# Binary
 	@mkdir -p $(dir $@)/$(EASEL_BIN)
@@ -219,7 +231,9 @@ $(LOCAL_BUILT_MODULE): \
 	$(foreach module, $(PRIVATE_LIB_MODULES),\
 		cp -f $(module) $(dir $@)/$(EASEL_LIB) &&) (true)
 
-	-mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+	@mv -f $(dir $@)/$(EASEL_LIB)/libeaselcontrolservice.amber.so $(dir $@)/$(EASEL_LIB)/libeaselcontrol.amber.so
+endif
 	@chmod +w $(dir $@)/$(EASEL_LIB)/*
 
 	$(TARGET_STRIP) $(dir $@)/$(EASEL_LIB)/*

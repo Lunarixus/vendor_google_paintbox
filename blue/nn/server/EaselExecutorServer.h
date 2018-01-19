@@ -7,15 +7,11 @@
 
 #include <mutex>
 #include <queue>
-#include <thread>
+#include <unordered_map>
+
+#include "OemExecutor.h"
 
 namespace paintbox_nn {
-
-// A struct pair with model and related pools.
-struct ModelPair {
-  Model model;
-  std::vector<std::unique_ptr<easel::HardwareBuffer>> pools;
-};
 
 // A struct pair with request and related pools.
 struct RequestPair {
@@ -38,47 +34,33 @@ class EaselExecutorServer {
 
  private:
   // Handles PREPARE_MODEL request from AP.
-  // Saves the model and pools from message into mModel.
+  // Saves the model and pools from message into mExecutors.
   void handlePrepareModel(const easel::Message& message);
 
-  // Marks the state as model fully received.
-  // Sets mState to MODEL_POOLS_RECEIVED.
-  void modelFullyReceived();
+  // Notifies the client that the model is fully received and prepared.
+  void modelFullyReceived(int64_t modelId);
 
   // Handles EXECUTE request from AP.
   // Retrieves the request object and input pool from AP and push to mRequests.
   // And signals mExecutorThread to process the request.
   void handleExecute(const easel::Message& message);
 
-  // Marks the state as request fully received.
-  // Sets mState to REQUEST_POOLS_RECEIVED.
+  // Notifies execution thread that a new request is fully received.
   void requestFullyReceived();
 
   // Handles DESTROY_MODEL request from AP.
-  // Resets mModel and releases allocated pools.
+  // Removes the corresponding executor from mExecutors.
   void handleDestroyModel(const easel::Message& message);
 
   // Thread function that pulls request from mRequests and execute it in a loop.
   void executeRunThread();
 
-  // State of EaselExecutor
-  enum class State {
-    INIT,
-    MODEL_RECEIVED,
-    MODEL_POOLS_RECEIVED,
-    REQUEST_RECEIVED,
-    REQUEST_POOLS_RECEIVED,
-    MODEL_DESTROYING,
-    MODEL_DESTROYED,
-  };
-
   std::unique_ptr<easel::Comm> mComm;
   std::mutex mExecutorLock;
   std::condition_variable mRequestAvailable;
-  ModelPair mModel;                   // Guarded by mExecutorLock.
+  std::unordered_map<int64_t, OemExecutor>
+      mExecutors;                     // Guarded by mExecutorLock.
   std::queue<RequestPair> mRequests;  // Guarded by mExecutorLock.
-  State mState;                       // Guarded by mExecutorLock.
-  std::thread mExecutorThread;
 
   std::unique_ptr<easel::FunctionHandler> mPrepareModelHandler;
   std::unique_ptr<easel::FunctionHandler> mExecuteHandler;

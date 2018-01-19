@@ -11,11 +11,14 @@ cc_binary {
 
     static_libs: [
         "easelmanager_shared",
+        "libeaselcontrolservice.blue",
+        "libeaselpower.blue",
     ],
 
     shared_libs: [
         "libbase",
         "libeaselcomm",
+        "libeaselsystem.blue",
         "liblog",
         "libprotobuf-cpp-lite",
     ],
@@ -25,4 +28,6 @@ cc_binary {
         "-Wall",
         "-Wextra",
     ],
+
+    compile_multilib = "64",
 }

@@ -12,7 +12,7 @@ cc_binary {
         "liblog",
     ],
 
-    static_libs: ["logdclient"],
+    static_libs: ["logdclient.amber"],
 
     cflags: [
         "-Wall",

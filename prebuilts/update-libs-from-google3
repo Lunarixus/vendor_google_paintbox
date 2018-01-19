@@ -36,19 +36,23 @@ GOOGLE3_HARDWARE="hardware"
 GOOGLE3_GOOGLEX="googlex"
 GOOGLE3_GCAM_PATH="hardware/gchips/paintbox/googlex/gcam/hdrplus"
 GOOGLE3_SYSTEM_PATH="hardware/gchips/paintbox/system/easel"
+GOOGLE3_IMX_PATH="hardware/gchips/paintbox/host_sw/api"
 
 GOOGLE3_GCAM_OUT="blaze-bin/${GOOGLE3_GCAM_PATH}"
 GOOGLE3_SYSTEM_OUT="blaze-bin/${GOOGLE3_SYSTEM_PATH}"
+GOOGLE3_IMX_OUT="blaze-bin/${GOOGLE3_IMX_PATH}"
 GOOGLE3_GCAM_TARGET="libgcam-package"
 GOOGLE3_GCAM_OUT_TGZ="libgcam.tgz"
-GOOGLE3_SYSTEM_TARGET="libeaselsystem.so"
-GOOGLE3_SYSTEM_OUT_SO="${GOOGLE3_SYSTEM_TARGET}"
+GOOGLE3_SYSTEM_TARGET_AMBER="libeaselsystem.amber.so"
+GOOGLE3_SYSTEM_TARGET_BLUE="libeaselsystem.blue.so"
+GOOGLE3_SYSTEM_OUT_SO_AMBER="${GOOGLE3_SYSTEM_TARGET_AMBER}"
+GOOGLE3_SYSTEM_OUT_SO_BLUE="${GOOGLE3_SYSTEM_TARGET_BLUE}"
 GOOGLE3_HALIDE_RUNTIME_H="third_party/halide/HalideRuntime.h"
 GOOGLE3_HALIDE_BUFFER_H="third_party/halide/HalideBuffer.h"
-GOOGLE3_IMX_OUT="hardware/gchips/paintbox/prebuilts/lib/arm64-v8a/libimageprocessoreasel.so"
+GOOGLE3_IMX_OUT="${GOOGLE3_IMX_OUT}/staticdeps_stripped/libimageprocessor.so"
 GOOGLE3_IMX_H="third_party/halide/paintbox/src/runtime/imx.h"
 GOOGLE3_SYSTEM_INCLUDE="hardware/gchips/paintbox/system/include"
-GOOGLE3_PCG_GEN_SH="hardware/gchips/paintbox/scripts/generate_all_pbserver_pcgs.sh"
+GOOGLE3_PCG_GEN_TARGET="hardware/gchips/paintbox/scripts:pcg_generator"
 
 ANDROID_PREBUILT_PATH="vendor/google_paintbox/prebuilts/"
 ANDROID_LIB_PATH="${ANDROID_PREBUILT_PATH%%/}/libs"
@@ -58,11 +62,14 @@ ANDROID_PCG_PATH="${ANDROID_PREBUILT_PATH%%/}/compiled_graph"
 GOOGLE3_GCAM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_PATH}"
 GOOGLE3_SYSTEM_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_SYSTEM_PATH}"
 GOOGLE3_GCAM_TARGET_FULL_PATH="${GOOGLE3_GCAM_PATH%%/}:${GOOGLE3_GCAM_TARGET}"
-GOOGLE3_SYSTEM_TARGET_FULL_PATH="${GOOGLE3_SYSTEM_PATH%%/}:${GOOGLE3_SYSTEM_TARGET}"
+GOOGLE3_SYSTEM_TARGET_AMBER_FULL_PATH="${GOOGLE3_SYSTEM_PATH%%/}:${GOOGLE3_SYSTEM_TARGET_AMBER}"
+GOOGLE3_SYSTEM_TARGET_BLUE_FULL_PATH="${GOOGLE3_SYSTEM_PATH%%/}:${GOOGLE3_SYSTEM_TARGET_BLUE}"
+GOOGLE3_IXM_TARGET_FULL_PATH="${GOOGLE3_IMX_PATH%%/}:libimageprocessor_staticdeps_stripped"
 GOOGLE3_GCAM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_GCAM_OUT}"
 GOOGLE3_GCAM_OUT_TGZ_FULL="${GOOGLE3_GCAM_OUT_FULL_PATH%%/}/${GOOGLE3_GCAM_OUT_TGZ}"
 GOOGLE3_SYSTEM_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_SYSTEM_OUT}"
-GOOGLE3_SYSTEM_OUT_SO_FULL="${GOOGLE3_SYSTEM_OUT_FULL_PATH%%/}/${GOOGLE3_SYSTEM_OUT_SO}"
+GOOGLE3_SYSTEM_OUT_SO_AMBER_FULL="${GOOGLE3_SYSTEM_OUT_FULL_PATH%%/}/${GOOGLE3_SYSTEM_OUT_SO_AMBER}"
+GOOGLE3_SYSTEM_OUT_SO_BLUE_FULL="${GOOGLE3_SYSTEM_OUT_FULL_PATH%%/}/${GOOGLE3_SYSTEM_OUT_SO_BLUE}"
 GOOGLE3_HALIDE_RUNTIME_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/third_party/halide/halide_runtime_headers/${GOOGLE3_HALIDE_RUNTIME_H}"
 GOOGLE3_HALIDE_BUFFER_H_FULL_PATH="${GOOGLE3_PATH%%/}/blaze-genfiles/third_party/halide/halide_runtime_headers/${GOOGLE3_HALIDE_BUFFER_H}"
 GOOGLE3_IMX_OUT_FULL_PATH="${GOOGLE3_PATH%%/}/${GOOGLE3_IMX_OUT}"
@@ -77,7 +84,6 @@ ANDROID_HALIDE_RUNTIME_H="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_HALIDE_RUNTIME_H
 ANDROID_HALIDE_BUFFER_H="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_HALIDE_BUFFER_H}"
 ANDROID_IMX_OUT_FULL_PATH="${ANDROID_LIB_FULL_PATH%%/}/libimageprocessor.so"
 ANDROID_IMX_H_FULL_PATH="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_IMX_H}"
-ANDROID_SYSTEM_OUT_FULL_PATH="${ANDROID_LIB_FULL_PATH%%/}/libeaselsystem.so"
 ANDROID_SYSTEM_INCLUDE_FULL_PATH="${ANDROID_INC_FULL_PATH%%/}/${GOOGLE3_SYSTEM_INCLUDE}"
 
 ANDROID_PCG_FULL_PATH="${ANDROID_BUILD_TOP%%/}/${ANDROID_PCG_PATH}/pcg.tar"
@@ -122,14 +128,14 @@ pushd ${GOOGLE3_PATH}
 # Generate PCG
 if (( FLAGS_generate_pcgs )); then
   rm -rf ${TMP_PCG_FULL_PATH}
-  GLOG_v=-2 ${GOOGLE3_PCG_GEN_SH} --pcg_output_dir=${TMP_PCG_FULL_PATH}
+  GLOG_v=-2 blaze run ${GOOGLE3_PCG_GEN_TARGET} -- --pcg_output_dir=${TMP_PCG_FULL_PATH}
   if [ $? -ne 0 ]; then
-    echo "Error: ${GOOGLE3_PCG_GEN_SH} returned non-zero"
+    echo "Error: blaze run ${GOOGLE3_PCG_GEN_TARGET} returned non-zero"
     exit 1
   fi
 fi
 
-# Build libgcam
+# Build libgcam and libimageprocessor
 if (( FLAGS_prod )); then
   prod=" --define prod=1 "
 fi
@@ -137,7 +143,7 @@ blaze build $prod \
   --define easel=1 \
   --define ipuonly=1 \
   --config=android_arm64 \
-  -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH}
+  -c opt ${GOOGLE3_GCAM_TARGET_FULL_PATH} ${GOOGLE3_IXM_TARGET_FULL_PATH}
 if [ $? -ne 0 ]; then
   echo "** Blaze opt build failure, cancelling update **"
   popd
@@ -152,7 +158,10 @@ fi
 #Build libeaselsystem
 blaze build \
   --config=android_arm64 \
-  -c opt ${GOOGLE3_SYSTEM_TARGET_FULL_PATH}
+  -c opt ${GOOGLE3_SYSTEM_TARGET_AMBER_FULL_PATH}
+blaze build \
+  --config=android_arm64 \
+  -c opt ${GOOGLE3_SYSTEM_TARGET_BLUE_FULL_PATH}
 
 pwd
 pwd
@@ -189,7 +198,8 @@ mkdir -p `dirname ${ANDROID_HALIDE_BUFFER_H}`
 cp ${GOOGLE3_HALIDE_BUFFER_H_FULL_PATH} ${ANDROID_HALIDE_BUFFER_H}
 
 # Copy libeaselsystem
-cp -f ${GOOGLE3_SYSTEM_OUT_SO_FULL} ${ANDROID_SYSTEM_OUT_FULL_PATH}
+cp -f ${GOOGLE3_SYSTEM_OUT_SO_AMBER_FULL} ${ANDROID_LIB_FULL_PATH}
+cp -f ${GOOGLE3_SYSTEM_OUT_SO_BLUE_FULL} ${ANDROID_LIB_FULL_PATH}
 mkdir -p ${ANDROID_SYSTEM_INCLUDE_FULL_PATH}
 cp -rf ${GOOGLE3_SYSTEM_INCLUDE_FULL_PATH}/*.h ${ANDROID_SYSTEM_INCLUDE_FULL_PATH}
 
@@ -199,6 +209,8 @@ cp ${GOOGLE3_IMX_OUT_FULL_PATH} ${ANDROID_IMX_OUT_FULL_PATH}
 mkdir -p `dirname ${ANDROID_IMX_H_FULL_PATH}`
 cp ${GOOGLE3_IMX_H_FULL_PATH} ${ANDROID_IMX_H_FULL_PATH}
 
+chmod +w ${ANDROID_LIB_FULL_PATH}/*
+
 # Copy PCG
 if (( FLAGS_generate_pcgs )); then
   mkdir -p `dirname ${ANDROID_PCG_FULL_PATH}`
@@ -207,5 +219,6 @@ if (( FLAGS_generate_pcgs )); then
   tar -cf ${ANDROID_PCG_FULL_PATH} *
   popd
 fi
+
 ######################################################################
 # All done.

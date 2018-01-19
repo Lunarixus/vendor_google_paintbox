@@ -15,8 +15,10 @@ std::string getServicePath(Service service) {
   switch (service) {
     case PBSERVER:
       return "/system/bin/pbserver";
-    case DUMMY_SERVICE:
-      return "/system/bin/easeldummyapp";
+    case DUMMY_SERVICE_1:
+      return "/system/bin/easeldummyapp1";
+    case DUMMY_SERVICE_2:
+      return "/system/bin/easeldummyapp2";
     case CRASH_SERVICE:
       return "/system/bin/easelcrashapp";
     default:
@@ -43,7 +45,17 @@ bool fileExist(const char* path) {
 
 ManagerService::ManagerService(
     std::function<void(const ServiceStatusResponse&)> statusCallback)
-    : mStatusCallback(statusCallback) {}
+    : mStatusCallback(statusCallback) {
+  // TODO (b/71584094): remove EaselControlServer once the blue version
+  // of control, watchdog and thermal is complete.
+  // Opening Easel Control
+  int res = mEaselControl.open(EASEL_SERVICE_MANAGER_SYSCTRL);
+  if (res != 0) {
+    LOG(ERROR) << __FUNCTION__ << ": Opening Easel Control failed: "
+               << strerror(-errno) << " (" << errno << ").";
+    mEaselControl.close();
+  }
+}
 
 void ManagerService::startService(const StartServiceRequest& request) {
   Service service = request.service();

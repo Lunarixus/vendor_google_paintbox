@@ -4,13 +4,15 @@
 
 #include "Rpc.h"
 
+#include "vendor/google_paintbox/blue/nn/shared/proto/types.pb.h"
+
 #include <android-base/logging.h>
 
 namespace android {
 namespace nn {
 namespace paintbox_driver {
 
-EaselExecutorClient::EaselExecutorClient() : mState(State::INIT) {
+EaselExecutorClient::EaselExecutorClient() {
   mComm = easel::CreateComm(easel::Comm::Type::CLIENT);
   mPrepareModelHandler = std::make_unique<easel::FunctionHandler>(
       [this](const easel::Message& message) {
@@ -30,7 +32,6 @@ int EaselExecutorClient::initialize() {
   LOG(DEBUG) << __FUNCTION__;
 
   std::lock_guard<std::mutex> lock(mExecutorLock);
-  if (mState != State::INIT) return 0;
   CHECK(mRequestQueue.empty());
 
   int res = mComm->Open(easel::EASEL_SERVICE_NN);
@@ -42,36 +43,29 @@ int EaselExecutorClient::initialize() {
   // Register the execute handler.
   mComm->RegisterHandler(EXECUTE, mExecuteHandler.get());
 
-  // Register the tear down handler.
+  // Register the destroy handler.
   mComm->RegisterHandler(DESTROY_MODEL, mDestroyModelHandler.get());
 
   res = mComm->StartReceiving();
-  if (res == 0) mState = State::INITED;
   return res;
 }
 
 int EaselExecutorClient::prepareModel(
-    const Model& model,
+    const Model& model, int64_t modelId,
     std::function<void(const paintbox_nn::PrepareModelResponse&)> callback) {
   LOG(DEBUG) << __FUNCTION__;
 
-  // Wait for readiness.
   std::unique_lock<std::mutex> lock(mExecutorLock);
-  mStateChanged.wait(lock, [&] {
-    return ((mState == State::INITED) || (mState == State::DESTROYED)) &&
-           (mModel == nullptr) && mRequestQueue.empty();
-  });
 
-  // Update mModel and mState.
-  mModel = std::make_unique<ModelObject>();
-  mModel->model = &model;
-  mModel->callback = callback;
-  mModel->bufferPools =
+  // Update mModels.
+  ModelObject modelObject;
+  modelObject.model = &model;
+  modelObject.callback = callback;
+  modelObject.bufferPools =
       std::vector<paintbox_util::HardwareBufferPool>(model.pools.size());
-  mState = State::PREPARING;
 
   paintbox_nn::Model protoModel;
-  paintbox_util::convertHidlModel(model, &protoModel);
+  paintbox_util::convertHidlModel(model, modelId, &protoModel);
 
   // Prepare the buffer pools to be sent to Easel.
   for (size_t i = 0; i < model.pools.size(); i++) {
@@ -79,7 +73,7 @@ int EaselExecutorClient::prepareModel(
     paintbox_util::HardwareBufferPool bufferPool;
     CHECK(paintbox_util::mapPool(pool, &bufferPool));
     bufferPool.buffer->SetId(i);
-    mModel->bufferPools[i] = std::move(bufferPool);
+    modelObject.bufferPools[i] = std::move(bufferPool);
   }
 
   // Send the model object first.
@@ -88,15 +82,25 @@ int EaselExecutorClient::prepareModel(
   if (res != 0) return res;
 
   // Then send the buffer pools.
-  if (!mModel->bufferPools.empty()) {
-    for (paintbox_util::HardwareBufferPool& bufferPool : mModel->bufferPools) {
-      res = mComm->Send(PREPARE_MODEL, bufferPool.buffer.get());
+  if (!modelObject.bufferPools.empty()) {
+    for (paintbox_util::HardwareBufferPool& bufferPool :
+         modelObject.bufferPools) {
+      paintbox_nn::ModelPoolRequest request;
+      request.set_modelid(modelId);
+      res = easel::SendProto(mComm.get(), PREPARE_MODEL, request,
+                             bufferPool.buffer.get());
       if (res != 0) {
         LOG(ERROR) << "Failed to send model pool, return code " << res;
         return res;
       }
     }
   }
+
+  // Update mModels.
+  CHECK(mModels.find(modelId) == mModels.end());
+  mModels.emplace(modelId, std::move(modelObject));
+  mModelsChanged.notify_all();
+
   return 0;
 }
 
@@ -105,37 +109,30 @@ void EaselExecutorClient::prepareModelHandler(const easel::Message& message) {
   paintbox_nn::PrepareModelResponse response;
   CHECK(easel::MessageToProto(message, &response));
 
-  {
-    std::lock_guard<std::mutex> lock(mExecutorLock);
-    CHECK(mModel != nullptr);
-    // TODO(cjluo): need to handle error.
-    CHECK_EQ(response.error(), paintbox_nn::NONE);
+  std::lock_guard<std::mutex> lock(mExecutorLock);
+  auto iter = mModels.find(response.modelid());
+  CHECK(iter != mModels.end());
 
-    // Update the state and callback to driver about preparation result.
-    mState = State::PREPARED;
-    mModel->callback(response);
-    // Clears the callback to release the PaintboxPrepareModel reference count.
-    mModel->callback = nullptr;
-  }
-
-  mStateChanged.notify_all();
+  auto& modelObject = iter->second;
+  // Update the state and callback to driver about preparation result.
+  modelObject.callback(response);
+  // Clears the callback to release the PaintboxPrepareModel reference count.
+  modelObject.callback = nullptr;
 }
 
 int EaselExecutorClient::execute(
-    const Request& request,
+    const Request& request, int64_t modelId,
     std::function<void(const paintbox_nn::RequestResponse&)> callback) {
   LOG(DEBUG) << __FUNCTION__;
 
-  // Wait for readiness.
   std::unique_lock<std::mutex> lock(mExecutorLock);
-  mStateChanged.wait(
-      lock, [&] { return (mState == State::PREPARED) && (mModel != nullptr); });
+  // Model should be prepared before execute.
+  CHECK(mModels.find(modelId) != mModels.end());
 
   paintbox_nn::Request protoRequest;
-  paintbox_util::convertHidlRequest(request, &protoRequest);
+  paintbox_util::convertHidlRequest(request, modelId, &protoRequest);
 
-  // Updates the request queue.
-  CHECK(mModel != nullptr);
+  // Update the request queue.
   mRequestQueue.push(
       {&request, callback,
        std::vector<paintbox_util::HardwareBufferPool>(request.pools.size())});
@@ -175,62 +172,55 @@ void EaselExecutorClient::executeHandler(const easel::Message& message) {
   if (message.GetPayloadSize() > 0) {
     // Updates the output buffer pools with results.
     int poolId = message.GetPayloadId();
-    mComm->ReceivePayload(
-        message, mRequestQueue.front().bufferPools[poolId].buffer.get());
+    // TODO(cjluo): need to handle the return value of ReceivePayload.
+    CHECK_EQ(
+        mComm->ReceivePayload(
+            message, mRequestQueue.front().bufferPools[poolId].buffer.get()),
+        0);
     // TODO(cjluo): need to check how many output buffer gets returned.
   } else {
     // Request execution Callback
     paintbox_nn::RequestResponse response;
     CHECK(easel::MessageToProto(message, &response));
 
-    {
-      // Pop the finished request from mRequestQueue.
-      auto callback = mRequestQueue.front().callback;
-      mRequestQueue.pop();
-      callback(response);
-    }
-
-    if (mRequestQueue.empty()) mStateChanged.notify_all();
+    // Pop the finished request from mRequestQueue.
+    auto callback = mRequestQueue.front().callback;
+    mRequestQueue.pop();
+    callback(response);
   }
 }
 
-void EaselExecutorClient::destroyModel(const Model& model) {
+void EaselExecutorClient::destroyModel(int64_t modelId) {
   LOG(DEBUG) << __FUNCTION__;
-  // Wait for readiness.
+
   std::unique_lock<std::mutex> lock(mExecutorLock);
-  mStateChanged.wait(lock, [&] {
-    return (mState == State::PREPARED) && (mModel != nullptr) &&
-           (mRequestQueue.empty());
-  });
 
-  CHECK_EQ(mModel->model, &model);
-  CHECK(mRequestQueue.empty());
+  paintbox_nn::DestroyModelRequest request;
+  request.set_modelid(modelId);
 
-  // Update the state and destroy callback.
-  mState = State::DESTROYING;
+  auto iter = mModels.find(modelId);
+  if (iter == mModels.end()) {
+    LOG(WARNING) << __FUNCTION__ << " model with ID" << modelId
+                 << " has already been deleted.";
+    return;
+  }
+  mModels.erase(iter);
+  mModelsChanged.notify_all();
 
-  mComm->Send(DESTROY_MODEL, /*payload=*/nullptr);
-
-  // Wait until server acknowledges the model to be destroyed.
-  mStateChanged.wait(lock, [&] { return mState == State::DESTROYED; });
+  CHECK_EQ(easel::SendProto(mComm.get(), DESTROY_MODEL, request,
+                            /*payload=*/nullptr),
+           0);
 }
 
 void EaselExecutorClient::destroyModelHandler(const easel::Message& message) {
   LOG(DEBUG) << __FUNCTION__;
-  paintbox_nn::TearDownModelResponse response;
+  paintbox_nn::DestroyModelResponse response;
   CHECK(easel::MessageToProto(message, &response));
 
-  {
-    // Update mModel, mState and make the callback.
-    std::lock_guard<std::mutex> lock(mExecutorLock);
-    CHECK(mModel != nullptr);
-    // TODO(cjluo): need to handle error.
-    CHECK_EQ(response.error(), paintbox_nn::NONE);
-    mState = State::DESTROYED;
-    mModel = nullptr;
+  if (response.error() != paintbox_nn::NONE) {
+    LOG(ERROR) << "Could not delete model, id=" << response.modelid()
+               << " error " << response.error();
   }
-
-  mStateChanged.notify_all();
 }
 
 }  // namespace paintbox_driver

@@ -75,7 +75,7 @@ paintbox_nn::OemModel getOemModel(const Model& model,
   return static_cast<paintbox_nn::OemModel>(oemModel);
 }
 
-void convertHidlModel(const Model& inputModel,
+void convertHidlModel(const Model& inputModel, int64_t modelId,
                       paintbox_nn::Model* outputModel) {
   for (auto& operand : inputModel.operands) {
     auto protoOperand = outputModel->add_operands();
@@ -122,9 +122,11 @@ void convertHidlModel(const Model& inputModel,
   for (auto& pool : inputModel.pools) {
     outputModel->add_poolsizes(pool.size());
   }
+
+  outputModel->set_modelid(modelId);
 }
 
-void convertHidlRequest(const Request& inputRequest,
+void convertHidlRequest(const Request& inputRequest, int64_t modelId,
                         paintbox_nn::Request* outputRequest) {
   std::set<uint32_t> inputPoolSet;
   for (auto& input : inputRequest.inputs) {
@@ -173,6 +175,8 @@ void convertHidlRequest(const Request& inputRequest,
   for (auto& pool : inputRequest.pools) {
     outputRequest->add_poolsizes(pool.size());
   }
+
+  outputRequest->set_modelid(modelId);
 }
 
 // Reference: RunTimePoolInfo::set

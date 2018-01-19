@@ -56,6 +56,7 @@ message Model {
   repeated uint32 outputIndexes = 4;
   optional bytes operandValues = 5;
   repeated uint64 poolSizes = 6;
+  optional int64 modelId = 7;
 }
 
 message RequestArgument {
@@ -70,6 +71,7 @@ message Request {
   repeated uint64 poolSizes = 3;
   repeated int32 inputPools = 4;
   repeated int32 outputPools = 5;
+  optional int64 modelId = 6;
 }
 
 enum ErrorStatus {
@@ -80,14 +82,24 @@ enum ErrorStatus {
   INVALID_ARGUMENT = 4;
 }
 
+message ModelPoolRequest {
+  optional int64 modelId = 1;
+}
+
 message PrepareModelResponse {
   optional ErrorStatus error = 1;
+  optional int64 modelId = 2;
 }
 
 message RequestResponse {
   optional ErrorStatus error = 1;
 }
 
-message TearDownModelResponse {
+message DestroyModelRequest {
+  optional int64 modelId = 6;
+}
+
+message DestroyModelResponse {
   optional ErrorStatus error = 1;
+  optional int64 modelId = 2;
 }

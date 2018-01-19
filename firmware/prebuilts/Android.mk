@@ -27,7 +27,15 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := easel/Image
-LOCAL_SRC_FILES := Image
+
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+LOCAL_SRC_FILES := Image.amber
+else ifeq ($(TARGET_EASEL_VARIANT), blue)
+LOCAL_SRC_FILES := Image.blue
+else
+$(error TARGET_EASEL_VARIANT not defined)
+endif
+
 LOCAL_MODULE_OWNER := google
 LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
@@ -37,7 +45,15 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := easel/mnh.dtb
-LOCAL_SRC_FILES := mnh.dtb
+
+ifeq ($(TARGET_EASEL_VARIANT), amber)
+LOCAL_SRC_FILES := mnh.dtb.amber
+else ifeq ($(TARGET_EASEL_VARIANT), blue)
+LOCAL_SRC_FILES := mnh.dtb.blue
+else
+$(error TARGET_EASEL_VARIANT not defined)
+endif
+
 LOCAL_MODULE_OWNER := google
 LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR)/firmware
